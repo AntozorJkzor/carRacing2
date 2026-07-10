@@ -1,0 +1,35 @@
+[gd_resource type="Resource" script_class="CarSetup" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://vehicles/car_setup.gd" id="1_setup"]
+
+[sub_resource type="Curve" id="Curve_torque"]
+_data = [Vector2(0, 0.55), 0.0, 0.0, 0, 0, Vector2(0.25, 0.85), 0.0, 0.0, 0, 0, Vector2(0.55, 1), 0.0, 0.0, 0, 0, Vector2(0.8, 0.92), 0.0, 0.0, 0, 0, Vector2(1, 0.7), 0.0, 0.0, 0, 0]
+point_count = 5
+
+[resource]
+script = ExtResource("1_setup")
+mass = 1200.0
+center_of_mass_offset = Vector3(0, -0.3, 0)
+max_power_kw = 150.0
+idle_rpm = 800.0
+max_rpm = 7000.0
+torque_curve = SubResource("Curve_torque")
+gear_ratios = Array[float]([3.67, 2.1, 1.36, 1.0, 0.82])
+reverse_ratio = 3.53
+final_drive = 3.9
+drive_type = 1
+shift_time = 0.15
+wheel_radius = 0.33
+wheel_width = 0.22
+wheel_positions = Array[Vector3]([Vector3(-0.75, 0, 1.25), Vector3(0.75, 0, 1.25), Vector3(-0.75, 0, -1.25), Vector3(0.75, 0, -1.25)])
+rest_length = 0.4
+travel = 0.2
+stiffness = 35000.0
+damping = 3500.0
+anti_roll = 5000.0
+grip_longitudinal = 1.2
+grip_lateral = 1.1
+rolling_resistance = 0.015
+brake_force = 12000.0
+max_steer_angle = 32.0
+steer_speed = 5.0

@@ -1,0 +1,153 @@
+[gd_scene load_steps=15 format=3 uid="uid://citytrack001car"]
+
+[ext_resource type="Script" path="res://assets/scenes/tracks/city_track.gd" id="1_track"]
+[ext_resource type="Script" path="res://assets/scenes/tracks/city_builder.gd" id="2_builder"]
+[ext_resource type="PackedScene" path="res://assets/scenes/cars/car.tscn" id="3_car"]
+[ext_resource type="Script" path="res://vehicles/player_driver.gd" id="4_driver"]
+[ext_resource type="Script" path="res://vehicles/follow_camera.gd" id="5_cam"]
+[ext_resource type="Script" path="res://assets/scenes/tracks/hud.gd" id="6_hud"]
+[ext_resource type="PackedScene" path="res://assets/scenes/characters/player.tscn" id="7_player"]
+[ext_resource type="Script" path="res://characters/npc/npc_spawner.gd" id="8_spawner"]
+[ext_resource type="PackedScene" path="res://assets/scenes/npc/npc1.tscn" id="9_npc1"]
+[ext_resource type="PackedScene" path="res://assets/scenes/npc/npc2.tscn" id="10_npc2"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_sky"]
+sky_top_color = Color(0.35, 0.55, 0.85, 1)
+sky_horizon_color = Color(0.7, 0.78, 0.88, 1)
+ground_bottom_color = Color(0.2, 0.22, 0.25, 1)
+ground_horizon_color = Color(0.65, 0.7, 0.75, 1)
+
+[sub_resource type="Sky" id="Sky_main"]
+sky_material = SubResource("ProceduralSkyMaterial_sky")
+
+[sub_resource type="Environment" id="Environment_main"]
+background_mode = 2
+sky = SubResource("Sky_main")
+ambient_light_source = 2
+ambient_light_color = Color(0.65, 0.7, 0.8, 1)
+ambient_light_energy = 0.55
+tonemap_mode = 2
+glow_enabled = true
+glow_intensity = 0.3
+fog_enabled = true
+fog_light_color = Color(0.7, 0.75, 0.85, 1)
+fog_density = 0.0015
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
+bg_color = Color(0.05, 0.06, 0.08, 0.6)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+content_margin_left = 14.0
+content_margin_top = 10.0
+content_margin_right = 14.0
+content_margin_bottom = 10.0
+
+[node name="CityTrack" type="Node3D"]
+script = ExtResource("1_track")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_main")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.866025, -0.353553, 0.353553, 0, 0.707107, 0.707107, -0.5, -0.612372, 0.612372, 20, 40, 10)
+shadow_enabled = true
+directional_shadow_max_distance = 120.0
+
+[node name="City" type="Node3D" parent="."]
+script = ExtResource("2_builder")
+
+[node name="Car" parent="." instance=ExtResource("3_car")]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -20, 1.5, -30)
+
+[node name="PlayerDriver" type="Node" parent="Car"]
+script = ExtResource("4_driver")
+
+[node name="Player" parent="." instance=ExtResource("7_player")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -16.5, 0.05, -30)
+
+[node name="NpcSpawner" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+script = ExtResource("8_spawner")
+npc1_scene = ExtResource("9_npc1")
+npc2_scene = ExtResource("10_npc2")
+count_per_type = 30
+spawn_radius = 42.0
+spawn_seed = 77
+
+[node name="FollowCamera" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -20, 4, -22)
+current = false
+fov = 70.0
+script = ExtResource("5_cam")
+target_path = NodePath("../Car")
+
+[node name="HUD" type="CanvasLayer" parent="."]
+script = ExtResource("6_hud")
+car_path = NodePath("../Car")
+
+[node name="Telemetry" type="PanelContainer" parent="HUD"]
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -220.0
+offset_top = 16.0
+offset_right = -16.0
+offset_bottom = 130.0
+grow_horizontal = 0
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+
+[node name="VBox" type="VBoxContainer" parent="HUD/Telemetry"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="SpeedLabel" type="Label" parent="HUD/Telemetry/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.95, 0.96, 0.98, 1)
+theme_override_font_sizes/font_size = 28
+text = "0 км/ч"
+horizontal_alignment = 2
+
+[node name="RpmLabel" type="Label" parent="HUD/Telemetry/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.75, 0.8, 0.88, 1)
+theme_override_font_sizes/font_size = 18
+text = "800 об/мин"
+horizontal_alignment = 2
+
+[node name="GearRow" type="HBoxContainer" parent="HUD/Telemetry/VBox"]
+layout_mode = 2
+alignment = 2
+
+[node name="GearCaption" type="Label" parent="HUD/Telemetry/VBox/GearRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.65, 0.7, 0.78, 1)
+theme_override_font_sizes/font_size = 16
+text = "Передача"
+
+[node name="GearLabel" type="Label" parent="HUD/Telemetry/VBox/GearRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.85, 0.35, 1)
+theme_override_font_sizes/font_size = 22
+text = "1"
+
+[node name="Hint" type="PanelContainer" parent="HUD"]
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 16.0
+offset_top = -72.0
+offset_right = 420.0
+offset_bottom = -16.0
+grow_vertical = 0
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+
+[node name="HintLabel" type="Label" parent="HUD/Hint"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.9, 0.92, 0.95, 1)
+theme_override_font_sizes/font_size = 14
+text = "WASD ходьба  Shift бег  Space прыжок  мышь камера  E сесть/выйти  Esc меню"

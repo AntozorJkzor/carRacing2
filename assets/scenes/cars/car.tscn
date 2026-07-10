@@ -1,0 +1,41 @@
+[gd_scene load_steps=11 format=3 uid="uid://y0x32d4brm53"]
+
+[ext_resource type="Script" path="res://vehicles/car_controller.gd" id="1_ctrl"]
+[ext_resource type="Resource" uid="uid://bjem1xbvsqfy8" path="res://assets/scenes/cars/car_setup.tres" id="2_setup"]
+[ext_resource type="PackedScene" uid="uid://r1ghyh5xfx3f" path="res://assets/models/cars/car.glb" id="3_model"]
+[ext_resource type="Script" path="res://vehicles/car_debug_draw.gd" id="4_debug"]
+[ext_resource type="Script" path="res://vehicles/engine_audio.gd" id="5_engine"]
+[ext_resource type="AudioStream" uid="uid://cxb0bqy8sik7c" path="res://assets/audio/cars/idling.mp3" id="6_idle"]
+[ext_resource type="AudioStream" uid="uid://dtkf3ykeiijmu" path="res://assets/audio/cars/low.mp3" id="7_low"]
+[ext_resource type="AudioStream" uid="uid://b3efm2hjm3lwq" path="res://assets/audio/cars/mid.mp3" id="8_mid"]
+[ext_resource type="AudioStream" uid="uid://dq315w6you5fq" path="res://assets/audio/cars/max.mp3" id="9_max"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_body"]
+size = Vector3(1, 0.35, 1.7)
+
+[node name="Car" type="RigidBody3D"]
+collision_mask = 5
+mass = 1200.0
+continuous_cd = true
+can_sleep = false
+angular_damp = 0.8
+script = ExtResource("1_ctrl")
+setup = ExtResource("2_setup")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.48, 0)
+shape = SubResource("BoxShape3D_body")
+
+[node name="Model" parent="." instance=ExtResource("3_model")]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 0, 0.28, 0)
+
+[node name="EngineAudio" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.4, 0.6)
+script = ExtResource("5_engine")
+idle_stream = ExtResource("6_idle")
+low_stream = ExtResource("7_low")
+mid_stream = ExtResource("8_mid")
+max_stream = ExtResource("9_max")
+
+[node name="DebugDraw" type="Node3D" parent="."]
+script = ExtResource("4_debug")
