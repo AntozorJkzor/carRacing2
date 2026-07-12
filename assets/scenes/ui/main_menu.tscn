@@ -72,40 +72,103 @@ text = "CAR RACING"
 horizontal_alignment = 1
 
 [node name="Subtitle" type="Label" parent="Center/Panel/Margin/VBox"]
+unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.65, 0.7, 0.78, 1)
 theme_override_font_sizes/font_size = 16
-text = "Выбери трассу"
+text = "Основной режим"
 horizontal_alignment = 1
 
 [node name="Spacer" type="Control" parent="Center/Panel/Margin/VBox"]
 custom_minimum_size = Vector2(0, 12)
 layout_mode = 2
 
-[node name="CityButton" type="Button" parent="Center/Panel/Margin/VBox"]
+[node name="MainBox" type="VBoxContainer" parent="Center/Panel/Margin/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="NewGameButton" type="Button" parent="Center/Panel/Margin/VBox/MainBox"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(260, 44)
 layout_mode = 2
 theme_override_font_sizes/font_size = 20
-text = "Город"
+text = "Новая игра"
 
-[node name="RunwayButton" type="Button" parent="Center/Panel/Margin/VBox"]
+[node name="FunButton" type="Button" parent="Center/Panel/Margin/VBox/MainBox"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(260, 44)
 layout_mode = 2
 theme_override_font_sizes/font_size = 20
-text = "ВПП / Трамплины"
+text = "Развлечения"
 
-[node name="SettingsButton" type="Button" parent="Center/Panel/Margin/VBox"]
+[node name="LeadersButton" type="Button" parent="Center/Panel/Margin/VBox/MainBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(260, 44)
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "Таблица лидеров"
+
+[node name="SettingsButton" type="Button" parent="Center/Panel/Margin/VBox/MainBox"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(260, 44)
 layout_mode = 2
 theme_override_font_sizes/font_size = 20
 text = "Настройки"
 
-[node name="ExitButton" type="Button" parent="Center/Panel/Margin/VBox"]
+[node name="ExitButton" type="Button" parent="Center/Panel/Margin/VBox/MainBox"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(260, 44)
 layout_mode = 2
 theme_override_font_sizes/font_size = 20
 text = "Выход"
+
+[node name="FunBox" type="VBoxContainer" parent="Center/Panel/Margin/VBox"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="CityButton" type="Button" parent="Center/Panel/Margin/VBox/FunBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(260, 44)
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "Город"
+
+[node name="RunwayButton" type="Button" parent="Center/Panel/Margin/VBox/FunBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(260, 44)
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "ВПП / Трамплины"
+
+[node name="FunBackButton" type="Button" parent="Center/Panel/Margin/VBox/FunBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(260, 44)
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "Назад"
+
+[node name="BoardBox" type="VBoxContainer" parent="Center/Panel/Margin/VBox"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="BoardLabel" type="Label" parent="Center/Panel/Margin/VBox/BoardBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(360, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.9, 0.92, 0.96, 1)
+theme_override_font_sizes/font_size = 15
+text = "ТАБЛИЦА ЛИДЕРОВ"
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="BoardBackButton" type="Button" parent="Center/Panel/Margin/VBox/BoardBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(260, 44)
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "Назад"

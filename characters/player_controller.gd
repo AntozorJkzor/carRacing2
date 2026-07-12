@@ -40,6 +40,7 @@ func _resolve_animations() -> void:
 	_anim_walk = _match_anim(["walk", "Walk"])
 	_anim_run = _match_anim(["run", "Run"])
 	_anim_jump = _match_anim(["jump", "Jump"])
+	_fallback_single_animation()
 
 	# Loop locomotion / idle; jump plays once.
 	for anim_name in _anim.get_animation_list():
@@ -54,6 +55,8 @@ func _resolve_animations() -> void:
 
 	if _anim_idle != "":
 		_anim.play(_anim_idle)
+	elif _anim_run != "":
+		_anim.play(_anim_run)
 
 
 func _find_animation_player(root: Node) -> AnimationPlayer:
@@ -83,6 +86,27 @@ func _match_anim(candidates: Array) -> String:
 			if key in lower and not (key == "expectation" and ".001" in lower):
 				return anim_name
 	return ""
+
+
+func _fallback_single_animation() -> void:
+	if _anim == null:
+		return
+	var list := _anim.get_animation_list()
+	if list.is_empty():
+		return
+	# player2-style models: one run clip only — use it for all locomotion states.
+	if list.size() == 1:
+		var only := list[0]
+		_anim_run = only
+		_anim_walk = only
+		_anim_idle = only
+		return
+	if _anim_run == "":
+		_anim_run = list[0]
+	if _anim_walk == "":
+		_anim_walk = _anim_run
+	if _anim_idle == "":
+		_anim_idle = _anim_run
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -169,6 +193,8 @@ func set_on_foot(enabled: bool) -> void:
 		_current_car = null
 		if _anim and _anim_idle != "":
 			_anim.play(_anim_idle, anim_blend)
+		elif _anim and _anim_run != "":
+			_anim.play(_anim_run, anim_blend)
 	else:
 		velocity = Vector3.ZERO
 		if _anim:
@@ -205,6 +231,27 @@ func _enter_car(car: CarController) -> void:
 	set_on_foot(false)
 	car.set_occupied(true, self)
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
+
+## Used by cutscenes / scripted boarding.
+func force_enter_car(car: CarController) -> void:
+	if car == null:
+		return
+	_enter_car(car)
+
+
+func play_run_animation() -> void:
+	if _anim == null:
+		_resolve_animations()
+	if _anim == null:
+		return
+	if _anim_run == "":
+		_fallback_single_animation()
+	if _anim_run == "":
+		return
+	if _anim.current_animation == _anim_run and _anim.is_playing():
+		return
+	_anim.play(_anim_run, 0.0)
 
 
 func exit_car() -> void:

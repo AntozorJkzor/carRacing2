@@ -5,6 +5,8 @@ extends Node
 @onready var car: CarController = get_parent() as CarController
 
 var active: bool = false
+## When false, E cannot exit the car (main endless-road mode).
+var can_exit: bool = true
 
 
 func _physics_process(_delta: float) -> void:
@@ -30,7 +32,7 @@ func _physics_process(_delta: float) -> void:
 	if Input.is_action_just_pressed("restart_car"):
 		car.reset_to_spawn()
 
-	if Input.is_action_just_pressed("interact"):
+	if can_exit and Input.is_action_just_pressed("interact"):
 		_exit_to_character()
 
 	if not car.automatic:

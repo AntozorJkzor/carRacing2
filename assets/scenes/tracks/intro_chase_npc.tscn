@@ -1,0 +1,10 @@
+[gd_scene format=3 uid="uid://dppfxh3gdj7jg"]
+
+[ext_resource type="Script" path="res://assets/scenes/tracks/intro_chase_npc.gd" id="1_npc"]
+[ext_resource type="PackedScene" path="res://assets/models/npc/npc1_test.glb" id="2_model"]
+
+[node name="IntroChaseNpc" type="Node3D"]
+script = ExtResource("1_npc")
+
+[node name="Model" parent="." instance=ExtResource("2_model")]
+transform = Transform3D(-4.37114e-08, 0, 1, 0, 1, 0, -1, 0, -4.37114e-08, 0, 0, 0)

@@ -1,0 +1,10 @@
+[gd_scene format=3 uid="uid://dl453vnyxfo77"]
+
+[ext_resource type="Script" path="res://assets/scenes/tracks/road_cross_npc.gd" id="1_npc"]
+[ext_resource type="PackedScene" path="res://assets/models/npc/npc1_test.glb" id="2_model"]
+
+[node name="RoadCrossNpc" type="Node3D"]
+script = ExtResource("1_npc")
+
+[node name="Model" parent="." instance=ExtResource("2_model")]
+transform = Transform3D(-4.37114e-08, 0, 1, 0, 1, 0, -1, 0, -4.37114e-08, 0, 0, 0)

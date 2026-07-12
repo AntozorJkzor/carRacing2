@@ -2,7 +2,7 @@ extends Node3D
 
 ## Crossfades idling / low / mid / max engine loops from car RPM.
 
-@export var master_volume_db: float = 0.0
+@export var master_volume_db: float = -9.1 ## ~0.35 linear (~50% quieter than previous -3.1)
 @export var idle_stream: AudioStream
 @export var low_stream: AudioStream
 @export var mid_stream: AudioStream
@@ -55,12 +55,13 @@ func _process(delta: float) -> void:
 	var load_db := lerpf(-2.5, 2.0, _smooth_load)
 	# Quieter when nobody is driving, but keep a soft idle presence.
 	var occupied_db := 0.0 if _car.occupied else -8.0
+	var mute_engine := GameAudio != null and GameAudio.has_method("is_terror_playing") and GameAudio.is_terror_playing()
 
 	for i in _players.size():
 		var player := _players[i]
 		var w: float = weights[i]
 		player.pitch_scale = pitch
-		if w <= 0.001:
+		if mute_engine or w <= 0.001:
 			player.volume_db = -80.0
 		else:
 			# linear weight -> dB

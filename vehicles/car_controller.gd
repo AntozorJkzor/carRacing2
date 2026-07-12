@@ -3,6 +3,8 @@ extends RigidBody3D
 
 ## Tuning resource. Assign in the inspector or via set_setup().
 @export var setup: CarSetup
+## When false, reverse gear is disabled (endless-road / arcade modes).
+@export var allow_reverse: bool = true
 
 ## Driver inputs. Set these from gameplay code each frame.
 ## throttle / brake / handbrake: 0..1, steering: -1..1 (negative = left).
@@ -190,7 +192,8 @@ func shift_up() -> void:
 func shift_down() -> void:
 	if setup == null or _shift_timer > 0.0:
 		return
-	if current_gear > -1:
+	var min_gear := -1 if allow_reverse else 1
+	if current_gear > min_gear:
 		current_gear -= 1
 		_shift_timer = setup.shift_time
 		_sync_rpm_to_transmission()
@@ -236,76 +239,112 @@ func _update_automatic_transmission() -> void:
 	var forward_speed := linear_velocity.dot(-global_transform.basis.z)
 	var speed_kmh := absf(forward_speed) * 3.6
 
-	# Arm reverse when nearly stopped and holding brake.
-	if absf(forward_speed) < 1.2 and brake > 0.35 and throttle < 0.05:
-		_auto_reverse_armed = true
-	if forward_speed > 2.5:
+	if allow_reverse:
+		# Arm reverse when nearly stopped and holding brake.
+		if absf(forward_speed) < 1.2 and brake > 0.35 and throttle < 0.05:
+			_auto_reverse_armed = true
+		if forward_speed > 2.5:
+			_auto_reverse_armed = false
+
+		if _auto_reverse_armed and throttle > 0.1 and forward_speed < 1.5:
+			if current_gear != -1:
+				current_gear = -1
+				_shift_timer = setup.shift_time
+				_auto_shift_cooldown = 0.4
+				_sync_rpm_to_transmission()
+			return
+
+		if current_gear < 0:
+			if throttle < 0.05 and absf(forward_speed) < 0.6:
+				current_gear = 1
+				_auto_reverse_armed = false
+				_shift_timer = setup.shift_time
+				_auto_shift_cooldown = 0.4
+				_sync_rpm_to_transmission()
+			elif throttle > 0.1 and forward_speed > 0.4:
+				current_gear = 1
+				_auto_reverse_armed = false
+				_shift_timer = setup.shift_time
+				_auto_shift_cooldown = 0.4
+				_sync_rpm_to_transmission()
+			return
+	else:
 		_auto_reverse_armed = false
-
-	if _auto_reverse_armed and throttle > 0.1 and forward_speed < 1.5:
-		if current_gear != -1:
-			current_gear = -1
-			_shift_timer = setup.shift_time
-			_auto_shift_cooldown = 0.4
-			_sync_rpm_to_transmission()
-		return
-
-	if current_gear < 0:
-		if throttle < 0.05 and absf(forward_speed) < 0.6:
+		if current_gear < 1:
 			current_gear = 1
-			_auto_reverse_armed = false
-			_shift_timer = setup.shift_time
-			_auto_shift_cooldown = 0.4
-			_sync_rpm_to_transmission()
-		elif throttle > 0.1 and forward_speed > 0.4:
-			current_gear = 1
-			_auto_reverse_armed = false
-			_shift_timer = setup.shift_time
-			_auto_shift_cooldown = 0.4
-			_sync_rpm_to_transmission()
-		return
 
 	if current_gear <= 0:
 		current_gear = 1
 
-	# Downshift speed floors (hysteresis only) — upshifts are RPM/redline driven.
+	# Downshift: small gearboxes use speed floors; big (endless) boxes use RPM.
 	var down_at: Dictionary = {2: 12.0, 3: 28.0, 4: 48.0, 5: 75.0}
 	var down_speed := float(down_at.get(current_gear, -1.0))
+	var wide_box := max_gear > 8
 
-	# Hold each gear almost to the limiter, then one step up.
-	var redline_up := setup.max_rpm * 0.85
 	var want_up := false
+	var skip_to_gear := -1
 	if current_gear < max_gear and throttle > 0.08:
-		if engine_rpm >= redline_up:
-			var next_rpm := _estimate_transmission_rpm(current_gear + 1)
-			# Don't upshift into a lugging gear at walking pace.
-			if next_rpm >= setup.idle_rpm * 1.2 or speed_kmh > 15.0:
-				want_up = true
+		if wide_box:
+			# 100 closely-spaced ratios: jump forward until RPM actually drops.
+			if engine_rpm >= setup.max_rpm * 0.92:
+				var best := current_gear
+				for g in range(current_gear + 1, max_gear + 1):
+					var rpm_g := _estimate_transmission_rpm(g)
+					if rpm_g <= 0.0:
+						break
+					best = g
+					if rpm_g <= setup.max_rpm * 0.72:
+						break
+				if best > current_gear:
+					skip_to_gear = best
+					want_up = true
+		else:
+			var redline_up2 := setup.max_rpm * 0.85
+			if engine_rpm >= redline_up2:
+				var next_rpm2 := _estimate_transmission_rpm(current_gear + 1)
+				if next_rpm2 >= setup.idle_rpm * 1.2 or speed_kmh > 15.0:
+					want_up = true
 
 	var want_down := false
 	if current_gear > 1:
-		# Coast / light throttle: drop when speed is clearly low for this gear.
-		if speed_kmh <= down_speed and throttle < 0.7:
-			want_down = true
-		elif engine_rpm <= setup.idle_rpm * 1.2 and throttle < 0.3 and speed_kmh <= down_speed + 10.0:
-			want_down = true
-		# Kickdown: heavy throttle while RPM is lazy, and next-up wouldn't instantly fire.
-		elif throttle > 0.9 and engine_rpm < setup.max_rpm * 0.55:
-			var rpm_if_down := _estimate_transmission_rpm(current_gear - 1)
-			if rpm_if_down < setup.max_rpm * 0.9:
+		if wide_box:
+			# Wide hysteresis vs upshift band so it can't bounce.
+			if engine_rpm <= setup.max_rpm * 0.42 and throttle < 0.65:
 				want_down = true
+			elif throttle > 0.9 and engine_rpm < setup.max_rpm * 0.48:
+				var rpm_if_down := _estimate_transmission_rpm(current_gear - 1)
+				if rpm_if_down > 0.0 and rpm_if_down < setup.max_rpm * 0.9:
+					want_down = true
+		else:
+			if speed_kmh <= down_speed and throttle < 0.7:
+				want_down = true
+			elif engine_rpm <= setup.idle_rpm * 1.2 and throttle < 0.3 and speed_kmh <= down_speed + 10.0:
+				want_down = true
+			elif throttle > 0.9 and engine_rpm < setup.max_rpm * 0.55:
+				var rpm_if_down2 := _estimate_transmission_rpm(current_gear - 1)
+				if rpm_if_down2 < setup.max_rpm * 0.9:
+					want_down = true
 
 	if want_up and not want_down:
-		shift_up()
+		if skip_to_gear > current_gear:
+			current_gear = skip_to_gear
+			_shift_timer = setup.shift_time
+			_auto_shift_cooldown = 0.5
+			_sync_rpm_to_transmission()
+		else:
+			shift_up()
 	elif want_down and not want_up:
 		shift_down()
+		if wide_box:
+			_auto_shift_cooldown = maxf(_auto_shift_cooldown, 0.45)
 
 
 func set_gear(gear: int) -> void:
 	if setup == null:
 		return
 	var max_gear := setup.get_forward_gear_count()
-	current_gear = clampi(gear, -1, max_gear)
+	var min_gear := -1 if allow_reverse else 1
+	current_gear = clampi(gear, min_gear, max_gear)
 	_shift_timer = setup.shift_time
 
 
@@ -315,6 +354,12 @@ func get_speed_ms() -> float:
 
 func get_speed_kmh() -> float:
 	return get_speed_ms() * 3.6
+
+
+func get_power_hp() -> float:
+	if setup == null:
+		return 0.0
+	return setup.max_power_kw / 0.7457
 
 
 func get_gear_label() -> String:
