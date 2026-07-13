@@ -17,7 +17,7 @@ extends Node3D
 var _hubs: Array[Node3D] = []
 var _spinners: Array[Node3D] = []
 var _spin_angle: Array[float] = []
-## +1 left / -1 right — compensates mirror so spin direction matches ω.
+## +1 normally; kept for compatibility if a side needs spin flip.
 var _spin_sign: Array[float] = []
 
 
@@ -75,7 +75,7 @@ func _physics_process(delta: float) -> void:
 			-TAU,
 			TAU
 		)
-		spinner.rotation = Vector3(_spin_sign[i] * _spin_angle[i], 0.0, 0.0)
+		spinner.rotation = Vector3(-_spin_sign[i] * _spin_angle[i], 0.0, 0.0)
 
 
 func _rebuild() -> void:
@@ -101,16 +101,16 @@ func _rebuild() -> void:
 
 		var mesh_root := wheel_scene.instantiate() as Node3D
 		mesh_root.name = "Mesh"
-		mesh_root.rotation_degrees = mesh_euler_degrees
-		var side_sign := 1.0
 		var local_x := _car.setup.wheel_positions[i].x
-		# Left side (negative X): mirror so the outward face matches.
+		# Flip outward face with 180° yaw (not scale.x — negative scale reverses spin).
+		var yaw_flip := 0.0
 		if mirror_right and local_x < 0.0:
-			side_sign = -1.0
-		mesh_root.scale = Vector3(side_sign * mesh_scale, mesh_scale, mesh_scale)
+			yaw_flip = 180.0
+		mesh_root.rotation_degrees = mesh_euler_degrees + Vector3(0.0, yaw_flip, 0.0)
+		mesh_root.scale = Vector3(mesh_scale, mesh_scale, mesh_scale)
 		spinner.add_child(mesh_root)
 
 		_hubs.append(hub)
 		_spinners.append(spinner)
 		_spin_angle.append(0.0)
-		_spin_sign.append(side_sign)
+		_spin_sign.append(1.0)

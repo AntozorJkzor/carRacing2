@@ -241,20 +241,19 @@ func _apply_preview_scales() -> void:
 		var marker := get_node_or_null(WHEEL_NAMES[i]) as Marker3D
 		if marker:
 			local_x = marker.position.x
-		var side_sign := 1.0
+		var yaw_flip := 0.0
 		if mirror_right and local_x < 0.0:
-			side_sign = -1.0
+			yaw_flip = 180.0
 		var mesh_root := child.get_node_or_null("Mesh") as Node3D
 		if mesh_root:
-			mesh_root.scale = Vector3(side_sign * mesh_scale, mesh_scale, mesh_scale)
-			mesh_root.rotation_degrees = mesh_euler_degrees
+			mesh_root.scale = Vector3(mesh_scale, mesh_scale, mesh_scale)
+			mesh_root.rotation_degrees = mesh_euler_degrees + Vector3(0.0, yaw_flip, 0.0)
 		var ghost := child.get_node_or_null("PhysicsGhost") as MeshInstance3D
 		if ghost and ghost.mesh is CylinderMesh:
 			var cyl := ghost.mesh as CylinderMesh
 			cyl.top_radius = wheel_radius
 			cyl.bottom_radius = wheel_radius
 			cyl.height = width
-
 
 func _rest_length_for_index(setup: Resource, index: int) -> float:
 	# Don't call CarSetup methods from @tool — without @tool on car_setup.gd
