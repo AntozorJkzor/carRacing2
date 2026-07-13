@@ -11,6 +11,7 @@ extends Control
 var _sliders: Dictionary = {}
 var _value_labels: Dictionary = {}
 var _drive_option: OptionButton
+var _rear_diff_option: OptionButton
 
 
 func _ready() -> void:
@@ -27,6 +28,7 @@ func _rebuild_ui() -> void:
 	_sliders.clear()
 	_value_labels.clear()
 	_drive_option = null
+	_rear_diff_option = null
 
 	_add_section("Визуал / высота")
 	_add_slider("model_y_offset", "Высота модели", 0.0, 0.8, 0.01, TuningStore.model_y_offset)
@@ -60,8 +62,16 @@ func _rebuild_ui() -> void:
 			TuningStore.setup.gear_ratios[i]
 		)
 
+	_add_section("Задний дифференциал")
+	_add_rear_diff_type()
+	_add_slider("diff_preload", "LSD preload", 0.0, 400.0, 5.0, TuningStore.setup.diff_preload)
+	_add_slider("diff_power_lock", "LSD power lock", 0.0, 1.0, 0.05, TuningStore.setup.diff_power_lock)
+	_add_slider("diff_coast_lock", "LSD coast lock", 0.0, 1.0, 0.05, TuningStore.setup.diff_coast_lock)
+	_add_slider("locked_diff_stiffness", "Жёсткость заварки", 100.0, 2000.0, 25.0, TuningStore.setup.locked_diff_stiffness)
+	_add_slider("awd_front_bias", "AWD bias перед", 0.0, 1.0, 0.05, TuningStore.setup.awd_front_bias)
+
 	_add_section("Колёса")
-	_add_slider("wheel_radius", "Радиус колеса", 0.2, 0.5, 0.01, TuningStore.setup.wheel_radius)
+	_add_slider("wheel_radius", "Радиус колеса", 0.15, 0.5, 0.01, TuningStore.setup.wheel_radius)
 	_add_slider("wheel_width", "Ширина колеса", 0.1, 0.4, 0.01, TuningStore.setup.wheel_width)
 	var track := 0.52
 	var front_z := -0.81
@@ -74,25 +84,50 @@ func _rebuild_ui() -> void:
 	_add_slider("front_z", "Передняя ось Z", -1.5, -0.3, 0.01, front_z)
 	_add_slider("rear_z", "Задняя ось Z", 0.3, 1.5, 0.01, rear_z)
 
-	_add_section("Подвеска")
-	_add_slider("rest_length", "Длина пружины (rest)", 0.3, 1.0, 0.01, TuningStore.setup.rest_length)
-	_add_slider("travel", "Ход подвески", 0.05, 0.4, 0.01, TuningStore.setup.travel)
-	_add_slider("stiffness", "Жёсткость пружин", 10000.0, 100000.0, 500.0, TuningStore.setup.stiffness)
-	_add_slider("damping", "Демпфер", 1000.0, 15000.0, 100.0, TuningStore.setup.damping)
-	_add_slider("anti_roll", "Стабилизатор", 0.0, 15000.0, 100.0, TuningStore.setup.anti_roll)
+	_add_section("Подвеска перед")
+	_add_slider("front_rest_length", "Перед rest", 0.3, 1.0, 0.01, TuningStore.setup.front_rest_length)
+	_add_slider("front_travel", "Перед ход", 0.05, 0.4, 0.01, TuningStore.setup.front_travel)
+	_add_slider("front_stiffness", "Перед жёсткость", 10000.0, 100000.0, 500.0, TuningStore.setup.front_stiffness)
+	_add_slider("front_damping_compression", "Перед сжатие", 1000.0, 15000.0, 100.0, TuningStore.setup.front_damping_compression)
+	_add_slider("front_damping_rebound", "Перед отбой", 1000.0, 15000.0, 100.0, TuningStore.setup.front_damping_rebound)
+	_add_slider("front_anti_roll", "Перед стабилизатор", 0.0, 15000.0, 100.0, TuningStore.setup.front_anti_roll)
 
-	_add_section("Сцепление / тормоза")
-	_add_slider("grip_longitudinal", "Сцепление продольное", 0.5, 4.0, 0.05, TuningStore.setup.grip_longitudinal)
-	_add_slider("grip_lateral", "Сцепление перед (бок)", 0.5, 4.0, 0.05, TuningStore.setup.grip_lateral)
-	_add_slider("grip_lateral_rear", "Сцепление зад (бок)", 0.5, 5.0, 0.05, TuningStore.setup.grip_lateral_rear)
+	_add_section("Подвеска зад")
+	_add_slider("rear_rest_length", "Зад rest", 0.3, 1.0, 0.01, TuningStore.setup.rear_rest_length)
+	_add_slider("rear_travel", "Зад ход", 0.05, 0.4, 0.01, TuningStore.setup.rear_travel)
+	_add_slider("rear_stiffness", "Зад жёсткость", 10000.0, 100000.0, 500.0, TuningStore.setup.rear_stiffness)
+	_add_slider("rear_damping_compression", "Зад сжатие", 1000.0, 15000.0, 100.0, TuningStore.setup.rear_damping_compression)
+	_add_slider("rear_damping_rebound", "Зад отбой", 1000.0, 15000.0, 100.0, TuningStore.setup.rear_damping_rebound)
+	_add_slider("rear_anti_roll", "Зад стабилизатор", 0.0, 15000.0, 100.0, TuningStore.setup.rear_anti_roll)
+
+	_add_section("Шины / тормоза")
+	_add_slider("tire_mu_front", "µ перед", 0.6, 2.5, 0.05, TuningStore.setup.tire_mu_front)
+	_add_slider("tire_mu_rear", "µ зад", 0.6, 2.5, 0.05, TuningStore.setup.tire_mu_rear)
 	_add_slider("rolling_resistance", "Сопр. качению", 0.0, 0.05, 0.001, TuningStore.setup.rolling_resistance)
 	_add_slider("brake_force", "Сила тормоза", 2000.0, 30000.0, 100.0, TuningStore.setup.brake_force)
 	_add_slider("handbrake_force", "Сила ручника", 5000.0, 40000.0, 100.0, TuningStore.setup.handbrake_force)
-	_add_slider("handbrake_lat_grip", "Зацеп зада на ручнике", 0.0, 1.0, 0.01, TuningStore.setup.handbrake_lat_grip)
+	_add_slider("handbrake_lat_grip", "Ручник: боковой зацеп зада", 0.0, 1.0, 0.01, TuningStore.setup.handbrake_lat_grip)
+	_add_slider("brake_bias_front", "Brake bias перед", 0.3, 0.85, 0.01, TuningStore.setup.brake_bias_front)
+
+	_add_section("Сцепление / инерция")
+	_add_slider("clutch_max_torque", "Момент сцепления", 200.0, 1500.0, 10.0, TuningStore.setup.clutch_max_torque)
+	_add_slider("clutch_engage_time", "Время сцепления, с", 0.05, 0.8, 0.01, TuningStore.setup.clutch_engage_time)
+	_add_slider("wheel_inertia", "Инерция колеса", 0.3, 3.0, 0.05, TuningStore.setup.wheel_inertia)
+	_add_slider("engine_inertia", "Инерция двигателя", 0.08, 0.8, 0.01, TuningStore.setup.engine_inertia)
+
+	_add_section("Аэро / симуляция")
+	_add_slider("drag_coefficient", "Cd", 0.15, 0.8, 0.01, TuningStore.setup.drag_coefficient)
+	_add_slider("downforce_coefficient", "Cl downforce", 0.0, 2.0, 0.05, TuningStore.setup.downforce_coefficient)
+	_add_slider("frontal_area", "Лобовая площадь", 1.2, 3.0, 0.05, TuningStore.setup.frontal_area)
+	_add_slider("physics_substeps", "Physics substeps", 1.0, 8.0, 1.0, float(TuningStore.setup.physics_substeps))
+	_add_slider("tc_slip_ratio", "TC целевой κ", 0.05, 0.45, 0.01, TuningStore.setup.tc_slip_ratio)
+	_add_slider("tc_gain", "TC жёсткость", 0.5, 12.0, 0.1, TuningStore.setup.tc_gain)
+	_add_slider("tc_min_scale", "TC мин. тяга", 0.0, 1.0, 0.05, TuningStore.setup.tc_min_scale)
 
 	_add_section("Руль")
-	_add_slider("max_steer_angle", "Макс. угол руля", 10.0, 45.0, 0.5, TuningStore.setup.max_steer_angle)
+	_add_slider("max_steer_angle", "Макс. угол руля (стойка)", 10.0, 45.0, 0.5, TuningStore.setup.max_steer_angle)
 	_add_slider("steer_speed", "Скорость отклика руля", 0.3, 6.0, 0.05, TuningStore.setup.steer_speed)
+	_add_slider("steer_curve_max_kmh", "Кривая руля: скорость X=1, км/ч", 60.0, 220.0, 5.0, TuningStore.setup.steer_curve_max_kmh)
 
 
 func _add_section(title: String) -> void:
@@ -119,6 +154,23 @@ func _add_drive_type() -> void:
 	_drive_option.select(int(TuningStore.setup.drive_type))
 	_drive_option.item_selected.connect(_on_drive_selected)
 	row.add_child(_drive_option)
+	_list.add_child(row)
+
+
+func _add_rear_diff_type() -> void:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 12)
+	var name_l := Label.new()
+	name_l.text = "Задний дифференциал"
+	name_l.custom_minimum_size = Vector2(240, 0)
+	row.add_child(name_l)
+	_rear_diff_option = OptionButton.new()
+	_rear_diff_option.add_item("Свободный", CarSetup.RearDiffType.OPEN)
+	_rear_diff_option.add_item("Самоблок (LSD)", CarSetup.RearDiffType.LSD)
+	_rear_diff_option.add_item("Заварка", CarSetup.RearDiffType.WELDED)
+	_rear_diff_option.select(int(TuningStore.setup.rear_diff_type))
+	_rear_diff_option.item_selected.connect(_on_rear_diff_selected)
+	row.add_child(_rear_diff_option)
 	_list.add_child(row)
 
 
@@ -177,6 +229,10 @@ func _on_drive_selected(index: int) -> void:
 	TuningStore.setup.drive_type = _drive_option.get_item_id(index) as CarSetup.DriveType
 
 
+func _on_rear_diff_selected(index: int) -> void:
+	TuningStore.setup.rear_diff_type = _rear_diff_option.get_item_id(index) as CarSetup.RearDiffType
+
+
 func _apply_key(key: String, value: float) -> void:
 	var s := TuningStore.setup
 	match key:
@@ -215,22 +271,39 @@ func _apply_key(key: String, value: float) -> void:
 			s.wheel_width = value
 		"track", "front_z", "rear_z":
 			_apply_wheel_layout()
-		"rest_length":
+		"front_rest_length":
+			s.front_rest_length = value
 			s.rest_length = value
-		"travel":
+		"rear_rest_length":
+			s.rear_rest_length = value
+		"front_travel":
+			s.front_travel = value
 			s.travel = value
-		"stiffness":
+		"rear_travel":
+			s.rear_travel = value
+		"front_stiffness":
+			s.front_stiffness = value
 			s.stiffness = value
-		"damping":
+		"rear_stiffness":
+			s.rear_stiffness = value
+		"front_damping_compression":
+			s.front_damping_compression = value
 			s.damping = value
-		"anti_roll":
+		"front_damping_rebound":
+			s.front_damping_rebound = value
+		"rear_damping_compression":
+			s.rear_damping_compression = value
+		"rear_damping_rebound":
+			s.rear_damping_rebound = value
+		"front_anti_roll":
+			s.front_anti_roll = value
 			s.anti_roll = value
-		"grip_longitudinal":
-			s.grip_longitudinal = value
-		"grip_lateral":
-			s.grip_lateral = value
-		"grip_lateral_rear":
-			s.grip_lateral_rear = value
+		"rear_anti_roll":
+			s.rear_anti_roll = value
+		"tire_mu_front":
+			s.tire_mu_front = value
+		"tire_mu_rear":
+			s.tire_mu_rear = value
 		"rolling_resistance":
 			s.rolling_resistance = value
 		"brake_force":
@@ -239,10 +312,46 @@ func _apply_key(key: String, value: float) -> void:
 			s.handbrake_force = value
 		"handbrake_lat_grip":
 			s.handbrake_lat_grip = value
+		"brake_bias_front":
+			s.brake_bias_front = value
+		"clutch_max_torque":
+			s.clutch_max_torque = value
+		"clutch_engage_time":
+			s.clutch_engage_time = value
+		"awd_front_bias":
+			s.awd_front_bias = value
+		"diff_preload":
+			s.diff_preload = value
+		"diff_power_lock":
+			s.diff_power_lock = value
+		"diff_coast_lock":
+			s.diff_coast_lock = value
+		"locked_diff_stiffness":
+			s.locked_diff_stiffness = value
+		"wheel_inertia":
+			s.wheel_inertia = value
+		"engine_inertia":
+			s.engine_inertia = value
+		"drag_coefficient":
+			s.drag_coefficient = value
+		"downforce_coefficient":
+			s.downforce_coefficient = value
+		"frontal_area":
+			s.frontal_area = value
+		"physics_substeps":
+			s.physics_substeps = clampi(int(round(value)), 1, 8)
+		"tc_slip_ratio":
+			s.tc_slip_ratio = value
+		"tc_gain":
+			s.tc_gain = value
+		"tc_min_scale":
+			s.tc_min_scale = value
 		"max_steer_angle":
 			s.max_steer_angle = value
 		"steer_speed":
 			s.steer_speed = value
+		"steer_curve_max_kmh":
+			s.steer_curve_max_kmh = value
 		_:
 			if key.begins_with("gear_"):
 				var idx := int(key.get_slice("_", 1)) - 1

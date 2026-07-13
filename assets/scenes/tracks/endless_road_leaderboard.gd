@@ -24,12 +24,12 @@ const PINNED_ENTRIES: Array[Dictionary] = [
 
 
 static func add_entry(player_name: String, score: int, duration_sec: float) -> Array:
-	var name := player_name.strip_edges()
-	if name == "":
-		name = "Игрок"
+	var entry_name := player_name.strip_edges()
+	if entry_name == "":
+		entry_name = "Игрок"
 	var entries := load_player_entries()
 	entries.append({
-		"name": name,
+		"name": entry_name,
 		"score": score,
 		"duration_sec": duration_sec,
 		"timestamp": Time.get_datetime_string_from_system(false, true),
@@ -105,16 +105,16 @@ static func format_entry(entry: Dictionary) -> String:
 		return str(entry["display"])
 	if entry.has("display"):
 		return str(entry["display"])
-	var name := str(entry.get("name", "Игрок"))
+	var entry_name := str(entry.get("name", "Игрок"))
 	var score := int(entry.get("score", 0))
 	var time_text := format_duration(float(entry.get("duration_sec", 0.0)))
-	return "%s — %d очков  время %s" % [name, score, time_text]
+	return "%s — %d очков  время %s" % [entry_name, score, time_text]
 
 
 static func format_duration(duration_sec: float) -> String:
 	var total := maxi(int(round(duration_sec)), 0)
-	var hours := total / 3600
-	var mins := (total % 3600) / 60
+	var hours := int(total / 3600.0)
+	var mins := int((total % 3600) / 60.0)
 	var secs := total % 60
 	if hours > 0:
 		return "%d:%02d:%02d" % [hours, mins, secs]

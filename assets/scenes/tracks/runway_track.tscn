@@ -1,4 +1,4 @@
-[gd_scene load_steps=15 format=3 uid="uid://runwaytrack001"]
+[gd_scene load_steps=12 format=3 uid="uid://runwaytrack001"]
 
 [ext_resource type="Script" path="res://assets/scenes/tracks/runway_track.gd" id="1_track"]
 [ext_resource type="Script" path="res://assets/scenes/tracks/runway_builder.gd" id="2_builder"]
@@ -7,9 +7,6 @@
 [ext_resource type="Script" path="res://vehicles/follow_camera.gd" id="5_cam"]
 [ext_resource type="Script" path="res://assets/scenes/tracks/hud.gd" id="6_hud"]
 [ext_resource type="PackedScene" path="res://assets/scenes/characters/player.tscn" id="7_player"]
-[ext_resource type="Script" path="res://characters/npc/npc_spawner.gd" id="8_spawner"]
-[ext_resource type="PackedScene" path="res://assets/scenes/npc/npc1.tscn" id="9_npc1"]
-[ext_resource type="PackedScene" path="res://assets/scenes/npc/npc2.tscn" id="10_npc2"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_sky"]
 sky_top_color = Color(0.4, 0.62, 0.9, 1)
@@ -67,15 +64,6 @@ script = ExtResource("4_driver")
 [node name="Player" parent="." instance=ExtResource("7_player")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -19.5, 0.05, 40)
 
-[node name="NpcSpawner" type="Node3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -20, 0, 80)
-script = ExtResource("8_spawner")
-npc1_scene = ExtResource("9_npc1")
-npc2_scene = ExtResource("10_npc2")
-count_per_type = 30
-spawn_radius = 55.0
-spawn_seed = 91
-
 [node name="FollowCamera" type="Camera3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -23, 5, 55)
 current = false
@@ -83,8 +71,8 @@ fov = 72.0
 far = 800.0
 script = ExtResource("5_cam")
 target_path = NodePath("../Car")
-follow_distance = 10.0
-follow_height = 3.8
+follow_distance = 2.5
+follow_height = 1.0
 
 [node name="HUD" type="CanvasLayer" parent="."]
 script = ExtResource("6_hud")

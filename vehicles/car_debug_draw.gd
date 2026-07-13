@@ -5,6 +5,7 @@ extends Node3D
 
 @export var enabled: bool = false
 @export var hide_visual_model: bool = true
+@export var force_scale: float = 0.00012
 
 @onready var _car: CarController = get_parent() as CarController
 
@@ -13,16 +14,32 @@ var _wheel_mounts: Array[MeshInstance3D] = []
 var _wheel_rays: Array[MeshInstance3D] = []
 var _wheel_contacts: Array[MeshInstance3D] = []
 var _wheel_discs: Array[MeshInstance3D] = []
+var _force_long: Array[MeshInstance3D] = []
+var _force_lat: Array[MeshInstance3D] = []
 var _mat_body: StandardMaterial3D
 var _mat_wheel: StandardMaterial3D
 var _mat_ray: StandardMaterial3D
 var _mat_contact_ok: StandardMaterial3D
 var _mat_contact_air: StandardMaterial3D
+var _mat_fx: StandardMaterial3D
+var _mat_fy: StandardMaterial3D
 var _built: bool = false
+var _hud: Label
+var _hud_layer: CanvasLayer
 
 
 func _ready() -> void:
 	_make_materials()
+	_hud_layer = CanvasLayer.new()
+	_hud_layer.layer = 20
+	add_child(_hud_layer)
+	_hud = Label.new()
+	_hud.name = "TireDebugHud"
+	_hud.position = Vector2(12, 12)
+	_hud.add_theme_font_size_override("font_size", 14)
+	_hud.add_theme_color_override("font_color", Color(0.95, 0.95, 0.85))
+	_hud.visible = false
+	_hud_layer.add_child(_hud)
 	_apply_visibility()
 
 
@@ -40,6 +57,7 @@ func _physics_process(_delta: float) -> void:
 	if not _built:
 		_build_meshes()
 	_update_meshes()
+	_update_hud()
 
 
 func _make_materials() -> void:
@@ -48,6 +66,8 @@ func _make_materials() -> void:
 	_mat_ray = _emissive(Color(1.0, 0.45, 0.0, 0.85))
 	_mat_contact_ok = _emissive(Color(0.1, 1.0, 0.25, 1.0))
 	_mat_contact_air = _emissive(Color(1.0, 1.0, 0.15, 1.0))
+	_mat_fx = _emissive(Color(0.2, 0.7, 1.0, 0.95))
+	_mat_fy = _emissive(Color(1.0, 0.2, 0.9, 0.95))
 
 
 func _emissive(color: Color) -> StandardMaterial3D:
@@ -121,18 +141,37 @@ func _build_meshes() -> void:
 		add_child(disc)
 		_wheel_discs.append(disc)
 
+		_force_long.append(_make_force_arrow(_mat_fx))
+		_force_lat.append(_make_force_arrow(_mat_fy))
+
 	_built = true
 	_apply_visibility()
 
 
+func _make_force_arrow(mat: StandardMaterial3D) -> MeshInstance3D:
+	var arrow := MeshInstance3D.new()
+	var cyl := CylinderMesh.new()
+	cyl.top_radius = 0.02
+	cyl.bottom_radius = 0.02
+	cyl.height = 1.0
+	arrow.mesh = cyl
+	arrow.material_override = mat
+	add_child(arrow)
+	return arrow
+
+
 func _clear_meshes() -> void:
 	for child in get_children():
+		if child == _hud_layer:
+			continue
 		child.queue_free()
 	_body_mesh = null
 	_wheel_mounts.clear()
 	_wheel_rays.clear()
 	_wheel_contacts.clear()
 	_wheel_discs.clear()
+	_force_long.clear()
+	_force_lat.clear()
 	_built = false
 
 
@@ -144,13 +183,12 @@ func _update_meshes() -> void:
 		_build_meshes()
 		return
 
-	var ray_length := _car.setup.rest_length + _car.setup.travel
-
 	for i in wheels.size():
 		var wheel: Wheel = wheels[i]
 		var mount_local: Vector3 = wheel.local_origin
 		_wheel_mounts[i].position = mount_local
 
+		var ray_length := _car.setup.get_rest_length(i) + _car.setup.get_travel(i)
 		var end_local := mount_local + Vector3(0.0, -ray_length, 0.0)
 		if wheel.on_ground:
 			end_local = _car.to_local(wheel.hit_point)
@@ -166,12 +204,9 @@ func _update_meshes() -> void:
 			_mat_contact_ok if wheel.on_ground else _mat_contact_air
 		)
 
-		# Red wheel disc: cylinder along X (axle), standing on contact.
 		var radius := _car.setup.wheel_radius
 		if wheel.on_ground:
 			var center_world := wheel.hit_point + wheel.up * radius
-			_wheel_discs[i].global_position = center_world
-			# Align cylinder Y axis with wheel right (axle).
 			var axle := wheel.right
 			var basis := Basis()
 			basis.y = axle
@@ -179,15 +214,113 @@ func _update_meshes() -> void:
 			basis.x = wheel.up
 			basis = basis.orthonormalized()
 			_wheel_discs[i].global_transform = Transform3D(basis, center_world)
+			_place_force_arrow(_force_long[i], wheel.hit_point, wheel.forward, wheel.long_force)
+			_place_force_arrow(_force_lat[i], wheel.hit_point, wheel.right, wheel.lat_force)
 		else:
 			_wheel_discs[i].position = end_local + Vector3(0.0, radius, 0.0)
 			_wheel_discs[i].rotation = Vector3(0.0, 0.0, deg_to_rad(90.0))
+			_force_long[i].visible = false
+			_force_lat[i].visible = false
+
+
+func _place_force_arrow(node: MeshInstance3D, origin: Vector3, dir: Vector3, force: float) -> void:
+	var mag := absf(force) * force_scale
+	if mag < 0.02:
+		node.visible = false
+		return
+	node.visible = true
+	var axis := dir.normalized() * signf(force)
+	if axis.length_squared() < 0.0001:
+		node.visible = false
+		return
+	var tip := origin + axis * mag
+	var mid := (origin + tip) * 0.5
+	var basis := Basis()
+	basis.y = axis
+	basis.x = axis.cross(Vector3.UP)
+	if basis.x.length_squared() < 0.0001:
+		basis.x = axis.cross(Vector3.RIGHT)
+	basis.x = basis.x.normalized()
+	basis.z = basis.x.cross(basis.y).normalized()
+	node.global_transform = Transform3D(basis.orthonormalized(), mid)
+	node.scale = Vector3(1.0, maxf(mag, 0.02), 1.0)
+
+
+func _update_hud() -> void:
+	if _hud == null:
+		return
+	var lines: PackedStringArray = []
+	lines.append(
+		"%s  RPM %.0f  gear %s (i=%.2f)  clutch %.2f  km/h %.1f"
+		% [
+			_car.get_transmission_label(),
+			_car.engine_rpm,
+			_car.get_gear_label(),
+			_car.debug_gear_ratio,
+			_car.clutch,
+			_car.get_speed_kmh(),
+		]
+	)
+	lines.append(
+		"engTq %.0f  clTq %.0f  slipW %.1f  transRPM %.0f  driveLine %.0f  TC×%.2f  rearSPIN=%d"
+		% [
+			_car.debug_eng_combustion,
+			_car.debug_clutch_torque,
+			_car.debug_clutch_slip_w,
+			_car.debug_trans_rpm,
+			_car.debug_driveline,
+			_car.debug_tc_scale,
+			_car.debug_rear_spin,
+		]
+	)
+	lines.append(
+		"effThr %.2f  shiftT %.2f  autoCD %.2f  estRPM %.0f→%.0f  up=%d down=%d"
+		% [
+			_car.debug_eff_throttle,
+			_car.debug_shift_timer,
+			_car.debug_auto_cd,
+			_car.debug_est_rpm_cur,
+			_car.debug_est_rpm_up,
+			_car.debug_want_up,
+			_car.debug_want_down,
+		]
+	)
+	lines.append("Fx=cyan  Fy=magenta  |κ|>0.2=SPIN  TC=%s" % [
+		"ON" if _car.setup.traction_control else "OFF"
+	])
+	var wheels := _car.get_wheels()
+	for i in wheels.size():
+		var w: Wheel = wheels[i]
+		var spin := absf(w.slip_ratio) > 0.2
+		var status := "AIR"
+		if w.on_ground:
+			status = "SPIN" if spin else "GND"
+		lines.append(
+			"W%d κ=%.2f α=%.1f° Fx=%.0f Fy=%.0f Fz=%.0f ω=%.1f drv=%.0f %s"
+			% [
+				i,
+				w.slip_ratio,
+				rad_to_deg(w.slip_angle),
+				w.long_force,
+				w.lat_force,
+				w.normal_load,
+				w.angular_velocity,
+				w.drive_torque,
+				status,
+			]
+		)
+	_hud.text = "\n".join(lines)
 
 
 func _apply_visibility() -> void:
 	visible = enabled
+	if _hud:
+		_hud.visible = enabled
 	if _car == null:
 		return
 	var model := _car.get_node_or_null("Model")
 	if model:
 		model.visible = not (hide_visual_model and enabled)
+	var visual_wheels := _car.get_node_or_null("VisualWheels")
+	if visual_wheels:
+		visual_wheels.visible = not (hide_visual_model and enabled)

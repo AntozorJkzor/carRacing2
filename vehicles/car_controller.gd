@@ -1,6 +1,9 @@
 class_name CarController
 extends RigidBody3D
 
+const _VehicleDiff = preload("res://vehicles/vehicle_diff.gd")
+const _TireModel = preload("res://vehicles/tire_model.gd")
+
 ## Tuning resource. Assign in the inspector or via set_setup().
 @export var setup: CarSetup
 ## When false, reverse gear is disabled (endless-road / arcade modes).
@@ -17,18 +20,41 @@ var current_gear: int = 1
 var engine_rpm: float = 800.0
 ## true = automatic gearbox, false = manual (toggle with P).
 var automatic: bool = true
+## 1 = fully engaged, 0 = open.
+var clutch: float = 1.0
+
+## Debug / telemetry (updated each steering step).
+var debug_steer_rad: float = 0.0
+var debug_steer_lock: float = 1.0
+var debug_steer_target: float = 0.0
+
+## Drivetrain debug (engine / clutch / gearbox / TC).
+var debug_eng_combustion: float = 0.0
+var debug_clutch_torque: float = 0.0
+var debug_trans_rpm: float = 0.0
+var debug_clutch_slip_w: float = 0.0
+var debug_driveline: float = 0.0
+var debug_gear_ratio: float = 0.0
+var debug_shift_timer: float = 0.0
+var debug_auto_cd: float = 0.0
+var debug_est_rpm_cur: float = 0.0
+var debug_est_rpm_up: float = 0.0
+var debug_want_up: int = 0
+var debug_want_down: int = 0
+var debug_tc_scale: float = 1.0
+var debug_eff_throttle: float = 0.0
+var debug_rear_spin: int = 0
 
 var _wheels: Array[Wheel] = []
 var _current_steer: float = 0.0
 var _shift_timer: float = 0.0
 var _prev_lengths: Array[float] = []
 var _body_applied: bool = false
-## 0 = rear gripped, 1 = full drift. Builds on handbrake, decays slowly.
-var _rear_drift: float = 0.0
 var _base_angular_damp: float = 1.2
 var _auto_reverse_armed: bool = false
 var _auto_shift_cooldown: float = 0.0
 var _spawn_transform: Transform3D = Transform3D.IDENTITY
+var _clutch_engage_timer: float = 0.0
 var occupied: bool = false
 var occupant: Node = null
 
@@ -36,19 +62,20 @@ var occupant: Node = null
 func _ready() -> void:
 	add_to_group("player_cars")
 	_spawn_transform = global_transform
-	# Prefer persisted tuning from Settings menu.
 	if TuningStore.setup != null:
 		setup = TuningStore.make_runtime_setup()
 	elif setup == null:
 		setup = CarSetup.new()
 	setup.ensure_torque_curve()
+	setup.ensure_steer_angle_curve()
+	setup.migrate_legacy_fields()
 	_apply_body_setup()
 	_rebuild_wheels()
 	_apply_visual_tuning()
 	can_sleep = false
 	continuous_cd = true
 	_base_angular_damp = angular_damp
-	# Keep chassis from fighting the raycast suspension.
+	angular_damp = _base_angular_damp
 	physics_material_override = PhysicsMaterial.new()
 	physics_material_override.friction = 0.0
 	physics_material_override.bounce = 0.0
@@ -77,13 +104,13 @@ func reset_to_spawn() -> void:
 	_current_steer = 0.0
 	current_gear = 1
 	engine_rpm = setup.idle_rpm if setup else 800.0
+	clutch = 1.0
+	_clutch_engage_timer = 0.0
 	_shift_timer = 0.0
 	_auto_shift_cooldown = 0.0
 	_auto_reverse_armed = false
-	_rear_drift = 0.0
 	angular_damp = _base_angular_damp
 	sleeping = false
-	# Direct physics state write — assigning transform alone is flaky on RigidBody3D.
 	PhysicsServer3D.body_set_state(
 		get_rid(),
 		PhysicsServer3D.BODY_STATE_TRANSFORM,
@@ -114,6 +141,7 @@ func _apply_visual_tuning() -> void:
 	if col:
 		col.position.y = TuningStore.collision_y
 
+
 func _physics_process(delta: float) -> void:
 	if setup == null:
 		return
@@ -132,45 +160,42 @@ func _physics_process(delta: float) -> void:
 
 	if automatic:
 		_update_automatic_transmission()
-
-	_update_drift_state(delta)
-	_update_steering(delta)
-	_update_suspension(delta)
-	_update_anti_roll()
-	_update_engine_and_drivetrain(delta)
-	_apply_tire_forces(delta)
-	_apply_aero_drag()
-
-
-func _update_drift_state(delta: float) -> void:
-	# Estimate rear sideslip from body velocity vs facing.
-	var right := global_transform.basis.x
-	var speed := linear_velocity.length()
-	var lat_vel := absf(linear_velocity.dot(right))
-	var slip_ratio := 0.0
-	if speed > 2.0:
-		slip_ratio = clampf(lat_vel / speed, 0.0, 1.0)
-
-	if handbrake > 0.15 and speed > 4.0:
-		# Quick breakaway into drift.
-		var initiate := handbrake * (0.55 + 0.45 * absf(steering))
-		_rear_drift = move_toward(_rear_drift, maxf(_rear_drift, initiate), delta * 6.0)
-		_rear_drift = maxf(_rear_drift, slip_ratio)
-	elif slip_ratio > 0.25 and speed > 5.0:
-		# Hold drift while still sliding sideways.
-		_rear_drift = move_toward(_rear_drift, maxf(slip_ratio, 0.45), delta * 1.2)
 	else:
-		# Slow grip recovery so the car doesn't snap straight instantly.
-		_rear_drift = move_toward(_rear_drift, 0.0, delta * 0.85)
+		debug_want_up = 0
+		debug_want_down = 0
+		debug_shift_timer = _shift_timer
+		debug_auto_cd = 0.0
+		debug_est_rpm_cur = _estimate_transmission_rpm(current_gear)
+		if setup != null and current_gear > 0 and current_gear < setup.get_forward_gear_count():
+			debug_est_rpm_up = _estimate_transmission_rpm(current_gear + 1)
+		else:
+			debug_est_rpm_up = 0.0
 
-	_rear_drift = clampf(_rear_drift, 0.0, 1.0)
-	angular_damp = lerpf(_base_angular_damp, 0.12, _rear_drift)
+	_update_steering(delta)
+
+	var steps := clampi(setup.physics_substeps, 1, 8)
+	var dt := delta / float(steps)
+	var force_scale := 1.0 / float(steps)
+	for _i in steps:
+		_physics_substep(dt, force_scale)
+
+
+func _physics_substep(dt: float, force_scale: float) -> void:
+	_update_clutch(dt)
+	_update_suspension(dt, force_scale)
+	_update_anti_roll(force_scale)
+	_update_engine_clutch_diff(dt)
+	_apply_tire_and_wheel(dt, force_scale)
+	_apply_aero(force_scale)
+
 
 func set_setup(new_setup: CarSetup) -> void:
 	setup = new_setup
 	if setup == null:
 		setup = CarSetup.new()
 	setup.ensure_torque_curve()
+	setup.ensure_steer_angle_curve()
+	setup.migrate_legacy_fields()
 	_body_applied = false
 	_rebuild_wheels()
 	if is_inside_tree():
@@ -183,8 +208,7 @@ func shift_up() -> void:
 	var max_gear := setup.get_forward_gear_count()
 	if current_gear < max_gear:
 		current_gear += 1
-		_shift_timer = setup.shift_time
-		_sync_rpm_to_transmission()
+		_begin_shift()
 		if automatic:
 			_auto_shift_cooldown = 0.7
 
@@ -195,10 +219,15 @@ func shift_down() -> void:
 	var min_gear := -1 if allow_reverse else 1
 	if current_gear > min_gear:
 		current_gear -= 1
-		_shift_timer = setup.shift_time
-		_sync_rpm_to_transmission()
+		_begin_shift()
 		if automatic:
 			_auto_shift_cooldown = 0.55
+
+
+func _begin_shift() -> void:
+	_shift_timer = setup.shift_time
+	clutch = 0.0
+	_clutch_engage_timer = setup.clutch_engage_time
 
 
 func toggle_transmission() -> void:
@@ -213,26 +242,43 @@ func get_transmission_label() -> String:
 	return "АВТО" if automatic else "МЕХ"
 
 
-func _sync_rpm_to_transmission() -> void:
-	var rpm := _estimate_transmission_rpm(current_gear)
-	if rpm > 0.0:
-		engine_rpm = clampf(rpm, setup.idle_rpm * 0.5, setup.max_rpm)
-
-
 func _estimate_transmission_rpm(gear: int) -> float:
 	if setup == null:
 		return 0.0
 	var gear_ratio := setup.get_gear_ratio(gear)
 	if absf(gear_ratio) < 0.001:
 		return 0.0
-	var speed := absf(linear_velocity.dot(-global_transform.basis.z))
-	var wheel_omega := speed / maxf(setup.wheel_radius, 0.05)
-	var wheel_rpm := wheel_omega * 60.0 / TAU
+	var wheel_omega := _average_driven_omega()
+	var wheel_rpm := absf(wheel_omega) * 60.0 / TAU
 	return wheel_rpm * absf(gear_ratio) * setup.final_drive
 
 
+func _average_driven_omega() -> float:
+	var sum := 0.0
+	var count := 0
+	for wheel in _wheels:
+		if wheel.is_driven:
+			sum += wheel.angular_velocity
+			count += 1
+	if count == 0:
+		return 0.0
+	return sum / float(count)
+
+
 func _update_automatic_transmission() -> void:
-	if setup == null or _shift_timer > 0.0 or _auto_shift_cooldown > 0.0:
+	debug_want_up = 0
+	debug_want_down = 0
+	debug_shift_timer = _shift_timer
+	debug_auto_cd = _auto_shift_cooldown
+	if setup == null:
+		return
+	debug_est_rpm_cur = _estimate_transmission_rpm(current_gear)
+	if current_gear > 0 and current_gear < setup.get_forward_gear_count():
+		debug_est_rpm_up = _estimate_transmission_rpm(current_gear + 1)
+	else:
+		debug_est_rpm_up = 0.0
+
+	if _shift_timer > 0.0 or _auto_shift_cooldown > 0.0:
 		return
 
 	var max_gear := setup.get_forward_gear_count()
@@ -240,7 +286,6 @@ func _update_automatic_transmission() -> void:
 	var speed_kmh := absf(forward_speed) * 3.6
 
 	if allow_reverse:
-		# Arm reverse when nearly stopped and holding brake.
 		if absf(forward_speed) < 1.2 and brake > 0.35 and throttle < 0.05:
 			_auto_reverse_armed = true
 		if forward_speed > 2.5:
@@ -249,24 +294,21 @@ func _update_automatic_transmission() -> void:
 		if _auto_reverse_armed and throttle > 0.1 and forward_speed < 1.5:
 			if current_gear != -1:
 				current_gear = -1
-				_shift_timer = setup.shift_time
+				_begin_shift()
 				_auto_shift_cooldown = 0.4
-				_sync_rpm_to_transmission()
 			return
 
 		if current_gear < 0:
 			if throttle < 0.05 and absf(forward_speed) < 0.6:
 				current_gear = 1
 				_auto_reverse_armed = false
-				_shift_timer = setup.shift_time
+				_begin_shift()
 				_auto_shift_cooldown = 0.4
-				_sync_rpm_to_transmission()
 			elif throttle > 0.1 and forward_speed > 0.4:
 				current_gear = 1
 				_auto_reverse_armed = false
-				_shift_timer = setup.shift_time
+				_begin_shift()
 				_auto_shift_cooldown = 0.4
-				_sync_rpm_to_transmission()
 			return
 	else:
 		_auto_reverse_armed = false
@@ -276,17 +318,21 @@ func _update_automatic_transmission() -> void:
 	if current_gear <= 0:
 		current_gear = 1
 
-	# Downshift: small gearboxes use speed floors; big (endless) boxes use RPM.
 	var down_at: Dictionary = {2: 12.0, 3: 28.0, 4: 48.0, 5: 75.0}
 	var down_speed := float(down_at.get(current_gear, -1.0))
 	var wide_box := max_gear > 8
+
+	# While the clutch is slipping, engine RPM is meaningless for shift logic —
+	# use gearbox input speed estimated from the driven wheels.
+	var shift_rpm := engine_rpm
+	if clutch < 0.9 or absf(debug_clutch_slip_w) > 40.0:
+		shift_rpm = debug_est_rpm_cur
 
 	var want_up := false
 	var skip_to_gear := -1
 	if current_gear < max_gear and throttle > 0.08:
 		if wide_box:
-			# 100 closely-spaced ratios: jump forward until RPM actually drops.
-			if engine_rpm >= setup.max_rpm * 0.92:
+			if shift_rpm >= setup.max_rpm * 0.92:
 				var best := current_gear
 				for g in range(current_gear + 1, max_gear + 1):
 					var rpm_g := _estimate_transmission_rpm(g)
@@ -300,7 +346,7 @@ func _update_automatic_transmission() -> void:
 					want_up = true
 		else:
 			var redline_up2 := setup.max_rpm * 0.85
-			if engine_rpm >= redline_up2:
+			if shift_rpm >= redline_up2:
 				var next_rpm2 := _estimate_transmission_rpm(current_gear + 1)
 				if next_rpm2 >= setup.idle_rpm * 1.2 or speed_kmh > 15.0:
 					want_up = true
@@ -308,29 +354,30 @@ func _update_automatic_transmission() -> void:
 	var want_down := false
 	if current_gear > 1:
 		if wide_box:
-			# Wide hysteresis vs upshift band so it can't bounce.
-			if engine_rpm <= setup.max_rpm * 0.42 and throttle < 0.65:
+			if shift_rpm <= setup.max_rpm * 0.42 and throttle < 0.65:
 				want_down = true
-			elif throttle > 0.9 and engine_rpm < setup.max_rpm * 0.48:
+			elif throttle > 0.9 and shift_rpm < setup.max_rpm * 0.48:
 				var rpm_if_down := _estimate_transmission_rpm(current_gear - 1)
 				if rpm_if_down > 0.0 and rpm_if_down < setup.max_rpm * 0.9:
 					want_down = true
 		else:
 			if speed_kmh <= down_speed and throttle < 0.7:
 				want_down = true
-			elif engine_rpm <= setup.idle_rpm * 1.2 and throttle < 0.3 and speed_kmh <= down_speed + 10.0:
+			elif shift_rpm <= setup.idle_rpm * 1.2 and throttle < 0.3 and speed_kmh <= down_speed + 10.0:
 				want_down = true
-			elif throttle > 0.9 and engine_rpm < setup.max_rpm * 0.55:
+			elif throttle > 0.9 and shift_rpm < setup.max_rpm * 0.55:
 				var rpm_if_down2 := _estimate_transmission_rpm(current_gear - 1)
 				if rpm_if_down2 < setup.max_rpm * 0.9:
 					want_down = true
 
+	debug_want_up = 1 if want_up else 0
+	debug_want_down = 1 if want_down else 0
+
 	if want_up and not want_down:
 		if skip_to_gear > current_gear:
 			current_gear = skip_to_gear
-			_shift_timer = setup.shift_time
+			_begin_shift()
 			_auto_shift_cooldown = 0.5
-			_sync_rpm_to_transmission()
 		else:
 			shift_up()
 	elif want_down and not want_up:
@@ -338,14 +385,13 @@ func _update_automatic_transmission() -> void:
 		if wide_box:
 			_auto_shift_cooldown = maxf(_auto_shift_cooldown, 0.45)
 
-
 func set_gear(gear: int) -> void:
 	if setup == null:
 		return
 	var max_gear := setup.get_forward_gear_count()
 	var min_gear := -1 if allow_reverse else 1
 	current_gear = clampi(gear, min_gear, max_gear)
-	_shift_timer = setup.shift_time
+	_begin_shift()
 
 
 func get_speed_ms() -> float:
@@ -391,7 +437,7 @@ func _rebuild_wheels() -> void:
 		wheel.is_steering = i < 2
 		wheel.is_driven = _is_driven_index(i)
 		_wheels.append(wheel)
-		_prev_lengths.append(setup.rest_length)
+		_prev_lengths.append(setup.get_rest_length(i))
 
 
 func _is_driven_index(index: int) -> bool:
@@ -406,23 +452,64 @@ func _is_driven_index(index: int) -> bool:
 
 
 func _update_steering(delta: float) -> void:
-	var target := steering * deg_to_rad(setup.max_steer_angle)
-	_current_steer = move_toward(_current_steer, target, setup.steer_speed * delta)
+	var speed_ms := linear_velocity.length()
+	var lock_factor := setup.sample_steer_lock_factor(speed_ms)
+	var rear_slip := 0.0
+	if _wheels.size() >= 4:
+		rear_slip = (
+			absf(_wheels[2].slip_angle) + absf(_wheels[3].slip_angle)
+		) * 0.5
+	# Only open extra lock for real countersteer (input against yaw).
+	# Opening to full lock on any rear slip made spins unrecoverable ("on ice").
+	var countersteering := steering * angular_velocity.y < -0.05
+	if rear_slip > 0.10 and countersteering:
+		var recover := clampf((rear_slip - 0.10) / 0.25, 0.0, 1.0)
+		var counter_cap := minf(lock_factor + 0.28, 0.82)
+		lock_factor = lerpf(lock_factor, counter_cap, recover)
+	var target := steering * deg_to_rad(setup.max_steer_angle) * lock_factor
+	var rate_t := clampf(speed_ms / maxf(setup.steer_curve_max_kmh / 3.6, 1.0), 0.0, 1.0)
+	var steer_rate := setup.steer_speed * lerpf(1.0, 0.35, rate_t)
+	if rear_slip > 0.12 and countersteering:
+		steer_rate *= 1.6
+	_current_steer = move_toward(_current_steer, target, steer_rate * delta)
+	debug_steer_rad = _current_steer
+	debug_steer_lock = lock_factor
+	debug_steer_target = target
 	for wheel in _wheels:
 		wheel.steer_angle = _current_steer if wheel.is_steering else 0.0
 
 
-func _update_suspension(delta: float) -> void:
+func _update_clutch(dt: float) -> void:
+	if setup == null:
+		return
+	if current_gear == 0 or _shift_timer > 0.0:
+		clutch = 0.0
+		_clutch_engage_timer = setup.clutch_engage_time
+		return
+	if _clutch_engage_timer > 0.0:
+		_clutch_engage_timer = maxf(_clutch_engage_timer - dt, 0.0)
+		var engage := setup.clutch_engage_time
+		if engage <= 0.001:
+			clutch = 1.0
+		else:
+			clutch = 1.0 - (_clutch_engage_timer / engage)
+	else:
+		clutch = 1.0
+
+
+func _update_suspension(_dt: float, force_scale: float) -> void:
 	var space := get_world_3d().direct_space_state
 	var exclude := [get_rid()]
-	# rest_length = target ray distance to ground; travel = extra compression allowed.
-	var ray_length := setup.rest_length + setup.travel
-	# Cap force high enough to support weight transfer without launching.
 	var max_force := setup.mass * 9.81 * 4.5
 
 	for i in _wheels.size():
 		var wheel := _wheels[i]
 		wheel.reset_forces()
+
+		var rest := setup.get_rest_length(i)
+		var travel := setup.get_travel(i)
+		var ray_length := rest + travel
+		var stiffness := setup.get_stiffness(i)
 
 		var origin_world := to_global(wheel.local_origin)
 		var up := global_transform.basis.y.normalized()
@@ -440,46 +527,44 @@ func _update_suspension(delta: float) -> void:
 			wheel.on_ground = false
 			wheel.compression = 0.0
 			wheel.suspension_length = ray_length
+			wheel.normal_load = 0.0
 			_prev_lengths[i] = ray_length
 			continue
 
 		wheel.on_ground = true
 		wheel.hit_point = hit.position
 		wheel.hit_normal = hit.normal.normalized()
-		# Spring length is the raw ray hit distance (do NOT subtract wheel radius).
 		var spring_length := origin_world.distance_to(hit.position)
 		wheel.suspension_length = spring_length
 
-		# Positive when shorter than rest (compressed).
-		var compression_distance := setup.rest_length - spring_length
+		var compression_distance := rest - spring_length
 		var compression := clampf(
-			compression_distance / maxf(setup.travel, 0.001),
+			compression_distance / maxf(travel, 0.001),
 			0.0,
 			1.0
 		)
 		wheel.compression = compression
 
-		# Damper from rigid-body velocity along the suspension axis (stable vs finite-diff).
 		var mount_velocity := _velocity_at_point(origin_world)
 		var suspension_speed := mount_velocity.dot(up)
-		# Spring engages as soon as length < rest_length (not only after full travel).
-		var spring_travel := clampf(compression_distance, 0.0, setup.travel)
-		var spring_force := setup.stiffness * spring_travel
-		var damper_force := -setup.damping * suspension_speed
+		var spring_travel := clampf(compression_distance, 0.0, travel)
+		var spring_force := stiffness * spring_travel
+		var damp_coeff := setup.get_damping(i, suspension_speed)
+		var damper_force := -damp_coeff * suspension_speed
 
-		# Progressive bump stop so the car cannot sit through the road under load.
 		var bump := 0.0
-		if compression_distance > setup.travel:
-			var overrun := compression_distance - setup.travel
-			bump = setup.stiffness * overrun * 3.0 + setup.mass * 9.81 * overrun * 8.0
+		if compression_distance > travel:
+			var overrun := compression_distance - travel
+			bump = stiffness * overrun * 3.0 + setup.mass * 9.81 * overrun * 8.0
 		elif compression > 0.75:
 			var t := (compression - 0.75) / 0.25
 			bump = t * t * setup.mass * 9.81
 
 		wheel.suspension_force = clampf(spring_force + damper_force + bump, 0.0, max_force)
+		wheel.normal_load = wheel.suspension_force
 		_prev_lengths[i] = spring_length
 
-		var force_vec := wheel.hit_normal * wheel.suspension_force
+		var force_vec := wheel.hit_normal * wheel.suspension_force * force_scale
 		apply_force(force_vec, origin_world - global_position)
 
 		_update_wheel_basis(wheel)
@@ -503,21 +588,23 @@ func _update_wheel_basis(wheel: Wheel) -> void:
 	wheel.up = up
 
 
-func _update_anti_roll() -> void:
-	if setup.anti_roll <= 0.0 or _wheels.size() < 4:
+func _update_anti_roll(force_scale: float) -> void:
+	if _wheels.size() < 4:
 		return
-	_apply_anti_roll_pair(0, 1)
-	_apply_anti_roll_pair(2, 3)
+	_apply_anti_roll_pair(0, 1, true, force_scale)
+	_apply_anti_roll_pair(2, 3, false, force_scale)
 
 
-func _apply_anti_roll_pair(left_i: int, right_i: int) -> void:
+func _apply_anti_roll_pair(left_i: int, right_i: int, axle_front: bool, force_scale: float) -> void:
+	var bar := setup.get_anti_roll(axle_front)
+	if bar <= 0.0:
+		return
 	var left := _wheels[left_i]
 	var right := _wheels[right_i]
 	if not left.on_ground and not right.on_ground:
 		return
-	# Resist compression difference: more-compressed side gets extra UP force.
 	var diff := left.compression - right.compression
-	var force := diff * setup.anti_roll
+	var force := diff * bar * force_scale
 	if left.on_ground:
 		var left_origin := to_global(left.local_origin)
 		apply_force(left.hit_normal * force, left_origin - global_position)
@@ -526,144 +613,241 @@ func _apply_anti_roll_pair(left_i: int, right_i: int) -> void:
 		apply_force(right.hit_normal * -force, right_origin - global_position)
 
 
-func _update_engine_and_drivetrain(delta: float) -> void:
+func _update_engine_clutch_diff(dt: float) -> void:
 	var gear_ratio := setup.get_gear_ratio(current_gear)
-	var driven := _driven_wheels()
-	var driven_grounded := 0
-
-	# Use body forward speed for gearbox RPM so a bit of slip/steer doesn't cap revs.
-	var forward := -global_transform.basis.z
-	var long_speed_body := linear_velocity.dot(forward)
-	var wheel_omega := absf(long_speed_body) / maxf(setup.wheel_radius, 0.05)
-
-	for wheel in driven:
-		if wheel.on_ground:
-			wheel.angular_velocity = long_speed_body / maxf(setup.wheel_radius, 0.05)
-			driven_grounded += 1
-		else:
-			wheel.angular_velocity = lerpf(wheel.angular_velocity, 0.0, clampf(2.0 * delta, 0.0, 1.0))
-
-	var transmission_rpm := engine_rpm
-	if absf(gear_ratio) > 0.001:
-		var wheel_rpm := wheel_omega * 60.0 / TAU
-		transmission_rpm = wheel_rpm * absf(gear_ratio) * setup.final_drive
-
-	var in_gear := absf(gear_ratio) > 0.001 and _shift_timer <= 0.0
-	if in_gear and driven_grounded > 0:
-		engine_rpm = lerpf(engine_rpm, transmission_rpm, clampf(14.0 * delta, 0.0, 1.0))
-	elif _shift_timer > 0.0:
-		var hold_rpm := transmission_rpm
-		if hold_rpm <= 1.0:
-			hold_rpm = _estimate_transmission_rpm(current_gear)
-		if hold_rpm > 1.0:
-			engine_rpm = lerpf(engine_rpm, hold_rpm, clampf(18.0 * delta, 0.0, 1.0))
-		else:
-			engine_rpm = move_toward(engine_rpm, setup.idle_rpm, 2000.0 * delta)
-	else:
-		var target_rpm := setup.idle_rpm + throttle * (setup.max_rpm - setup.idle_rpm)
-		engine_rpm = move_toward(engine_rpm, target_rpm, 4000.0 * delta)
-
-	engine_rpm = clampf(engine_rpm, setup.idle_rpm * 0.5, setup.max_rpm)
+	var engine_omega := engine_rpm * TAU / 60.0
+	var idle_omega := setup.idle_rpm * TAU / 60.0
+	var max_omega := setup.max_rpm * TAU / 60.0
 
 	var effective_throttle := throttle
 	if engine_rpm >= setup.max_rpm * 0.98:
 		effective_throttle = 0.0
+	debug_eff_throttle = effective_throttle
 
-	if not in_gear:
+	var combustion := setup.get_engine_torque(engine_rpm) * effective_throttle
+	# Mild friction / pumping losses so free-rev falls without throttle.
+	var engine_friction := 12.0 + 0.004 * engine_rpm
+	if throttle < 0.05:
+		combustion -= engine_friction
+
+	var in_gear := absf(gear_ratio) > 0.001
+	var trans_omega := 0.0
+	if in_gear:
+		trans_omega = _average_driven_omega() * gear_ratio * setup.final_drive
+
+	var clutch_torque := 0.0
+	var slip_w := 0.0
+	if in_gear and clutch > 0.001:
+		slip_w = engine_omega - trans_omega
+		var max_t := clutch * setup.clutch_max_torque
+		# Locked enough: pass combustion and sync engine to gearbox input.
+		# Old model always hit the 450 Nm cap while engine made ~530 Nm, so the
+		# clutch never locked and RPM sat on the limiter forever.
+		var lock_band := 12.0
+		if clutch >= 0.95 and absf(slip_w) < lock_band:
+			clutch_torque = clampf(combustion + slip_w * 250.0, -max_t, max_t)
+			engine_omega = lerpf(engine_omega, trans_omega, clampf(18.0 * dt, 0.0, 1.0))
+			slip_w = engine_omega - trans_omega
+		else:
+			# Kinetic friction while slipping — limited by clutch capacity only.
+			var dir := signf(slip_w)
+			if absf(slip_w) < 0.05:
+				dir = signf(combustion)
+			clutch_torque = dir * max_t
+
+	var net_engine := combustion - clutch_torque
+	var i_e := maxf(setup.engine_inertia, 0.05)
+	engine_omega += (net_engine / i_e) * dt
+	engine_omega = clampf(engine_omega, idle_omega * 0.5, max_omega)
+	# Hold idle when clutch open / neutral.
+	if not in_gear or clutch < 0.05:
+		if throttle < 0.05 and engine_omega < idle_omega:
+			engine_omega = move_toward(engine_omega, idle_omega, 40.0 * dt)
+	elif engine_omega < idle_omega and throttle < 0.02:
+		engine_omega = idle_omega
+	engine_rpm = engine_omega * 60.0 / TAU
+
+	# Brake torques per wheel (service bias + handbrake rear).
+	for i in _wheels.size():
+		var wheel := _wheels[i]
+		var bias := setup.brake_bias_front if wheel.is_steering else (1.0 - setup.brake_bias_front)
+		# Two wheels per axle share the axle bias.
+		var service := setup.brake_force * brake * bias * 0.5
+		var hb := 0.0
+		if not wheel.is_steering:
+			hb = setup.handbrake_force * handbrake * 0.5
+		wheel.brake_torque = service + hb
+
+	# Driveline torque at wheels from clutch * ratios.
+	var driveline := 0.0
+	if in_gear:
+		driveline = clutch_torque * gear_ratio * setup.final_drive
+
+	debug_eng_combustion = combustion
+	debug_clutch_torque = clutch_torque
+	debug_trans_rpm = trans_omega * 60.0 / TAU
+	debug_clutch_slip_w = slip_w
+	debug_driveline = driveline
+	debug_gear_ratio = gear_ratio
+	debug_shift_timer = _shift_timer
+
+	_assign_drive_torques(driveline)
+	_apply_traction_control()
+	_update_spin_debug()
+
+
+func _assign_drive_torques(driveline_torque: float) -> void:
+	for wheel in _wheels:
+		wheel.drive_torque = 0.0
+
+	if _wheels.size() < 4:
 		return
 
-	var engine_torque := setup.get_engine_torque(engine_rpm) * effective_throttle
-	var drive_torque := engine_torque * gear_ratio * setup.final_drive
-	var split_count := maxi(driven_grounded, 1)
-	var torque_per_wheel := drive_torque / float(split_count)
+	var torques: PackedFloat32Array = _VehicleDiff.split_driveline(
+		driveline_torque,
+		int(setup.drive_type),
+		setup.awd_front_bias,
+		_wheels[0].angular_velocity,
+		_wheels[1].angular_velocity,
+		_wheels[2].angular_velocity,
+		_wheels[3].angular_velocity,
+		int(setup.rear_diff_type),
+		setup.diff_preload,
+		setup.diff_power_lock,
+		setup.diff_coast_lock,
+		setup.locked_diff_stiffness
+	)
+	for i in 4:
+		_wheels[i].drive_torque = torques[i]
 
-	for wheel in driven:
-		if not wheel.on_ground:
+
+func _update_spin_debug() -> void:
+	debug_rear_spin = 0
+	if _wheels.size() < 4:
+		return
+	if absf(_wheels[2].slip_ratio) > 0.2 or absf(_wheels[3].slip_ratio) > 0.2:
+		debug_rear_spin = 1
+
+
+func _apply_traction_control() -> void:
+	## Past Pacejka peak, more spin means less Fx — slow accel and no lateral grip.
+	## Cut drive torque when |κ| exceeds the target so tires stay near peak.
+	debug_tc_scale = 1.0
+	if setup == null or not setup.traction_control:
+		return
+	var target := setup.tc_slip_ratio
+	var gain := setup.tc_gain
+	var scale_sum := 0.0
+	var scale_n := 0
+	var floor_cut := setup.tc_min_scale
+	for wheel in _wheels:
+		if absf(wheel.drive_torque) < 0.01:
 			continue
-		var drive_force := torque_per_wheel / maxf(setup.wheel_radius, 0.05)
-		wheel.long_force += drive_force
+		# Power spin only (same sign). Coast/brake slip is left alone.
+		if wheel.drive_torque * wheel.slip_ratio <= 0.0:
+			scale_sum += 1.0
+			scale_n += 1
+			continue
+		var over := absf(wheel.slip_ratio) - target
+		var cut := 1.0
+		if over > 0.0:
+			cut = clampf(1.0 - over * gain, floor_cut, 1.0)
+			wheel.drive_torque *= cut
+		scale_sum += cut
+		scale_n += 1
+	if scale_n > 0:
+		debug_tc_scale = scale_sum / float(scale_n)
+func _apply_tire_and_wheel(dt: float, force_scale: float) -> void:
+	var radius := maxf(setup.wheel_radius, 0.05)
+	var inertia := maxf(setup.wheel_inertia, 0.15)
+	var static_wheel_load := setup.mass * 9.81 * 0.25
+	var min_load := static_wheel_load * setup.min_load_fraction
 
-
-func _driven_wheels() -> Array[Wheel]:
-	var result: Array[Wheel] = []
-	for wheel in _wheels:
-		if wheel.is_driven:
-			result.append(wheel)
-	return result
-
-
-func _apply_tire_forces(delta: float) -> void:
-	for wheel in _wheels:
+	for i in _wheels.size():
+		var wheel := _wheels[i]
 		if not wheel.on_ground:
+			_integrate_wheel_omega(wheel, 0.0, radius, inertia, dt)
+			wheel.slip_ratio = 0.0
+			wheel.slip_angle = 0.0
 			continue
 
 		var point_velocity := _velocity_at_point(wheel.hit_point)
 		var long_speed := point_velocity.dot(wheel.forward)
 		var lat_speed := point_velocity.dot(wheel.right)
 
-		# Floor the load a bit so grip doesn't collapse when a wheel unloads in a turn.
-		var normal_load := maxf(wheel.suspension_force, setup.mass * 9.81 * 0.08)
-		var max_long := setup.grip_longitudinal * normal_load
-		var grip_lat := setup.grip_lateral_rear if not wheel.is_steering else setup.grip_lateral
-		if not wheel.is_steering:
-			# Blend toward very low rear grip while drifting / handbraking.
-			var drift_grip := setup.handbrake_lat_grip
-			grip_lat *= lerpf(1.0, drift_grip, maxf(_rear_drift, handbrake))
-		var max_lat := grip_lat * normal_load
+		var fz := maxf(wheel.suspension_force, min_load)
+		wheel.normal_load = fz
 
-		# Engine braking only on driven wheels — otherwise the front feels like it drags.
-		var brake_input := brake
-		if (
-			wheel.is_driven
-			and throttle < 0.05
-			and handbrake < 0.05
-			and absf(setup.get_gear_ratio(current_gear)) > 0.001
-		):
-			brake_input = maxf(brake_input, 0.05)
+		var slip: Vector2 = _TireModel.compute_slip(
+			long_speed,
+			lat_speed,
+			wheel.angular_velocity,
+			radius,
+			setup.tire_v_low
+		)
+		wheel.slip_ratio = slip.x
+		wheel.slip_angle = slip.y
 
-		if brake_input > 0.0:
-			var brake_dir := -signf(long_speed)
-			if absf(long_speed) < 0.15:
-				brake_dir = 0.0
-			wheel.long_force += brake_dir * setup.brake_force * brake_input
+		var forces: Vector2 = _TireModel.evaluate(
+			slip.x,
+			slip.y,
+			fz,
+			setup.get_tire_mu(i),
+			setup.pacejka_b_long,
+			setup.pacejka_c_long,
+			setup.pacejka_e_long,
+			setup.pacejka_b_lat,
+			setup.pacejka_c_lat,
+			setup.pacejka_e_lat
+		)
 
-		# Handbrake locks the rear axle; keep a bit of throttle freedom for sustained drift.
-		if not wheel.is_steering and handbrake > 0.0:
-			var hb_dir := -signf(long_speed)
-			if absf(long_speed) < 0.2:
-				hb_dir = 0.0
-			else:
-				wheel.long_force += hb_dir * setup.handbrake_force * handbrake
-			# Scale down drive instead of killing it completely.
-			if wheel.is_driven and wheel.long_force > 0.0:
-				wheel.long_force *= lerpf(1.0, 0.25, handbrake)
+		var rr := -signf(long_speed) * setup.rolling_resistance * fz
+		if absf(long_speed) < 0.05:
+			rr = 0.0
 
-		wheel.long_force += -signf(long_speed) * setup.rolling_resistance * normal_load
-
-		# Balance: enough drive to pull higher gears, enough circle left for steering.
-		var drive_budget_ratio := 0.72 if wheel.is_driven else 0.7
-		if not wheel.is_steering and _rear_drift > 0.2:
-			drive_budget_ratio = lerpf(drive_budget_ratio, 0.88, _rear_drift)
-		var drive_budget := max_long * drive_budget_ratio
-		wheel.long_force = clampf(wheel.long_force, -max_long, drive_budget)
-
-		var long_ratio := absf(wheel.long_force) / maxf(max_long, 1.0)
-		var lat_budget := max_lat * sqrt(maxf(0.0, 1.0 - long_ratio * long_ratio))
-
-		var lat_response := 2400.0 + 75.0 * absf(long_speed)
-		if not wheel.is_steering:
-			lat_response *= lerpf(1.55, 0.2, _rear_drift)
-		elif _rear_drift > 0.3:
-			lat_response *= 1.2
-		var desired_lat := -lat_speed * lat_response
-		wheel.lat_force = clampf(desired_lat, -lat_budget, lat_budget)
+		wheel.long_force = forces.x + rr
+		wheel.lat_force = forces.y
+		# Handbrake kills rear cornering grip so locked rears actually slide.
+		if handbrake > 0.001 and not wheel.is_steering:
+			var hb_lat := lerpf(1.0, setup.handbrake_lat_grip, handbrake)
+			wheel.lat_force *= hb_lat
 
 		var tire_force := wheel.forward * wheel.long_force + wheel.right * wheel.lat_force
 		tire_force = tire_force - wheel.hit_normal * tire_force.dot(wheel.hit_normal)
-		apply_force(tire_force, wheel.hit_point - global_position)
+		apply_force(tire_force * force_scale, wheel.hit_point - global_position)
 
-		var accel := (wheel.long_force * setup.wheel_radius) / maxf(setup.mass * 0.05, 1.0)
-		wheel.angular_velocity += accel * delta
+		_integrate_wheel_omega(wheel, wheel.long_force, radius, inertia, dt)
+
+
+func _integrate_wheel_omega(
+	wheel: Wheel,
+	fx: float,
+	radius: float,
+	inertia: float,
+	dt: float
+) -> void:
+	var tau_tire := -fx * radius
+	var tau_drive := wheel.drive_torque
+	var tau_brake := 0.0
+	if wheel.brake_torque > 0.0:
+		# Brake opposes spin; clamps toward zero.
+		var opposing := -signf(wheel.angular_velocity)
+		if absf(wheel.angular_velocity) < 0.05:
+			# Holding torque at rest - cancel drive if smaller than brake.
+			if absf(tau_drive + tau_tire) <= wheel.brake_torque:
+				wheel.angular_velocity = 0.0
+				return
+			opposing = -signf(tau_drive + tau_tire)
+		tau_brake = opposing * wheel.brake_torque
+
+	var alpha := (tau_drive + tau_brake + tau_tire) / inertia
+	var new_omega := wheel.angular_velocity + alpha * dt
+
+	# Prevent brake from reversing wheel through zero in one step.
+	if wheel.brake_torque > 0.0 and wheel.angular_velocity * new_omega < 0.0:
+		new_omega = 0.0
+
+	wheel.angular_velocity = new_omega
 
 
 func _velocity_at_point(world_point: Vector3) -> Vector3:
@@ -671,11 +855,13 @@ func _velocity_at_point(world_point: Vector3) -> Vector3:
 	return linear_velocity + angular_velocity.cross(local)
 
 
-func _apply_aero_drag() -> void:
+func _apply_aero(force_scale: float) -> void:
 	var speed := linear_velocity.length()
-	if speed < 0.01:
+	if speed < 0.05:
 		return
-	# Mild quadratic drag — old 0.35*v^2 killed pull in 3rd+ gears.
-	var drag_coeff := 0.1
-	var drag := -linear_velocity.normalized() * drag_coeff * speed * speed
-	apply_central_force(drag)
+	var q := 0.5 * setup.air_density * speed * speed
+	var drag := -linear_velocity.normalized() * (setup.drag_coefficient * setup.frontal_area * q)
+	var down := -global_transform.basis.y.normalized() * (
+		setup.downforce_coefficient * setup.frontal_area * q
+	)
+	apply_central_force((drag + down) * force_scale)

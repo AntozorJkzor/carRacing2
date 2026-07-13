@@ -151,7 +151,7 @@ func _mat(color: Color) -> StandardMaterial3D:
 func _add_box(
 	node_name: String,
 	size: Vector3,
-	position: Vector3,
+	local_pos: Vector3,
 	material: Material,
 	with_collision: bool = true
 ) -> void:
@@ -159,7 +159,7 @@ func _add_box(
 	if with_collision:
 		var body := StaticBody3D.new()
 		body.name = node_name
-		body.position = position
+		body.position = local_pos
 		var shape := CollisionShape3D.new()
 		var box := BoxShape3D.new()
 		box.size = size
@@ -169,7 +169,7 @@ func _add_box(
 	else:
 		var holder := Node3D.new()
 		holder.name = node_name
-		holder.position = position
+		holder.position = local_pos
 		root = holder
 
 	var mesh_i := MeshInstance3D.new()

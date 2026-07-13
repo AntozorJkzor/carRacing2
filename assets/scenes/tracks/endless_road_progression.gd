@@ -77,6 +77,7 @@ func _ensure_runtime_setup() -> void:
 	if copy == null:
 		copy = CarSetup.new()
 	copy.ensure_torque_curve()
+	copy.ensure_steer_angle_curve()
 	_car.set_setup(copy)
 
 

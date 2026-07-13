@@ -1,0 +1,3 @@
+# Telemetry CSV dumps (F4). Latest file is overwritten each session.
+*.csv
+!.gitkeep

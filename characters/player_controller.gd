@@ -230,7 +230,7 @@ func _enter_car(car: CarController) -> void:
 	_current_car = car
 	set_on_foot(false)
 	car.set_occupied(true, self)
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
 ## Used by cutscenes / scripted boarding.
