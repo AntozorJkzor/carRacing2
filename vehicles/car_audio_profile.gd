@@ -1,7 +1,8 @@
+## Spatial + baked engine loop banks for EngineAudio.
+## Bake with EngineSoundBaker (waveguide offline) into assets/audio/engines/<car>/.
 class_name CarAudioProfile
 extends Resource
 
-## Pack-local engine loop banks (idle → redline crossfade).
 @export var idle_stream: AudioStream
 @export var low_stream: AudioStream
 @export var mid_stream: AudioStream

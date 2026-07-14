@@ -13,6 +13,12 @@ point_count = 6
 [resource]
 script = ExtResource("1_setup")
 torque_curve = SubResource("Curve_torque")
+cylinder_count = 4
+displacement_liters = 2.0
+piston_stroke_mm = 86.0
+exhaust_diameter_mm = 55.0
+has_muffler = true
+resonator_count = 1
 wheel_radius = 0.213
 wheel_positions = Array[Vector3]([Vector3(-0.52, 0.42, -0.9576834), Vector3(0.52, 0.42, -0.9576834), Vector3(-0.52, 0.42, 0.7246699), Vector3(0.52, 0.42, 0.7246699)])
 front_rest_length = 0.58

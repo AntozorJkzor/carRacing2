@@ -13,6 +13,15 @@ point_count = 6
 [resource]
 script = ExtResource("1_setup")
 torque_curve = SubResource("Curve_torque")
+cylinder_count = 4
+displacement_liters = 1.8
+piston_stroke_mm = 86.0
+exhaust_diameter_mm = 50.0
+has_turbo = true
+has_supercharger = false
+has_muffler = true
+resonator_count = 1
+engine_sound_volume_db = 0.0
 rear_diff_type = 2
 locked_diff_stiffness = 1200.0
 wheel_radius = 0.185

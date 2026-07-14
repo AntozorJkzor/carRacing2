@@ -47,6 +47,24 @@ func _rebuild_ui() -> void:
 	_add_slider("idle_rpm", "Холостые, об/мин", 600.0, 1500.0, 10.0, TuningStore.setup.idle_rpm)
 	_add_slider("max_rpm", "Макс. обороты", 4000.0, 10000.0, 50.0, TuningStore.setup.max_rpm)
 
+	_add_section("Звук двигателя")
+	_add_slider("cylinder_count", "Цилиндры", 2.0, 12.0, 1.0, float(TuningStore.setup.cylinder_count))
+	_add_slider("displacement_liters", "Объём, л", 0.5, 12.0, 0.1, TuningStore.setup.displacement_liters)
+	_add_slider("piston_stroke_mm", "Ход поршня, мм", 50.0, 120.0, 1.0, TuningStore.setup.piston_stroke_mm)
+	_add_slider("exhaust_diameter_mm", "Диаметр выхлопа, мм", 30.0, 120.0, 1.0, TuningStore.setup.exhaust_diameter_mm)
+	_add_checkbox("has_turbo", "Турбина", TuningStore.setup.has_turbo)
+	_add_checkbox("has_supercharger", "Компрессор", TuningStore.setup.has_supercharger)
+	_add_checkbox("has_muffler", "Глушитель (выкл = прямоток)", TuningStore.setup.has_muffler)
+	_add_slider("resonator_count", "Резонаторы", 0.0, 3.0, 1.0, float(TuningStore.setup.resonator_count))
+	_add_slider(
+		"engine_sound_volume_db",
+		"Громкость звука, дБ",
+		-24.0,
+		12.0,
+		0.5,
+		TuningStore.setup.engine_sound_volume_db
+	)
+
 	_add_section("КПП / привод")
 	_add_drive_type()
 	_add_slider("final_drive", "Главная пара", 2.0, 6.0, 0.05, TuningStore.setup.final_drive)
@@ -215,6 +233,22 @@ func _add_slider(
 	_value_labels[key] = val_l
 
 
+func _add_checkbox(key: String, title: String, value: bool) -> void:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 12)
+	var name_l := Label.new()
+	name_l.text = title
+	name_l.custom_minimum_size = Vector2(240, 0)
+	row.add_child(name_l)
+	var box := CheckBox.new()
+	box.button_pressed = value
+	box.toggled.connect(func(on: bool) -> void:
+		_apply_bool_key(key, on)
+	)
+	row.add_child(box)
+	_list.add_child(row)
+
+
 func _format_value(value: float, step: float) -> String:
 	if step >= 1.0:
 		return str(int(round(value)))
@@ -231,6 +265,17 @@ func _on_drive_selected(index: int) -> void:
 
 func _on_rear_diff_selected(index: int) -> void:
 	TuningStore.setup.rear_diff_type = _rear_diff_option.get_item_id(index) as CarSetup.RearDiffType
+
+
+func _apply_bool_key(key: String, value: bool) -> void:
+	var s := TuningStore.setup
+	match key:
+		"has_turbo":
+			s.has_turbo = value
+		"has_supercharger":
+			s.has_supercharger = value
+		"has_muffler":
+			s.has_muffler = value
 
 
 func _apply_key(key: String, value: float) -> void:
@@ -258,6 +303,18 @@ func _apply_key(key: String, value: float) -> void:
 			s.idle_rpm = value
 		"max_rpm":
 			s.max_rpm = value
+		"cylinder_count":
+			s.cylinder_count = clampi(int(round(value)), 2, 12)
+		"displacement_liters":
+			s.displacement_liters = value
+		"piston_stroke_mm":
+			s.piston_stroke_mm = value
+		"exhaust_diameter_mm":
+			s.exhaust_diameter_mm = value
+		"resonator_count":
+			s.resonator_count = clampi(int(round(value)), 0, 3)
+		"engine_sound_volume_db":
+			s.engine_sound_volume_db = value
 		"final_drive":
 			s.final_drive = value
 		"reverse_ratio":
@@ -393,16 +450,26 @@ func _apply_key(key: String, value: float) -> void:
 
 
 func _on_save() -> void:
-	TuningStore.save_to_disk()
-	_path_label.text = "Сохранено: %s" % ProjectSettings.globalize_path(TuningStore.SAVE_PATH)
+	_path_label.text = "Генерация звука двигателя…"
+	await get_tree().process_frame
+	var banks: Dictionary = TuningStore.save_to_disk()
+	if bool(banks.get("skipped", false)):
+		_path_label.text = "Сохранено (звук уже актуален): %s" % String(TuningStore.active_car_id)
+	else:
+		_path_label.text = "Сохранено + новый звук: %s → %s" % [
+			String(TuningStore.active_car_id),
+			ProjectSettings.globalize_path(EngineSoundBaker.user_bake_dir(TuningStore.active_car_id)),
+		]
 
 
 func _on_reset() -> void:
 	TuningStore.reset_to_defaults()
 	_rebuild_ui()
-	_path_label.text = "Сброшено к пакету (%s)" % String(TuningStore.active_car_id)
+	_path_label.text = "Сброшено к пакету (%s), user-bake удалён" % String(TuningStore.active_car_id)
 
 
 func _on_back() -> void:
+	_path_label.text = "Сохранение…"
+	await get_tree().process_frame
 	TuningStore.save_to_disk()
 	get_tree().change_scene_to_file("res://assets/scenes/ui/main_menu.tscn")

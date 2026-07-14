@@ -1,17 +1,16 @@
 extends Node
 
-## Global music + one-shot SFX (hit jingle).
+## Global music + one-shot SFX (hit jingle). No looping game bed track.
 
 @export var music_volume_db: float = -12.0
 @export var sfx_volume_db: float = 8.0
-## Terror overlay vs music bed (was 2×; ×3 louder again → 6× music).
+## Terror overlay vs music bed volume reference.
 @export var terror_volume_mult: float = 6.0
 
 var _music: AudioStreamPlayer
 var _terror: AudioStreamPlayer
 var _npc1_hit_streams: Array[AudioStream] = []
 var _npc2_hit_streams: Array[AudioStream] = []
-var _game_music_stream: AudioStream
 var _intro_music_stream: AudioStream
 var _lose_music_stream: AudioStream
 var _terror_music_stream: AudioStream
@@ -50,13 +49,10 @@ func _ready() -> void:
 		var stream := load(path) as AudioStream
 		if stream != null:
 			_npc2_hit_streams.append(stream)
-	_game_music_stream = load("res://assets/audio/music/music.mp3") as AudioStream
 	_intro_music_stream = load("res://assets/audio/music/intro.mp3") as AudioStream
 	_lose_music_stream = load("res://assets/audio/music/lose.mp3") as AudioStream
 	_terror_music_stream = load("res://assets/audio/music/terror.mp3") as AudioStream
 
-	if _game_music_stream is AudioStreamMP3:
-		(_game_music_stream as AudioStreamMP3).loop = true
 	if _intro_music_stream is AudioStreamMP3:
 		(_intro_music_stream as AudioStreamMP3).loop = false
 	if _lose_music_stream is AudioStreamMP3:
@@ -64,8 +60,6 @@ func _ready() -> void:
 	if _terror_music_stream is AudioStreamMP3:
 		(_terror_music_stream as AudioStreamMP3).loop = true
 
-	if _game_music_stream:
-		_music.stream = _game_music_stream
 	if _terror_music_stream:
 		_terror.stream = _terror_music_stream
 
@@ -80,15 +74,12 @@ func _stop_terror_player() -> void:
 	_terror_active = false
 
 
-## Start (or restart from the beginning) the background track.
+## Stop any looping bed / one-shot music (no game bed track).
 func restart_music() -> void:
 	_stop_terror_player()
-	if _music == null or _game_music_stream == null:
-		return
-	_music.volume_db = music_volume_db
-	_music.stop()
-	_music.stream = _game_music_stream
-	_music.play(0.0)
+	if _music != null and _music.playing:
+		_music.stop()
+	_music.stream = null
 
 
 func play_intro_music() -> void:
@@ -115,13 +106,9 @@ func play_terror_music() -> void:
 	if _terror == null or _terror_music_stream == null:
 		return
 	_terror_active = true
-	# Keep music.mp3 as the bed; terror overlays at 2× volume.
-	if _music != null and _game_music_stream != null:
-		if _music.stream != _game_music_stream:
-			_music.stream = _game_music_stream
-		_music.volume_db = music_volume_db
-		if not _music.playing:
-			_music.play()
+	# No game bed — terror alone.
+	if _music != null and _music.playing:
+		_music.stop()
 	_terror.volume_db = _terror_volume_db()
 	_terror.stream = _terror_music_stream
 	if not _terror.playing:
@@ -132,13 +119,6 @@ func stop_terror_music() -> void:
 	if not _terror_active and (_terror == null or not _terror.playing):
 		return
 	_stop_terror_player()
-	# Resume / keep game music without restarting from zero if already on it.
-	if _music != null and _game_music_stream != null:
-		_music.volume_db = music_volume_db
-		if _music.stream != _game_music_stream:
-			_music.stream = _game_music_stream
-		if not _music.playing:
-			_music.play()
 
 
 func is_terror_playing() -> bool:
@@ -150,7 +130,7 @@ func restore_game_music() -> void:
 
 
 func play_npc_hit(kind: String = "npc1") -> void:
-	# During terror: mute all one-shots; only music.mp3 + terror remain.
+	# During terror: mute all one-shots; only terror remains.
 	if _terror_active:
 		return
 	var stream: AudioStream = null

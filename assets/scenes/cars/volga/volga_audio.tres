@@ -1,17 +1,14 @@
-[gd_resource type="Resource" script_class="CarAudioProfile" format=3 uid="uid://volgaaudio0001"]
+[gd_resource type="Resource" script_class="CarAudioProfile" format=3 uid="uid://byqnd8j5i0hka"]
 
-[ext_resource type="Script" path="res://vehicles/car_audio_profile.gd" id="1_script"]
-[ext_resource type="AudioStream" uid="uid://cxb0bqy8sik7c" path="res://assets/audio/cars/idling.mp3" id="2_idle"]
-[ext_resource type="AudioStream" uid="uid://dtkf3ykeiijmu" path="res://assets/audio/cars/low.mp3" id="3_low"]
-[ext_resource type="AudioStream" uid="uid://b3efm2hjm3lwq" path="res://assets/audio/cars/mid.mp3" id="4_mid"]
-[ext_resource type="AudioStream" uid="uid://dq315w6you5fq" path="res://assets/audio/cars/max.mp3" id="5_max"]
+[ext_resource type="Script" uid="uid://kemfqq23ms7g" path="res://vehicles/car_audio_profile.gd" id="1_script"]
+[ext_resource type="AudioStream" uid="uid://b82iqtmavfxob" path="res://assets/audio/engines/volga/idle.tres" id="1_sor4l"]
+[ext_resource type="AudioStream" uid="uid://cl13l5k64dex5" path="res://assets/audio/engines/volga/low.tres" id="2_wpyey"]
+[ext_resource type="AudioStream" uid="uid://cergg1cs3hcax" path="res://assets/audio/engines/volga/max.tres" id="3_pdepb"]
+[ext_resource type="AudioStream" uid="uid://wwnqkuxkfbj2" path="res://assets/audio/engines/volga/mid.tres" id="4_n6854"]
 
 [resource]
 script = ExtResource("1_script")
-idle_stream = ExtResource("2_idle")
-low_stream = ExtResource("3_low")
-mid_stream = ExtResource("4_mid")
-max_stream = ExtResource("5_max")
-master_volume_db = -9.1
-max_distance = 80.0
-unit_size = 12.0
+idle_stream = ExtResource("1_sor4l")
+low_stream = ExtResource("2_wpyey")
+mid_stream = ExtResource("4_n6854")
+max_stream = ExtResource("3_pdepb")

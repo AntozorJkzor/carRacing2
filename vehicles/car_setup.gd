@@ -28,6 +28,24 @@ enum RearDiffType { OPEN, LSD, WELDED }
 ## X = RPM (0..1 normalized against max_rpm), Y = torque multiplier (0..1+).
 @export var torque_curve: Curve
 
+@export_group("Engine Sound")
+## Cylinder count for firing frequency / harmonic character (4-stroke).
+@export_range(2, 12, 1) var cylinder_count: int = 4
+## Engine displacement in litres — pulse weight / low-end.
+@export_range(0.5, 12.0, 0.1) var displacement_liters: float = 2.0
+## Piston stroke (mm). Long stroke = deeper / bassier; short = higher bite.
+@export_range(50.0, 120.0, 1.0) var piston_stroke_mm: float = 86.0
+## Exhaust tip diameter (mm) — pipe brightness / bass.
+@export_range(30.0, 120.0, 1.0) var exhaust_diameter_mm: float = 55.0
+@export var has_turbo: bool = false
+@export var has_supercharger: bool = false
+## false = straight pipe (brighter / louder HF).
+@export var has_muffler: bool = true
+## Number of exhaust resonators (tonal shelves).
+@export_range(0, 3, 1) var resonator_count: int = 1
+## Extra volume trim on top of CarAudioProfile master.
+@export_range(-24.0, 12.0, 0.1) var engine_sound_volume_db: float = 0.0
+
 @export_group("Drivetrain")
 ## Forward gear ratios, index 0 = 1st gear.
 @export var gear_ratios: Array[float] = [3.67, 2.10, 1.36, 1.00, 0.82]

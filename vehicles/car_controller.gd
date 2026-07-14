@@ -115,6 +115,10 @@ func _apply_pack_assets() -> void:
 		var engine_audio := get_node_or_null("EngineAudio")
 		if engine_audio != null and engine_audio.has_method("apply_profile"):
 			engine_audio.call("apply_profile", audio_profile, true)
+			# Tuned bake from Settings save overrides pack banks.
+			var user_banks := EngineSoundBaker.load_user(car_id)
+			if not user_banks.is_empty() and engine_audio.has_method("apply_banks"):
+				engine_audio.call("apply_banks", user_banks)
 	_ensure_wheel_smoke()
 	_ensure_player_driver()
 
@@ -339,6 +343,31 @@ func _estimate_transmission_rpm(gear: int) -> float:
 	return wheel_rpm * absf(gear_ratio) * setup.final_drive
 
 
+func _estimate_ground_transmission_rpm(gear: int) -> float:
+	## RPM as if driven wheels matched body longitudinal speed (ignores wheelspin).
+	if setup == null:
+		return 0.0
+	var gear_ratio := setup.get_gear_ratio(gear)
+	if absf(gear_ratio) < 0.001:
+		return 0.0
+	var radius := 0.32
+	if _wheels.size() >= 4:
+		radius = maxf(setup.get_wheel_radius(2), 0.05)
+	elif _wheels.size() > 0:
+		radius = maxf(setup.get_wheel_radius(0), 0.05)
+	var ground_speed := absf(linear_velocity.dot(-global_transform.basis.z))
+	var wheel_rpm := (ground_speed / radius) * 60.0 / TAU
+	return wheel_rpm * absf(gear_ratio) * setup.final_drive
+
+
+func _max_driven_slip_ratio() -> float:
+	var peak := 0.0
+	for wheel in _wheels:
+		if wheel.is_driven and wheel.on_ground:
+			peak = maxf(peak, absf(wheel.slip_ratio))
+	return peak
+
+
 func _average_driven_omega() -> float:
 	var sum := 0.0
 	var count := 0
@@ -395,18 +424,32 @@ func _update_automatic_transmission() -> void:
 	if current_gear < 1:
 		return
 
-	# While the clutch is slipping, engine RPM is meaningless for shift logic —
-	# use gearbox input speed estimated from the driven wheels.
+	# Upshifts use BODY speed RPM only — spinning wheels must not fake redline.
+	# Do NOT hard-block on slip: with RWD burnout κ stays high and we'd sit on
+	# the limiter in 1st forever. Ground RPM already refuses early burnout shifts.
+	var ground_rpm := _estimate_ground_transmission_rpm(current_gear)
+	var next_ground := 0.0
+	if current_gear < max_gear:
+		next_ground = _estimate_ground_transmission_rpm(current_gear + 1)
+	var driven_slip := _max_driven_slip_ratio()
+	var spinning := driven_slip > 0.35
+
+	# Downshifts still use engine / wheel est (clutch-open coast).
 	var shift_rpm := engine_rpm
 	if clutch < 0.9 or absf(debug_clutch_slip_w) > 40.0:
 		shift_rpm = debug_est_rpm_cur
 
-	var up_frac := 0.78 if throttle > 0.5 else 0.68
+	var up_frac := 0.72 if throttle > 0.5 else 0.62
 	var want_up := false
 	if current_gear < max_gear and throttle > 0.08:
-		if shift_rpm >= setup.max_rpm * up_frac:
-			var next_rpm := _estimate_transmission_rpm(current_gear + 1)
-			if next_rpm >= setup.idle_rpm * 1.15:
+		var road_ready := ground_rpm >= setup.max_rpm * up_frac
+		# Escape: engine on the limiter but car already has meaningful road speed.
+		var limiter_escape := (
+			engine_rpm >= setup.max_rpm * 0.94
+			and ground_rpm >= setup.max_rpm * 0.42
+		)
+		if road_ready or limiter_escape:
+			if next_ground >= setup.idle_rpm * 1.15:
 				want_up = true
 
 	var want_down := false
@@ -417,6 +460,9 @@ func _update_automatic_transmission() -> void:
 			var rpm_if_down := _estimate_transmission_rpm(current_gear - 1)
 			if rpm_if_down > 0.0 and rpm_if_down < setup.max_rpm * 0.9:
 				want_down = true
+		# No kickdown deeper into a lit axle.
+		if spinning and throttle > 0.5:
+			want_down = false
 
 	debug_want_up = 1 if want_up else 0
 	debug_want_down = 1 if want_down else 0
@@ -484,6 +530,10 @@ func _apply_body_setup() -> void:
 	center_of_mass_mode = RigidBody3D.CENTER_OF_MASS_MODE_CUSTOM
 	center_of_mass = setup.center_of_mass_offset
 	# Scene packs used angular_damp ~2.4 which kills yaw — drifts never build.
+	# REPLACE so project default linear_damp 0.1 does not combine in —
+	# that alone ate ~m*0.1*|v| ≈ 3.5 kN at 90 km/h and capped 5th.
+	angular_damp_mode = RigidBody3D.DAMP_MODE_REPLACE
+	linear_damp_mode = RigidBody3D.DAMP_MODE_REPLACE
 	angular_damp = 0.08
 	linear_damp = 0.0
 	_base_angular_damp = angular_damp
@@ -683,8 +733,12 @@ func _update_engine_clutch_diff(dt: float) -> void:
 	var max_omega := setup.max_rpm * TAU / 60.0
 
 	var effective_throttle := _throttle_cmd
-	if engine_rpm >= setup.max_rpm * 0.98:
-		effective_throttle = 0.0
+	# Soft redline taper — hard zero made the clutch slam ±max torque and
+	# punch engine-brake pulses that killed top-end acceleration.
+	var redline_start := setup.max_rpm * 0.96
+	if engine_rpm >= redline_start:
+		var over := (engine_rpm - redline_start) / maxf(setup.max_rpm - redline_start, 1.0)
+		effective_throttle *= clampf(1.0 - over, 0.0, 1.0)
 	debug_eff_throttle = effective_throttle
 
 	var combustion := setup.get_engine_torque(engine_rpm) * effective_throttle
@@ -703,25 +757,28 @@ func _update_engine_clutch_diff(dt: float) -> void:
 	if in_gear and clutch > 0.001:
 		slip_w = engine_omega - trans_omega
 		var max_t := clutch * setup.clutch_max_torque
-		# Locked enough: pass combustion and sync engine to gearbox input.
-		# Old model always hit the 450 Nm cap while engine made ~530 Nm, so the
-		# clutch never locked and RPM sat on the limiter forever.
-		var lock_band := 12.0
+		# Locked enough: pass combustion + soft slip sync.
+		# Old slip*180 slammed ±max at |slip|≳5 and still pumped engine-brake.
+		var lock_band := 40.0
 		if clutch >= 0.95 and absf(slip_w) < lock_band:
-			clutch_torque = clampf(combustion + slip_w * 250.0, -max_t, max_t)
-			engine_omega = lerpf(engine_omega, trans_omega, clampf(18.0 * dt, 0.0, 1.0))
+			var sync := clampf(slip_w * 28.0, -max_t * 0.25, max_t * 0.25)
+			clutch_torque = clampf(combustion + sync, -max_t, max_t)
+			if _throttle_cmd > 0.1:
+				clutch_torque = maxf(clutch_torque, -max_t * 0.08)
+			engine_omega = lerpf(engine_omega, trans_omega, clampf(10.0 * dt, 0.0, 1.0))
 			slip_w = engine_omega - trans_omega
 		elif _throttle_cmd < 0.05:
 			# Idle / coast slip: soft viscous coupling only.
-			# Full kinetic clutch at idle was shoving the car forward while standing.
 			clutch_torque = clampf(slip_w * 12.0, -60.0, 60.0)
 		else:
-			# Kinetic friction while slipping — limited by clutch × throttle authority.
-			var slip_limit := max_t * clampf(_throttle_cmd, 0.12, 1.0)
-			var dir := signf(slip_w)
-			if absf(slip_w) < 0.05:
-				dir = signf(combustion)
-			clutch_torque = dir * slip_limit
+			# Kinetic: viscous slip toward combustion — NEVER full ±max slam.
+			# Old dir*max_t flipped driveline ±8kNm every substep and erased accel.
+			var slip_limit := max_t * clampf(_throttle_cmd, 0.15, 1.0)
+			var target := combustion + slip_w * 45.0
+			# Under power, cap engine-brake so the clutch can't haul the car down.
+			if _throttle_cmd > 0.1:
+				target = maxf(target, -slip_limit * 0.08)
+			clutch_torque = clampf(target, -slip_limit, slip_limit)
 
 	var net_engine := combustion - clutch_torque
 	var i_e := maxf(setup.engine_inertia, 0.05)

@@ -1,17 +1,14 @@
-[gd_resource type="Resource" script_class="CarAudioProfile" format=3 uid="uid://golfaudio000001"]
+[gd_resource type="Resource" script_class="CarAudioProfile" format=3 uid="uid://cp0vq4vdnrk2s"]
 
-[ext_resource type="Script" path="res://vehicles/car_audio_profile.gd" id="1_script"]
-[ext_resource type="AudioStream" uid="uid://cxb0bqy8sik7c" path="res://assets/audio/cars/idling.mp3" id="2_idle"]
-[ext_resource type="AudioStream" uid="uid://dtkf3ykeiijmu" path="res://assets/audio/cars/low.mp3" id="3_low"]
-[ext_resource type="AudioStream" uid="uid://b3efm2hjm3lwq" path="res://assets/audio/cars/mid.mp3" id="4_mid"]
-[ext_resource type="AudioStream" uid="uid://dq315w6you5fq" path="res://assets/audio/cars/max.mp3" id="5_max"]
+[ext_resource type="AudioStream" uid="uid://x03ybpi7tpp6" path="res://assets/audio/engines/golf/idle.tres" id="1_k7yw2"]
+[ext_resource type="Script" uid="uid://kemfqq23ms7g" path="res://vehicles/car_audio_profile.gd" id="1_script"]
+[ext_resource type="AudioStream" uid="uid://x7tpmetemdu4" path="res://assets/audio/engines/golf/low.tres" id="2_j00k0"]
+[ext_resource type="AudioStream" uid="uid://d4cacol4k30e" path="res://assets/audio/engines/golf/max.tres" id="3_wpxjy"]
+[ext_resource type="AudioStream" uid="uid://bccl1tb22o61r" path="res://assets/audio/engines/golf/mid.tres" id="4_86bo2"]
 
 [resource]
 script = ExtResource("1_script")
-idle_stream = ExtResource("2_idle")
-low_stream = ExtResource("3_low")
-mid_stream = ExtResource("4_mid")
-max_stream = ExtResource("5_max")
-master_volume_db = -9.1
-max_distance = 80.0
-unit_size = 12.0
+idle_stream = ExtResource("1_k7yw2")
+low_stream = ExtResource("2_j00k0")
+mid_stream = ExtResource("4_86bo2")
+max_stream = ExtResource("3_wpxjy")

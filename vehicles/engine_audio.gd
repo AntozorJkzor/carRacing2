@@ -1,149 +1,227 @@
 extends Node3D
 
-## Crossfades idling / low / mid / max engine loops from car RPM.
-## Streams come from this node's exports, or from CarController.audio_profile.
+## Baked waveguide engine banks (idle/low/mid/max) with RPM crossfade + pitch.
+## Banks come from EngineSoundBaker (Baldan waveguide offline).
 
-@export var master_volume_db: float = -9.1 ## ~0.35 linear (~50% quieter than previous -3.1)
+@export var master_volume_db: float = -9.1
+@export var max_distance: float = 80.0
+@export var unit_size: float = 12.0
 @export var idle_stream: AudioStream
 @export var low_stream: AudioStream
 @export var mid_stream: AudioStream
 @export var max_stream: AudioStream
-@export var max_distance: float = 80.0
-@export var unit_size: float = 12.0
+## Reference RPMs for each baked bank (pitch_scale = rpm / ref).
+@export var idle_rpm_ref: float = 800.0
+@export var low_rpm_ref: float = 2200.0
+@export var mid_rpm_ref: float = 4200.0
+@export var max_rpm_ref: float = 6300.0
+## How far pitch may track RPM relative to each bank's bake RPM.
+@export var pitch_min: float = 0.65
+@export var pitch_max: float = 1.4
+## 1 = linear rpm/ref; >1 exaggerates how much pitch moves with RPM.
+@export var pitch_exaggeration: float = 1.2
+## <1 pulls crossfade toward higher banks earlier (more change through the rev range).
+@export var band_bias_exp: float = 0.7
 
 var _car: CarController
 var _players: Array[AudioStreamPlayer3D] = []
 var _smooth_rpm: float = 800.0
 var _smooth_load: float = 0.0
 var _profile_applied: bool = false
+var _vols: PackedFloat32Array = PackedFloat32Array([0.0, 0.0, 0.0, 0.0])
 
 
 func _ready() -> void:
 	_car = get_parent() as CarController
-	_resolve_streams_from_pack()
-	if idle_stream == null and low_stream == null and mid_stream == null and max_stream == null:
-		push_warning(
-			"EngineAudio: no streams on node and no audio_profile on pack '%s'"
-			% (String(_car.car_id) if _car else "?")
-		)
-		return
-	_players = [
-		_make_player("Idle", idle_stream),
-		_make_player("Low", low_stream),
-		_make_player("Mid", mid_stream),
-		_make_player("Max", max_stream),
-	]
-	for p in _players:
-		if p.stream != null:
-			p.play()
+	_resolve_profile_from_pack()
+	_setup_players()
 	if _car and _car.setup:
 		_smooth_rpm = _car.setup.idle_rpm
+		_apply_default_rpm_refs_from_setup(_car.setup)
 
 
-## Apply pack audio. If only_fill_empty, keep any streams already set on this node.
 func apply_profile(profile: CarAudioProfile, only_fill_empty: bool = true) -> void:
 	if profile == null:
 		return
-	if not only_fill_empty or idle_stream == null:
-		idle_stream = profile.idle_stream
-	if not only_fill_empty or low_stream == null:
-		low_stream = profile.low_stream
-	if not only_fill_empty or mid_stream == null:
-		mid_stream = profile.mid_stream
-	if not only_fill_empty or max_stream == null:
-		max_stream = profile.max_stream
 	if not only_fill_empty or not _profile_applied:
 		master_volume_db = profile.master_volume_db
 		max_distance = profile.max_distance
 		unit_size = profile.unit_size
+		if profile.idle_stream:
+			idle_stream = profile.idle_stream
+		if profile.low_stream:
+			low_stream = profile.low_stream
+		if profile.mid_stream:
+			mid_stream = profile.mid_stream
+		if profile.max_stream:
+			max_stream = profile.max_stream
 		_profile_applied = true
+		_apply_streams_to_players()
+		_apply_spatial()
 
 
-func _resolve_streams_from_pack() -> void:
+## Swap idle/low/mid/max banks (from EngineSoundBaker bake_user / bake_streams).
+func apply_banks(banks: Dictionary) -> void:
+	if banks.is_empty():
+		return
+	if banks.has("idle"):
+		idle_stream = banks["idle"] as AudioStream
+	if banks.has("low"):
+		low_stream = banks["low"] as AudioStream
+	if banks.has("mid"):
+		mid_stream = banks["mid"] as AudioStream
+	if banks.has("max"):
+		max_stream = banks["max"] as AudioStream
+	if banks.has("rpms"):
+		var rpms: PackedFloat32Array = banks["rpms"]
+		if rpms.size() >= 4:
+			idle_rpm_ref = rpms[0]
+			low_rpm_ref = rpms[1]
+			mid_rpm_ref = rpms[2]
+			max_rpm_ref = rpms[3]
+	_profile_applied = true
+	_apply_streams_to_players()
+	# Restart players so new PCM is heard immediately.
+	for p in _players:
+		if p.stream != null:
+			p.stop()
+			p.play()
+
+
+func _resolve_profile_from_pack() -> void:
 	if _car != null and _car.audio_profile != null:
 		apply_profile(_car.audio_profile, true)
+	if _car != null:
+		var user_banks := EngineSoundBaker.load_user(_car.car_id)
+		if not user_banks.is_empty():
+			apply_banks(user_banks)
+
+
+func _apply_default_rpm_refs_from_setup(setup: Resource) -> void:
+	var rpms := EngineSoundBaker.band_rpms(setup)
+	idle_rpm_ref = rpms[0]
+	low_rpm_ref = rpms[1]
+	mid_rpm_ref = rpms[2]
+	max_rpm_ref = rpms[3]
+
+
+func _setup_players() -> void:
+	var streams: Array[AudioStream] = [idle_stream, low_stream, mid_stream, max_stream]
+	for i in 4:
+		var p := AudioStreamPlayer3D.new()
+		p.name = "Band%d" % i
+		p.bus = "Master"
+		p.volume_db = -80.0
+		p.max_distance = max_distance
+		p.unit_size = unit_size
+		p.attenuation_model = AudioStreamPlayer3D.ATTENUATION_INVERSE_DISTANCE
+		p.doppler_tracking = AudioStreamPlayer3D.DOPPLER_TRACKING_PHYSICS_STEP
+		if streams[i]:
+			p.stream = streams[i]
+			p.play()
+		add_child(p)
+		_players.append(p)
+
+
+func _apply_streams_to_players() -> void:
+	if _players.size() < 4:
+		return
+	var streams: Array[AudioStream] = [idle_stream, low_stream, mid_stream, max_stream]
+	for i in 4:
+		var p: AudioStreamPlayer3D = _players[i]
+		if p.stream != streams[i]:
+			var was_playing := p.playing
+			p.stream = streams[i]
+			if streams[i] != null and was_playing:
+				p.play()
+		elif streams[i] != null and not p.playing:
+			p.play()
+
+
+func _apply_spatial() -> void:
+	for p in _players:
+		p.max_distance = max_distance
+		p.unit_size = unit_size
 
 
 func _process(delta: float) -> void:
 	if _car == null or _car.setup == null or _players.is_empty():
 		return
 
-	var idle := _car.setup.idle_rpm
-	var redline := _car.setup.max_rpm
-	_smooth_rpm = lerpf(_smooth_rpm, _car.engine_rpm, clampf(12.0 * delta, 0.0, 1.0))
+	_smooth_rpm = lerpf(_smooth_rpm, _car.engine_rpm, clampf(10.0 * delta, 0.0, 1.0))
 	var load_target := clampf(_car.throttle, 0.0, 1.0)
 	if not _car.occupied:
 		load_target = 0.0
 	_smooth_load = lerpf(_smooth_load, load_target, clampf(6.0 * delta, 0.0, 1.0))
 
-	var t := clampf(inverse_lerp(idle, redline, _smooth_rpm), 0.0, 1.0)
-	var weights := _rpm_weights(t)
-	# Normalize so overlapping bands don't clip too hard.
-	var sum := weights[0] + weights[1] + weights[2] + weights[3]
-	if sum > 0.001:
-		for i in 4:
-			weights[i] /= sum
+	var mute := (
+		GameAudio != null
+		and GameAudio.has_method("is_terror_playing")
+		and GameAudio.is_terror_playing()
+	)
+	var occupied_db := 0.0 if _car.occupied else -10.0
+	var load_db := lerpf(-3.0, 1.5, _smooth_load)
+	var idle_r := float(_car.setup.get("idle_rpm"))
+	var max_r := maxf(float(_car.setup.get("max_rpm")), idle_r + 1.0)
+	var rpm_t := clampf(inverse_lerp(idle_r, max_r, _smooth_rpm), 0.0, 1.0)
+	var rpm_db := lerpf(-1.0, 1.8, pow(rpm_t, 1.15))
+	var master := -80.0 if mute else (master_volume_db + load_db + occupied_db + rpm_db)
 
-	var pitch := lerpf(0.92, 1.22, t) + _smooth_load * 0.04
-	var load_db := lerpf(-2.5, 2.0, _smooth_load)
-	# Quieter when nobody is driving, but keep a soft idle presence.
-	var occupied_db := 0.0 if _car.occupied else -8.0
-	var mute_engine := GameAudio != null and GameAudio.has_method("is_terror_playing") and GameAudio.is_terror_playing()
+	var refs := PackedFloat32Array([idle_rpm_ref, low_rpm_ref, mid_rpm_ref, max_rpm_ref])
+	# Bias blend RPM upward so mid/max dominate sooner — clearer climb.
+	var blend_rpm := lerpf(refs[0], refs[3], pow(rpm_t, band_bias_exp))
+	_compute_band_weights(blend_rpm, refs)
 
 	for i in _players.size():
-		var player := _players[i]
-		if player.stream == null:
+		var p: AudioStreamPlayer3D = _players[i]
+		if p.stream == null:
+			p.volume_db = -80.0
 			continue
-		var w: float = weights[i]
-		player.pitch_scale = pitch
-		if mute_engine or w <= 0.001:
-			player.volume_db = -80.0
+		var w: float = _vols[i]
+		# Idle drops faster; low peakes early so leaving idle is obvious.
+		if i == 0:
+			w *= lerpf(1.25, 0.22, pow(rpm_t, 0.65))
+		elif i == 1:
+			var into_low := clampf(rpm_t / 0.32, 0.0, 1.0)
+			var past_low := clampf((rpm_t - 0.38) / 0.45, 0.0, 1.0)
+			w *= lerpf(0.88, 1.28, into_low) * lerpf(1.0, 0.48, past_low)
 		else:
-			# linear weight -> dB
-			player.volume_db = master_volume_db + load_db + occupied_db + linear_to_db(w)
+			w *= lerpf(0.85, 1.25, rpm_t)
+		if w < 0.002:
+			p.volume_db = -80.0
+		else:
+			p.volume_db = master + linear_to_db(clampf(w, 0.0, 1.15))
+			var ref_rpm := maxf(refs[i], 100.0)
+			var ratio := _smooth_rpm / ref_rpm
+			# Stretch deviation from 1 so idle↔redline is more obvious.
+			var pitched := 1.0 + (ratio - 1.0) * pitch_exaggeration
+			# Mild climb — hard stretch turned banks into chainsaw/UAV buzz.
+			pitched *= lerpf(0.96, 1.06, rpm_t)
+			p.pitch_scale = clampf(pitched, pitch_min, pitch_max)
+		if not p.playing and p.stream != null and not mute:
+			p.play()
 
 
-func _rpm_weights(t: float) -> Array[float]:
-	# Soft triangular / trapezoid envelopes across the rev range.
-	return [
-		_band(t, -0.05, 0.0, 0.08, 0.28),   # idle
-		_band(t, 0.08, 0.28, 0.38, 0.58),  # low
-		_band(t, 0.38, 0.55, 0.68, 0.88),  # mid
-		_band(t, 0.65, 0.82, 1.05, 1.2),   # max / high
-	]
-
-
-func _band(t: float, in_start: float, in_full: float, out_start: float, out_end: float) -> float:
-	if t <= in_start or t >= out_end:
-		return 0.0
-	if t < in_full:
-		return inverse_lerp(in_start, in_full, t)
-	if t <= out_start:
-		return 1.0
-	return 1.0 - inverse_lerp(out_start, out_end, t)
-
-
-func _make_player(player_name: String, stream: AudioStream) -> AudioStreamPlayer3D:
-	var player := AudioStreamPlayer3D.new()
-	player.name = player_name
-	player.stream = _looped(stream)
-	player.bus = "Master"
-	player.volume_db = -80.0
-	player.max_distance = max_distance
-	player.unit_size = unit_size
-	player.attenuation_model = AudioStreamPlayer3D.ATTENUATION_INVERSE_DISTANCE
-	player.doppler_tracking = AudioStreamPlayer3D.DOPPLER_TRACKING_PHYSICS_STEP
-	add_child(player)
-	return player
-
-
-func _looped(stream: AudioStream) -> AudioStream:
-	if stream == null:
-		return null
-	# Duplicate so we don't mutate the shared imported resource permanently in odd ways.
-	var copy := stream.duplicate()
-	if copy is AudioStreamMP3:
-		(copy as AudioStreamMP3).loop = true
-	elif copy is AudioStreamOggVorbis:
-		(copy as AudioStreamOggVorbis).loop = true
-	return copy
+func _compute_band_weights(rpm: float, refs: PackedFloat32Array) -> void:
+	# Piecewise triangular blend across 4 reference RPMs.
+	for i in 4:
+		_vols[i] = 0.0
+	if rpm <= refs[0]:
+		_vols[0] = 1.0
+		return
+	if rpm >= refs[3]:
+		_vols[3] = 1.0
+		return
+	for i in 3:
+		var a: float = refs[i]
+		var b: float = refs[i + 1]
+		if rpm >= a and rpm <= b:
+			var t := inverse_lerp(a, b, rpm)
+			# Idle→low: pull low bank sooner; later segments ease a bit.
+			if i == 0:
+				t = pow(t, 0.7)
+			else:
+				t = pow(t, 0.85)
+			_vols[i] = 1.0 - t
+			_vols[i + 1] = t
+			return

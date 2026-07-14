@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset=utf-8>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="An engine sound generator written in JavaScript and C++ using the Web Audio API">
+
+<title>Engine Sound Generator Worklet Wasm</title>
+
+<style>
+
+canvas {
+   display: block;
+}
+
+#canvas {
+   margin: 0 auto;
+}
+
+.div_input {
+   background: #eeeeee;
+   margin: 1px;
+   padding: 1px;
+   min-width: 425px;
+   white-space: nowrap;
+   display: inline-block;
+}
+
+</style>
+
+<script type="module">
+import * as THREE from '../three_js/build/three.module.js';
+import {SoundGeneratorAudioListener, SineWaveSoundGenerator, EngineSoundGenerator} from './sound_generator_worklet_wasm.js';
+import Engine from '../engine.js';
+
+/*
+ * loads the audio worklet modules and then calls moduleInit
+ */
+function moduleLoad () {
+   var loadingManager = new THREE.LoadingManager();
+   loadingManager.onLoad = function () {
+      moduleInit ();
+   };
+
+   loadingManager.onProgress = function (url, itemsLoaded, itemsTotal) {
+      console.log( 'Loading file\nLoaded ' + itemsLoaded + ' of ' + itemsTotal + ' files.' );
+   };
+
+   listener = new SoundGeneratorAudioListener();
+   SineWaveSoundGenerator.load (loadingManager, listener, ".");
+   EngineSoundGenerator.load (loadingManager, listener, ".");
+}
+
+function moduleInit() {
+   scene = new THREE.Scene();
+   canvas = document.getElementById ("canvas");
+   renderer = new THREE.WebGLRenderer({canvas: canvas, antialias: true});
+   camera = new THREE.PerspectiveCamera(75, canvas.width/canvas.height, 0.1, 1000);
+   camera.position.x = 0;
+   camera.position.y = 3;
+   camera.position.z = 10;
+   window.set_canvas_size();
+
+   camera.add (listener);
+   scene.add(camera);
+
+   renderer.setClearColor(0x0000ff, 1);
+
+   var ambientLight = new THREE.AmbientLight(0xffffff, 1.0);
+   scene.add(ambientLight);
+
+   var directionalLight = new THREE.DirectionalLight(0xffffff, 5.0);
+   directionalLight.position.x = 1000;
+   directionalLight.position.y = 1000;
+   scene.add(directionalLight);
+
+   cube = new THREE.Mesh(new THREE.BoxGeometry(5, 5, 5), new THREE.MeshPhysicalMaterial({color: 0x007500}));
+   cube.position.y = 0;
+   scene.add(cube);
+
+   audioContext = listener.context;
+   soundSineWave = new SineWaveSoundGenerator({listener: listener});
+
+   engine = new Engine ();
+   /*
+    * generates the sound using a worklet
+    * The lengths of the different waveguides are specified in samples.
+    */
+   soundCarEngine = new EngineSoundGenerator({listener: listener, parameters: {cylinders: 4,
+
+                                    intakeWaveguideLength: 100,
+                                    exhaustWaveguideLength: 100,
+                                    extractorWaveguideLength: 100,
+
+                                    intakeOpenReflectionFactor: 0.01,
+                                    intakeClosedReflectionFactor: 0.95,
+
+                                    exhaustOpenReflectionFactor: 0.01,
+                                    exhaustClosedReflectionFactor: 0.95,
+                                    ignitionTime: 0.016,
+
+                                    straightPipeWaveguideLength: 128,
+                                    straightPipeReflectionFactor: 0.01,
+
+                                    mufflerElementsLength: [10, 15, 20, 25],
+                                    action: 0.1,
+
+                                    outletWaveguideLength: 5,
+                                    outletReflectionFactor: 0.01}, clamp: true});
+
+   let inputSineWaveVolume = document.getElementById("input_sine_wave_volume");
+   let gainNode = soundSineWave.gain;
+   gainNode.gain.value = 0.01*inputSineWaveVolume.value;
+
+   let inputCarEngineVolume = document.getElementById("input_car_engine_volume");
+   gainNode = soundCarEngine.gain;
+   gainNode.gain.value = 0.01*inputCarEngineVolume.value;
+
+   cube.add(soundSineWave);
+   cube.add(soundCarEngine);
+
+   audioAnalyser = audioContext.createAnalyser();
+   audioAnalyser.fftSize = 2048;
+   soundSineWave.gain.connect(audioAnalyser);
+   soundCarEngine.gain.connect(audioAnalyser);
+   audioAnalyserBuffer = new Uint8Array(audioAnalyser.frequencyBinCount);
+
+   canvasSpectogram = document.getElementById ("canvas_spectogram");
+   canvasSpectogram.style.width = "100%";
+   canvasSpectogram.style.height = canvasAudioAnalyseHeight+"px";
+   canvasSpectogram.width = canvasAudioAnalyseWidth;
+   canvasSpectogram.height = 2*canvasAudioAnalyseHeight;
+   canvasSpectogramContext = canvasSpectogram.getContext("2d");
+   canvasSpectogramContext.fillStyle = "black";
+   canvasSpectogramContext.rect (0, 0, canvasSpectogram.width, canvasSpectogram.height);
+   canvasSpectogramContext.fill ();
+
+   lastTimeAnimate = window.performance.now();
+
+   animate ();
+}
+
+var lastTimeAnimate;
+
+function animate () {
+
+   var time = window.performance.now();
+   var dt = time-lastTimeAnimate;
+
+   renderer.render(scene, camera);
+   requestAnimationFrame(animate);
+
+   if (soundCarEngine.source) {
+      let rpmParam = soundCarEngine.worklet.parameters.get('rpm');
+      rpmParam.value = engine.rpm;
+   }
+   engine.update (0.001*dt);
+
+   updateCanvasSpectogram ();
+
+   lastTimeAnimate = time;
+}
+
+/*
+ * sets the color of the pixel at the x- and y-coordinate passed as arguments
+ * on imageData
+ */
+function setPixel(imageData, width, height, x, y, r, g, b) {
+   var index = (y*width+x)*4;
+   imageData.data[index] = r;
+   imageData.data[index+1] = g;
+   imageData.data[index+2] = b;
+}
+
+/*
+ * moves the image on the canvas for the spectogram on pixel to the left and
+ * writes the current frequency domain data on the pixels on the right
+ */
+function updateCanvasSpectogram () {
+
+   var pixelsToMoveLeft = 1;
+   audioAnalyser.getByteFrequencyData(audioAnalyserBuffer);
+
+   var imageData = canvasSpectogramContext.getImageData(pixelsToMoveLeft, 0, canvasSpectogram.width-pixelsToMoveLeft, canvasSpectogram.height);
+   canvasSpectogramContext.putImageData(imageData, 0, 0);
+
+   var imageData = canvasSpectogramContext.getImageData(0, 0, canvasSpectogram.width, canvasSpectogram.height);
+
+   let width = canvasSpectogram.width;
+   let height = canvasSpectogram.height;
+
+   for (let i=0; i<height; i++) {
+      setPixel(imageData, width, height, width-1, height-i, 0, audioAnalyserBuffer[i], 0);
+   }
+
+   canvasSpectogramContext.putImageData(imageData, 0, 0);
+
+}
+
+function playSound() {
+   labelCarEngineRpm.innerHTML = Math.round(engine.rpm);
+   window.setTimeout(playSound, 25);
+}
+
+var soundStarted = false;
+
+function startSoundGenerator() {
+   if (soundStarted) {
+      return;
+   }
+   playSound();
+   soundStarted = true;
+}
+
+function playSoundSineWave() {
+
+   soundSineWave.play();
+   startSoundGenerator();
+}
+
+function playSoundCarEngine() {
+   soundCarEngine.play();
+   startSoundGenerator();
+}
+
+window.moduleLoad = moduleLoad;
+window.moduleInit = moduleInit;
+window.set_canvas_size = set_canvas_size;
+window.playSoundSineWave = playSoundSineWave;
+window.playSoundCarEngine = playSoundCarEngine;
+
+</script>
+
+<script>
+
+var scene;
+var canvas;
+var canvasAudioAnalyseWidth = 2000;
+//var canvasAudioAnalyseHeight = 125;
+var canvasAudioAnalyseHeight = 250;
+var canvasSpectogram;
+var canvasSpectogramContext;
+var renderer;
+var camera;
+var cube;
+var listener;
+var soundSineWave;
+var engine;
+var soundCarEngine;
+
+var audioContext;
+var audioAnalyser;
+var audioAnalyserBuffer;
+
+var labelSineWaveVolume;
+var inputSineWaveFrequency;
+var labelSineWaveFrequency;
+
+var labelCarEngineVolume;
+var labelCarEngineVolumeIntake;
+var labelCarEngineVolumeEngineBlockVibrations;
+var labelCarEngineVolumeOutlet;
+var labelCarEngineRpm;
+var labelCarEngineThrottle;
+
+var parameters = {};
+var parameterLabels = {};
+function init () {
+
+   let inputObjectPosition = document.getElementById("input_object_position");
+   input_object_position.addEventListener("input", (event) => cube.position.x = event.target.value);
+
+   // input event listener for the sine wave sound
+   let inputSineWaveVolume = document.getElementById("input_sine_wave_volume");
+   inputSineWaveVolume.addEventListener("input", updateSineWaveVolume);
+   labelSineWaveVolume = document.getElementById("label_sine_wave_volume");
+   labelSineWaveVolume.innerHTML = "Volume "+inputSineWaveVolume.value+" %";
+
+   inputSineWaveFrequency = document.getElementById("input_sine_wave_frequency");
+   inputSineWaveFrequency.addEventListener("input", updateSineWaveFrequency);
+   labelSineWaveFrequency = document.getElementById("label_sine_wave_frequency");
+   labelSineWaveFrequency.innerHTML = "Frequency "+inputSineWaveFrequency.value+" Hz";
+
+   // input event listener for the car engine sound
+   let inputCarEngineVolume = document.getElementById("input_car_engine_volume");
+   inputCarEngineVolume.addEventListener("input", updateCarEngineVolume);
+   labelCarEngineVolume = document.getElementById("label_car_engine_volume");
+   labelCarEngineVolume.innerHTML = "Volume "+inputCarEngineVolume.value+" %";
+
+   let inputCarEngineVolumeIntake = document.getElementById("input_car_engine_volume_intake");
+   inputCarEngineVolumeIntake.addEventListener("input", updateCarEngineVolumeIntake);
+   labelCarEngineVolumeIntake = document.getElementById("label_car_engine_volume_intake");
+   labelCarEngineVolumeIntake.innerHTML = "Intake Volume "+inputCarEngineVolumeIntake.value+" %";
+
+   let inputCarEngineVolumeEngineBlockVibrations = document.getElementById("input_car_engine_volume_engine_block_vibrations");
+   inputCarEngineVolumeEngineBlockVibrations.addEventListener("input", updateCarEngineVolumeEngineBlockVibrations);
+   labelCarEngineVolumeEngineBlockVibrations = document.getElementById("label_car_engine_volume_engine_block_vibrations");
+   labelCarEngineVolumeEngineBlockVibrations.innerHTML = "Engine Block Vibrations Volume "+inputCarEngineVolumeEngineBlockVibrations.value+" %";
+
+   let inputCarEngineVolumeOutlet = document.getElementById("input_car_engine_volume_outlet");
+   inputCarEngineVolumeOutlet.addEventListener("input", updateCarEngineVolumeOutlet);
+   labelCarEngineVolumeOutlet = document.getElementById("label_car_engine_volume_outlet");
+   labelCarEngineVolumeOutlet.innerHTML = "Outlet Volume "+inputCarEngineVolumeOutlet.value+" %";
+
+   let inputCarEngineThrottle = document.getElementById("input_car_engine_throttle");
+   inputCarEngineThrottle.addEventListener("input", updateCarEngineThrottle);
+   labelCarEngineThrottle = document.getElementById("label_car_engine_throttle");
+   labelCarEngineThrottle.innerHTML = "Throttle "+inputCarEngineThrottle.value+" %";
+
+   labelCarEngineRpm = document.getElementById("span_car_engine_rpm");
+
+   addInputEventListenerAndGetLabel ("cylinder_count", updateParameter);
+   addInputEventListenerAndGetLabel ("intake_waveguide_length", updateParameter);
+   addInputEventListenerAndGetLabel ("exhaust_waveguide_length", updateParameter);
+   addInputEventListenerAndGetLabel ("extractor_waveguide_length", updateParameter);
+   addInputEventListenerAndGetLabel ("intake_open_reflection_factor", updateParameter);
+   addInputEventListenerAndGetLabel ("intake_closed_reflection_factor", updateParameter);
+   addInputEventListenerAndGetLabel ("exhaust_open_reflection_factor", updateParameter);
+   addInputEventListenerAndGetLabel ("exhaust_closed_reflection_factor", updateParameter);
+   addInputEventListenerAndGetLabel ("ignition_time", updateParameter);
+   addInputEventListenerAndGetLabel ("straight_pipe_waveguide_length", updateParameter);
+   addInputEventListenerAndGetLabel ("straight_pipe_reflection_factor", updateParameter);
+//   addInputEventListenerAndGetLabel ("muffler_elements_length", updateParameter);
+   addInputEventListenerAndGetLabel ("action", updateParameter);
+   addInputEventListenerAndGetLabel ("outlet_waveguide_length", updateParameter);
+   addInputEventListenerAndGetLabel ("outlet_reflection_factor", updateParameter);
+
+   window.onresize = function () {set_canvas_size()};
+
+   window.moduleLoad();
+}
+
+function addInputEventListenerAndGetLabel (name, eventListener) {
+   let input = document.getElementById("input_"+name);
+   parameters[name] = input.value;
+   input.addEventListener("input", eventListener);
+   let label = document.getElementById("label_"+name);
+   let labelEntry = {"label": label, "defaultValue": label.innerHTML};
+   parameterLabels[name] = labelEntry;
+   labelEntry.label.innerHTML = labelEntry.defaultValue+" "+input.value;
+}
+
+function updateParameter (event) {
+   parameters[event.target.name] = event.target.value;
+   let labelEntry = parameterLabels[event.target.name];
+   labelEntry.label.innerHTML = labelEntry.defaultValue+" "+event.target.value;
+}
+
+function resize_canvas(width, height) {
+   let canvas = document.getElementById ("canvas");
+   canvas.style.width = width+"px";
+   canvas.width = width;
+   canvas.style.height = height+"px";
+   canvas.height = height;
+
+   let transform = "scale("+(0.75*width)/(0.75*1440)+") translateX(-50%) translateY(-50%)";
+
+   camera.aspect = width/height;
+   cameraAspect = width/height;
+   camera.updateProjectionMatrix();
+
+   renderer.setPixelRatio (window.devicePixelRatio);
+   renderer.setSize(width, height);
+}
+
+function set_canvas_size() {
+   var width = Math.min (0.9*window.innerWidth, window.innerHeight*16/9)*0.5;
+   if (screen.height<screen.width) {
+      resize_canvas(width, 0.75*screen.height/screen.width*width);
+   }
+   else {
+      resize_canvas(0.9*window.innerWidth, 0.25*screen.height);
+   }
+}
+
+function updateSineWaveVolume (event) {
+   labelSineWaveVolume.innerHTML = "Volume "+event.target.value+" %";
+   let gainNode = soundSineWave.gain;
+   gainNode.gain.value = 0.01*event.target.value;
+}
+
+function updateSineWaveFrequency (event) {
+   labelSineWaveFrequency.innerHTML = "Frequency "+event.target.value+" Hz";
+   let frequencyParam = soundSineWave.worklet.parameters.get('frequency');
+   frequencyParam.value = event.target.value;
+   soundSineWave.frequency = event.target.value;
+}
+
+async function togglePlaySineWaveSound (button) {
+   await audioContext.resume();
+   if (button.value==="play") {
+      button.value = "stop";
+      playSoundSineWave ();
+      return;
+   }
+   button.value = "play";
+   soundSineWave.stop();
+}
+
+function updateCarEngineVolume (event) {
+   labelCarEngineVolume.innerHTML = "Volume "+event.target.value+" %";
+   let gainNode = soundCarEngine.gain;
+   gainNode.gain.value = 0.01*event.target.value;
+}
+
+function updateCarEngineVolumeIntake (event) {
+   labelCarEngineVolumeIntake.innerHTML = "Intake Volume "+event.target.value+" %";
+   let gainNode = soundCarEngine.gainIntake;
+   gainNode.gain.value = 0.01*event.target.value;
+}
+
+function updateCarEngineVolumeEngineBlockVibrations (event) {
+   labelCarEngineVolumeEngineBlockVibrations.innerHTML = "Engine Block Vibrations Volume "+event.target.value+" %";
+   let gainNode = soundCarEngine.gainEngineBlockVibrations;
+   gainNode.gain.value = 0.01*event.target.value;
+}
+
+function updateCarEngineVolumeOutlet (event) {
+   labelCarEngineVolumeOutlet.innerHTML = "Outlet Volume "+event.target.value+" %";
+   let gainNode = soundCarEngine.gainOutlet;
+   gainNode.gain.value = 0.01*event.target.value;
+}
+
+function updateCarEngineThrottle (event) {
+   labelCarEngineThrottle.innerHTML = "Throttle "+event.target.value+" %";
+   engine.throttle = 0.01*event.target.value;
+   let throttleParam = soundCarEngine.worklet.parameters.get('throttle');
+   throttleParam.value = engine.throttle;
+}
+
+async function togglePlayCarEngineSound (button) {
+   await audioContext.resume();
+   if (button.value==="play") {
+      engine.start ();
+      button.value = "stop";
+      playSoundCarEngine ();
+      return;
+   }
+   engine.starting = false;
+   engine.started = false;
+   button.value = "play";
+   soundCarEngine.stop();
+}
+
+function updateParameters() {
+   let inputCarEngineVolume = document.getElementById("input_car_engine_volume");
+
+   let parameterNumbers = {};
+   for (const [key, value] of Object.entries(parameters)) {
+      parameterNumbers[key] = Number(value);
+   }
+   soundCarEngine.setParameters(parameterNumbers);
+}
+
+</script>
+
+</head>
+
+<body onload="init()">
+
+<h1>Engine Sound Generator</h1>
+
+An engine sound generator written in JavaScript and C++ using the Web Audio API <a href="https://github.com/Antonio-R1/engine-sound-generator">source</a></br></br>
+
+<fieldset>
+<legend>Object</legend>
+<input type="range" id="input_object_position" name="input_object_position" min="-25" max="25" step="0.01" value="0"> <label for="input_object_position" id="label_object_position">Position</label>
+</fieldset>
+<fieldset>
+<legend>Sine wave</legend>
+
+<div class="div_input"><input type="range" id="input_sine_wave_volume" name="input_sine_wave_volume" min="0" max="100" value="10"> <label for="input_sine_wave_volume" id="label_sine_wave_volume">Volume</label></div>
+<div class="div_input"><input type="range" id="input_sine_wave_frequency" name="input_sine_wave_frequency" min="20" max="20000" value="440"> <label for="input_sine_wave_frequency" id="label_sine_wave_frequency">Frequency</label></div>
+<input type="button" id="button_play_sine_wave_sound" onclick="togglePlaySineWaveSound(this)" value="play"></input>
+
+</fieldset>
+
+<fieldset>
+<legend>Car engine</legend>
+
+<div class="div_input"><input type="range" id="input_car_engine_volume" name="input_car_engine_volume" min="0" max="100" value="10"> <label for="input_car_engine_volume" id="label_car_engine_volume">Volume</label></div>
+<div class="div_input"><input type="range" id="input_car_engine_volume_intake" name="input_car_engine_volume_intake" min="0" max="100" value="100"> <label for="input_car_engine_volume_intake" id="label_car_engine_volume_intake">Intake Volume</label></div>
+<div class="div_input"><input type="range" id="input_car_engine_volume_engine_block_vibrations" name="input_car_engine_volume_engine_block_vibrations" min="0" max="100" value="100"> <label for="input_car_engine_volume_engine_block_vibrations" id="label_car_engine_volume_engine_block_vibrations">Engine Block Vibration Volume</label></div>
+<div class="div_input"><input type="range" id="input_car_engine_volume_outlet" name="input_car_engine_volume_outlet" min="0" max="100" value="100"> <label for="input_car_engine_volume_outlet" id="label_car_engine_volume_outlet">Outlet Volume</label></div>
+
+<div class="div_input"><input type="range" id="input_car_engine_throttle" name="input_car_engine_throttle" min="0" max="100" value="0"> <label for="input_car_engine_throttle" id="label_car_engine_throttle">Throttle</label></div>
+<input type="button" id="button_car_engine_sound" onclick="togglePlayCarEngineSound(this)" value="play"></input>
+
+<div style="white-space: nowrap; display: inline-block;">Rpm: <span id="span_car_engine_rpm">0</span></div>
+<br>
+<br>
+ <details>
+  <summary>Other options</summary>
+
+   <div class="div_input"><input type="range" id="input_cylinder_count" name="cylinder_count" min="1" max="8" value="4"> <label for="cylinder_count" id="label_cylinder_count">Cylinders</label></div>
+   <div class="div_input"><input type="range" id="input_intake_waveguide_length" name="intake_waveguide_length" min="1" max="200" value="100"> <label for="intake_waveguide_length" id="label_intake_waveguide_length">Intake Waveguide Length</label></div>
+   <div class="div_input"><input type="range" id="input_exhaust_waveguide_length" name="exhaust_waveguide_length" min="1" max="200" value="100"> <label for="exhaust_waveguide_length" id="label_exhaust_waveguide_length">Exhaust Waveguide Length</label></div>
+   <div class="div_input"><input type="range" id="input_extractor_waveguide_length" name="extractor_waveguide_length" min="1" max="200" value="100"> <label for="cylinders" id="label_extractor_waveguide_length">Extractor Waveguide Length</label></div>
+   <div class="div_input"><input type="range" id="input_intake_open_reflection_factor" name="intake_open_reflection_factor" min="0" max="1" value="0.01" step="0.001"> <label for="intake_open_reflection_factor" id="label_intake_open_reflection_factor">Intake Open Reflection Factor</label></div>
+   <div class="div_input"><input type="range" id="input_intake_closed_reflection_factor" name="intake_closed_reflection_factor" min="0" max="1" value="0.95" step="0.01"> <label for="intake_closed_reflection_factor" id="label_intake_closed_reflection_factor">Intake Closed Reflection Factor</label></div>
+   <div class="div_input"><input type="range" id="input_exhaust_open_reflection_factor" name="exhaust_open_reflection_factor" min="0" max="1" value="0.01" step="0.001"> <label for="exhaust_open_reflection_factor" id="label_exhaust_open_reflection_factor">Exhaust Open Reflection Factor</label></div>
+   <div class="div_input"><input type="range" id="input_exhaust_closed_reflection_factor" name="exhaust_closed_reflection_factor" min="0" max="1" value="0.95" step="0.01"> <label for="exhaust_closed_reflection_factor" id="label_exhaust_closed_reflection_factor">Exhaust Closed Reflection Factor</label></div>
+   <div class="div_input"><input type="range" id="input_ignition_time" name="ignition_time" min="0.01" max="0.5" value="0.016" step="0.001"> <label for="ignition_time" id="label_ignition_time">Ignition Time</label></div>
+   <div class="div_input"><input type="range" id="input_straight_pipe_waveguide_length" name="straight_pipe_waveguide_length" min="1" max="500" value="128"> <label for="straight_pipe_waveguide_length" id="label_straight_pipe_waveguide_length">Straight Pipe Waveguide Length</label></div>
+   <div class="div_input"><input type="range" id="input_straight_pipe_reflection_factor" name="straight_pipe_reflection_factor" min="0" max="1" value="0.01" step=0.001> <label for="straight_pipe_reflection_factor" id="label_straight_pipe_reflection_factor">Straight Pipe Reflection Factor</label></div>
+<!--   <div class="div_input"><input type="range" id="input_muffler_elements_length" name="muffler_elements_length" min="0" max="100" value="10"> <label for="muffler_elements_length" id="label_muffler_elements_length">Muffler Elements Length</label></div>--!>
+   <div class="div_input"><input type="range" id="input_action" name="action" min="0" max="0.2" value="0.1" step="0.01"> <label for="action" id="label_action">Action</label></div>
+   <div class="div_input"><input type="range" id="input_outlet_waveguide_length" name="outlet_waveguide_length" min="0" max="100" value="5"> <label for="outlet_waveguide_length" id="label_outlet_waveguide_length">Outlet Waveguide Length</label></div>
+   <div class="div_input"><input type="range" id="input_outlet_reflection_factor" name="outlet_reflection_factor" min="0" max="1" value="0.01" step="0.001"> <label for="outlet_reflection_factor" id="label_outlet_reflection_factor">Outlet Reflection Factor</label></div>
+   <input type="button" onclick="updateParameters()" value="update"></input>
+ </details>
+</fieldset>
+
+<canvas id="canvas" style="display: block;" height="350px" width="750px"></canvas>
+<canvas id="canvas_spectogram" height="250px" width="100%"></canvas>
+
+
+</body>
+</html>

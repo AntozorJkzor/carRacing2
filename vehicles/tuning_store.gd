@@ -62,7 +62,9 @@ func reset_to_defaults() -> void:
 	var path := save_path_for(active_car_id)
 	if FileAccess.file_exists(path):
 		DirAccess.remove_absolute(path)
+	EngineSoundBaker.clear_user(active_car_id)
 	_push_working_to_live_cars()
+	_restore_pack_audio_on_live_cars()
 
 
 func bind_car_id(car_id: StringName) -> void:
@@ -148,9 +150,9 @@ func _push_working_to_live_cars() -> void:
 			node.call("refresh_visual_tuning")
 
 
-func save_to_disk() -> void:
+func save_to_disk() -> Dictionary:
 	if setup == null:
-		return
+		return {}
 	var cfg := ConfigFile.new()
 	cfg.set_value("visual", "clearance", clearance)
 
@@ -165,6 +167,16 @@ func save_to_disk() -> void:
 	cfg.set_value("engine", "max_rpm", setup.max_rpm)
 	cfg.set_value("engine", "torque_boost", setup.torque_boost)
 	cfg.set_value("engine", "engine_inertia", setup.engine_inertia)
+
+	cfg.set_value("engine_sound", "cylinder_count", setup.cylinder_count)
+	cfg.set_value("engine_sound", "displacement_liters", setup.displacement_liters)
+	cfg.set_value("engine_sound", "piston_stroke_mm", setup.piston_stroke_mm)
+	cfg.set_value("engine_sound", "exhaust_diameter_mm", setup.exhaust_diameter_mm)
+	cfg.set_value("engine_sound", "has_turbo", setup.has_turbo)
+	cfg.set_value("engine_sound", "has_supercharger", setup.has_supercharger)
+	cfg.set_value("engine_sound", "has_muffler", setup.has_muffler)
+	cfg.set_value("engine_sound", "resonator_count", setup.resonator_count)
+	cfg.set_value("engine_sound", "engine_sound_volume_db", setup.engine_sound_volume_db)
 
 	cfg.set_value("drivetrain", "reverse_ratio", setup.reverse_ratio)
 	cfg.set_value("drivetrain", "final_drive", setup.final_drive)
@@ -247,6 +259,70 @@ func save_to_disk() -> void:
 
 	cfg.save(save_path_for(active_car_id))
 	_push_working_to_live_cars()
+	return rebake_engine_sounds()
+
+
+## Waveguide bake from current setup → user:// + live EngineAudio swap.
+## Skips render if sound fingerprint matches last user bake (still re-applies banks).
+func rebake_engine_sounds(duration_sec: float = 1.5) -> Dictionary:
+	if setup == null:
+		return {}
+	var fp := _engine_sound_fingerprint()
+	if EngineSoundBaker.user_fingerprint(active_car_id) == fp:
+		var cached := EngineSoundBaker.load_user(active_car_id)
+		if not cached.is_empty():
+			_apply_engine_banks_to_live_cars(cached)
+			cached["skipped"] = true
+			return cached
+	var banks := EngineSoundBaker.bake_user(setup, active_car_id, duration_sec, fp)
+	_apply_engine_banks_to_live_cars(banks)
+	banks["skipped"] = false
+	return banks
+
+
+func _engine_sound_fingerprint() -> String:
+	if setup == null:
+		return ""
+	# Bump BAKE_REV when waveguide mapping changes so caches rebuild.
+	const BAKE_REV := "wg7"
+	return "%s|%d|%.2f|%.1f|%.1f|%d|%d|%d|%d|%.1f|%.0f|%.0f|%.0f" % [
+		BAKE_REV,
+		setup.cylinder_count,
+		setup.displacement_liters,
+		setup.piston_stroke_mm,
+		setup.exhaust_diameter_mm,
+		int(setup.has_turbo),
+		int(setup.has_supercharger),
+		int(setup.has_muffler),
+		setup.resonator_count,
+		setup.engine_sound_volume_db,
+		setup.idle_rpm,
+		setup.max_rpm,
+		setup.max_power_hp,
+	]
+
+
+func _apply_engine_banks_to_live_cars(banks: Dictionary) -> void:
+	if banks.is_empty() or not is_inside_tree():
+		return
+	for node in get_tree().get_nodes_in_group("player_cars"):
+		if String(node.get("car_id")) != String(active_car_id):
+			continue
+		var engine_audio: Node = node.get_node_or_null("EngineAudio")
+		if engine_audio != null and engine_audio.has_method("apply_banks"):
+			engine_audio.call("apply_banks", banks)
+
+
+func _restore_pack_audio_on_live_cars() -> void:
+	if not is_inside_tree():
+		return
+	for node in get_tree().get_nodes_in_group("player_cars"):
+		if String(node.get("car_id")) != String(active_car_id):
+			continue
+		var profile = node.get("audio_profile")
+		var engine_audio: Node = node.get_node_or_null("EngineAudio")
+		if engine_audio != null and profile != null and engine_audio.has_method("apply_profile"):
+			engine_audio.call("apply_profile", profile, false)
 
 
 func load_from_disk() -> void:
@@ -286,6 +362,18 @@ func _apply_physics_cfg(target: CarSetup, cfg: ConfigFile) -> void:
 	target.max_rpm = float(cfg.get_value("engine", "max_rpm", target.max_rpm))
 	target.torque_boost = float(cfg.get_value("engine", "torque_boost", target.torque_boost))
 	target.engine_inertia = float(cfg.get_value("engine", "engine_inertia", target.engine_inertia))
+
+	target.cylinder_count = int(cfg.get_value("engine_sound", "cylinder_count", target.cylinder_count))
+	target.displacement_liters = float(cfg.get_value("engine_sound", "displacement_liters", target.displacement_liters))
+	target.piston_stroke_mm = float(cfg.get_value("engine_sound", "piston_stroke_mm", target.piston_stroke_mm))
+	target.exhaust_diameter_mm = float(cfg.get_value("engine_sound", "exhaust_diameter_mm", target.exhaust_diameter_mm))
+	target.has_turbo = bool(cfg.get_value("engine_sound", "has_turbo", target.has_turbo))
+	target.has_supercharger = bool(cfg.get_value("engine_sound", "has_supercharger", target.has_supercharger))
+	target.has_muffler = bool(cfg.get_value("engine_sound", "has_muffler", target.has_muffler))
+	target.resonator_count = int(cfg.get_value("engine_sound", "resonator_count", target.resonator_count))
+	target.engine_sound_volume_db = float(
+		cfg.get_value("engine_sound", "engine_sound_volume_db", target.engine_sound_volume_db)
+	)
 
 	target.reverse_ratio = float(cfg.get_value("drivetrain", "reverse_ratio", target.reverse_ratio))
 	target.final_drive = float(cfg.get_value("drivetrain", "final_drive", target.final_drive))
