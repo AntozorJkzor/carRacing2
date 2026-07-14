@@ -25,6 +25,8 @@ var throttle: float = 0.0
 var brake: float = 0.0
 var handbrake: float = 0.0
 var steering: float = 0.0
+## Automatic only: true while driver holds reverse intent (mapped brake near stop / in R).
+var want_reverse: bool = false
 
 var current_gear: int = 1
 var engine_rpm: float = 800.0
@@ -65,7 +67,6 @@ var _shift_timer: float = 0.0
 var _prev_lengths: Array[float] = []
 var _body_applied: bool = false
 var _base_angular_damp: float = 1.2
-var _auto_reverse_armed: bool = false
 var _auto_shift_cooldown: float = 0.0
 var _spawn_transform: Transform3D = Transform3D.IDENTITY
 var _clutch_engage_timer: float = 0.0
@@ -173,7 +174,7 @@ func reset_to_spawn() -> void:
 	_clutch_engage_timer = 0.0
 	_shift_timer = 0.0
 	_auto_shift_cooldown = 0.0
-	_auto_reverse_armed = false
+	want_reverse = false
 	angular_damp = _base_angular_damp
 	sleeping = false
 	PhysicsServer3D.body_set_state(
@@ -317,9 +318,9 @@ func _begin_shift() -> void:
 
 func toggle_transmission() -> void:
 	automatic = not automatic
-	_auto_reverse_armed = false
+	want_reverse = false
 	_auto_shift_cooldown = 0.0
-	if automatic and current_gear == 0:
+	if automatic and current_gear <= 0:
 		current_gear = 1
 
 
@@ -368,44 +369,31 @@ func _update_automatic_transmission() -> void:
 
 	var max_gear := setup.get_forward_gear_count()
 	var forward_speed := linear_velocity.dot(-global_transform.basis.z)
-	var speed_kmh := absf(forward_speed) * 3.6
 
-	if allow_reverse:
-		if absf(forward_speed) < 1.2 and brake > 0.35 and throttle < 0.05:
-			_auto_reverse_armed = true
-		if forward_speed > 2.5:
-			_auto_reverse_armed = false
-
-		if _auto_reverse_armed and throttle > 0.1 and forward_speed < 1.5:
-			if current_gear != -1:
-				current_gear = -1
-				_begin_shift()
-				_auto_shift_cooldown = 0.4
-			return
-
-		if current_gear < 0:
-			if throttle < 0.05 and absf(forward_speed) < 0.6:
-				current_gear = 1
-				_auto_reverse_armed = false
-				_begin_shift()
-				_auto_shift_cooldown = 0.4
-			elif throttle > 0.1 and forward_speed > 0.4:
-				current_gear = 1
-				_auto_reverse_armed = false
-				_begin_shift()
-				_auto_shift_cooldown = 0.4
-			return
-	else:
-		_auto_reverse_armed = false
+	# --- Reverse / Drive selection (arcade hold-to-reverse) ---
+	if not allow_reverse:
 		if current_gear < 1:
-			current_gear = 1
+			_auto_set_gear(1)
+		want_reverse = false
+	else:
+		if want_reverse and absf(forward_speed) < 1.5:
+			if current_gear != -1:
+				_auto_set_gear(-1)
+				_auto_shift_cooldown = 0.4
+			return
+		if current_gear < 0:
+			# Stay in R while reversing with intent; exit near stop when intent ends.
+			if not want_reverse and absf(forward_speed) < 1.0:
+				_auto_set_gear(1)
+				_auto_shift_cooldown = 0.4
+			return
+		if current_gear == 0:
+			_auto_set_gear(1)
+			return
 
-	if current_gear <= 0:
-		current_gear = 1
-
-	var down_at: Dictionary = {2: 12.0, 3: 28.0, 4: 48.0, 5: 75.0}
-	var down_speed := float(down_at.get(current_gear, -1.0))
-	var wide_box := max_gear > 8
+	# --- Forward gears only from here ---
+	if current_gear < 1:
+		return
 
 	# While the clutch is slipping, engine RPM is meaningless for shift logic —
 	# use gearbox input speed estimated from the driven wheels.
@@ -413,62 +401,48 @@ func _update_automatic_transmission() -> void:
 	if clutch < 0.9 or absf(debug_clutch_slip_w) > 40.0:
 		shift_rpm = debug_est_rpm_cur
 
+	var up_frac := 0.78 if throttle > 0.5 else 0.68
 	var want_up := false
-	var skip_to_gear := -1
 	if current_gear < max_gear and throttle > 0.08:
-		if wide_box:
-			if shift_rpm >= setup.max_rpm * 0.92:
-				var best := current_gear
-				for g in range(current_gear + 1, max_gear + 1):
-					var rpm_g := _estimate_transmission_rpm(g)
-					if rpm_g <= 0.0:
-						break
-					best = g
-					if rpm_g <= setup.max_rpm * 0.72:
-						break
-				if best > current_gear:
-					skip_to_gear = best
-					want_up = true
-		else:
-			var redline_up2 := setup.max_rpm * 0.85
-			if shift_rpm >= redline_up2:
-				var next_rpm2 := _estimate_transmission_rpm(current_gear + 1)
-				if next_rpm2 >= setup.idle_rpm * 1.2 or speed_kmh > 15.0:
-					want_up = true
+		if shift_rpm >= setup.max_rpm * up_frac:
+			var next_rpm := _estimate_transmission_rpm(current_gear + 1)
+			if next_rpm >= setup.idle_rpm * 1.15:
+				want_up = true
 
 	var want_down := false
 	if current_gear > 1:
-		if wide_box:
-			if shift_rpm <= setup.max_rpm * 0.42 and throttle < 0.65:
+		if shift_rpm <= setup.max_rpm * 0.38 and throttle < 0.7:
+			want_down = true
+		elif throttle > 0.9 and shift_rpm < setup.max_rpm * 0.55:
+			var rpm_if_down := _estimate_transmission_rpm(current_gear - 1)
+			if rpm_if_down > 0.0 and rpm_if_down < setup.max_rpm * 0.9:
 				want_down = true
-			elif throttle > 0.9 and shift_rpm < setup.max_rpm * 0.48:
-				var rpm_if_down := _estimate_transmission_rpm(current_gear - 1)
-				if rpm_if_down > 0.0 and rpm_if_down < setup.max_rpm * 0.9:
-					want_down = true
-		else:
-			if speed_kmh <= down_speed and throttle < 0.7:
-				want_down = true
-			elif shift_rpm <= setup.idle_rpm * 1.2 and throttle < 0.3 and speed_kmh <= down_speed + 10.0:
-				want_down = true
-			elif throttle > 0.9 and shift_rpm < setup.max_rpm * 0.55:
-				var rpm_if_down2 := _estimate_transmission_rpm(current_gear - 1)
-				if rpm_if_down2 < setup.max_rpm * 0.9:
-					want_down = true
 
 	debug_want_up = 1 if want_up else 0
 	debug_want_down = 1 if want_down else 0
 
 	if want_up and not want_down:
-		if skip_to_gear > current_gear:
-			current_gear = skip_to_gear
-			_begin_shift()
-			_auto_shift_cooldown = 0.5
-		else:
-			shift_up()
+		_auto_set_gear(current_gear + 1)
+		_auto_shift_cooldown = 0.55
 	elif want_down and not want_up:
-		shift_down()
-		if wide_box:
-			_auto_shift_cooldown = maxf(_auto_shift_cooldown, 0.45)
+		_auto_set_gear(current_gear - 1)
+		_auto_shift_cooldown = 0.5
+
+
+func _auto_set_gear(gear: int) -> void:
+	## Automatic path only: clamps to [-1..max] or [1..max], never lands on N.
+	if setup == null:
+		return
+	var max_gear := setup.get_forward_gear_count()
+	var min_gear := -1 if allow_reverse else 1
+	var target := clampi(gear, min_gear, max_gear)
+	if target == 0:
+		target = 1
+	if target == current_gear:
+		return
+	current_gear = target
+	_begin_shift()
+
 
 func set_gear(gear: int) -> void:
 	if setup == null:

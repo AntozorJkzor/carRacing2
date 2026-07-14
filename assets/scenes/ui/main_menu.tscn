@@ -95,13 +95,6 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 20
 text = "Новая игра"
 
-[node name="FunButton" type="Button" parent="Center/Panel/Margin/VBox/MainBox" unique_id=495833538]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(260, 44)
-layout_mode = 2
-theme_override_font_sizes/font_size = 20
-text = "Развлечения"
-
 [node name="LeadersButton" type="Button" parent="Center/Panel/Margin/VBox/MainBox" unique_id=856433844]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(260, 44)
@@ -122,40 +115,6 @@ custom_minimum_size = Vector2(260, 44)
 layout_mode = 2
 theme_override_font_sizes/font_size = 20
 text = "Выход"
-
-[node name="FunBox" type="VBoxContainer" parent="Center/Panel/Margin/VBox" unique_id=15380634]
-unique_name_in_owner = true
-visible = false
-layout_mode = 2
-theme_override_constants/separation = 12
-
-[node name="CityButton" type="Button" parent="Center/Panel/Margin/VBox/FunBox" unique_id=694332424]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(260, 44)
-layout_mode = 2
-theme_override_font_sizes/font_size = 20
-text = "Город"
-
-[node name="RunwayButton" type="Button" parent="Center/Panel/Margin/VBox/FunBox" unique_id=1570032859]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(260, 44)
-layout_mode = 2
-theme_override_font_sizes/font_size = 20
-text = "ВПП / Трамплины"
-
-[node name="TerrainButton" type="Button" parent="Center/Panel/Margin/VBox/FunBox" unique_id=1570032860]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(260, 44)
-layout_mode = 2
-theme_override_font_sizes/font_size = 20
-text = "Карта Terrain3D"
-
-[node name="FunBackButton" type="Button" parent="Center/Panel/Margin/VBox/FunBox" unique_id=475978586]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(260, 44)
-layout_mode = 2
-theme_override_font_sizes/font_size = 20
-text = "Назад"
 
 [node name="BoardBox" type="VBoxContainer" parent="Center/Panel/Margin/VBox" unique_id=1920914375]
 unique_name_in_owner = true
