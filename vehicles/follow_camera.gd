@@ -36,6 +36,12 @@ func set_active(value: bool) -> void:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
+func set_target(target: Node3D) -> void:
+	_target = target
+	if target != null:
+		target_path = get_path_to(target) if is_inside_tree() else target_path
+
+
 func _input(event: InputEvent) -> void:
 	if not _active:
 		return

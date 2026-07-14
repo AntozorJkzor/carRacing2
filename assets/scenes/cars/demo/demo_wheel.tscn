@@ -1,0 +1,7 @@
+[gd_scene format=3 uid="uid://demowheel000001"]
+
+[ext_resource type="PackedScene" uid="uid://c1ed6oax50i1y" path="res://assets/models/cars/wheel.glb" id="1_mesh"]
+
+[node name="DemoWheel" type="Node3D"]
+
+[node name="Mesh" parent="." instance=ExtResource("1_mesh")]

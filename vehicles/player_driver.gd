@@ -7,10 +7,13 @@ extends Node
 var active: bool = false
 ## When false, E cannot exit the car (main endless-road mode).
 var can_exit: bool = true
+## Skip exit on the same frame we were activated (tree order: enter then exit).
+var _exit_ready: bool = false
 
 
 func _physics_process(_delta: float) -> void:
 	if not active or car == null:
+		_exit_ready = false
 		if car != null:
 			car.throttle = 0.0
 			car.brake = 0.0
@@ -32,7 +35,10 @@ func _physics_process(_delta: float) -> void:
 	if Input.is_action_just_pressed("restart_car"):
 		car.reset_to_spawn()
 
-	if can_exit and Input.is_action_just_pressed("interact"):
+	# Arm exit only after one occupied frame so Enter (E) can't instantly exit.
+	if not _exit_ready:
+		_exit_ready = true
+	elif can_exit and Input.is_action_just_pressed("interact"):
 		_exit_to_character()
 
 	if not car.automatic:

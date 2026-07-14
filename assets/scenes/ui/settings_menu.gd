@@ -15,7 +15,10 @@ var _rear_diff_option: OptionButton
 
 
 func _ready() -> void:
-	_path_label.text = "Файл: %s" % ProjectSettings.globalize_path(TuningStore.SAVE_PATH)
+	_path_label.text = "Машина: %s  ·  %s" % [
+		String(TuningStore.active_car_id),
+		ProjectSettings.globalize_path(TuningStore.SAVE_PATH),
+	]
 	_back_button.pressed.connect(_on_back)
 	_save_button.pressed.connect(_on_save)
 	_reset_button.pressed.connect(_on_reset)
@@ -31,9 +34,7 @@ func _rebuild_ui() -> void:
 	_rear_diff_option = null
 
 	_add_section("Визуал / высота")
-	_add_slider("model_y_offset", "Высота модели", 0.0, 0.8, 0.01, TuningStore.model_y_offset)
-	_add_slider("collision_y", "Высота коллизии", 0.1, 1.0, 0.01, TuningStore.collision_y)
-	_add_slider("suspension_mount_y", "Высота крепления подвески", 0.1, 0.9, 0.01, TuningStore.suspension_mount_y)
+	_add_slider("clearance", "Клиренс (модель + коллизия)", -0.3, 0.5, 0.01, TuningStore.clearance)
 
 	_add_section("Кузов")
 	_add_slider("mass", "Масса, кг", 600.0, 2500.0, 10.0, TuningStore.setup.mass)
@@ -42,8 +43,7 @@ func _rebuild_ui() -> void:
 	_add_slider("com_z", "Центр масс Z", -0.5, 0.5, 0.01, TuningStore.setup.center_of_mass_offset.z)
 
 	_add_section("Двигатель")
-	_add_slider("max_power_kw", "Мощность, кВт", 40.0, 400.0, 1.0, TuningStore.setup.max_power_kw)
-	_add_slider("torque_boost", "Множитель момента", 0.8, 3.0, 0.05, TuningStore.setup.torque_boost)
+	_add_slider("max_power_hp", "Мощность, л.с.", 50.0, 550.0, 1.0, TuningStore.setup.max_power_hp)
 	_add_slider("idle_rpm", "Холостые, об/мин", 600.0, 1500.0, 10.0, TuningStore.setup.idle_rpm)
 	_add_slider("max_rpm", "Макс. обороты", 4000.0, 10000.0, 50.0, TuningStore.setup.max_rpm)
 
@@ -70,19 +70,20 @@ func _rebuild_ui() -> void:
 	_add_slider("locked_diff_stiffness", "Жёсткость заварки", 100.0, 2000.0, 25.0, TuningStore.setup.locked_diff_stiffness)
 	_add_slider("awd_front_bias", "AWD bias перед", 0.0, 1.0, 0.05, TuningStore.setup.awd_front_bias)
 
-	_add_section("Колёса")
-	_add_slider("wheel_radius", "Радиус колеса", 0.15, 0.5, 0.01, TuningStore.setup.wheel_radius)
-	_add_slider("wheel_width", "Ширина колеса", 0.1, 0.4, 0.01, TuningStore.setup.wheel_width)
-	var track := 0.52
-	var front_z := -0.81
-	var rear_z := 0.7
-	if TuningStore.setup.wheel_positions.size() >= 4:
-		track = absf(TuningStore.setup.wheel_positions[0].x)
-		front_z = TuningStore.setup.wheel_positions[0].z
-		rear_z = TuningStore.setup.wheel_positions[2].z
-	_add_slider("track", "Колея (половина)", 0.3, 1.0, 0.01, track)
-	_add_slider("front_z", "Передняя ось Z", -1.5, -0.3, 0.01, front_z)
-	_add_slider("rear_z", "Задняя ось Z", 0.3, 1.5, 0.01, rear_z)
+	_add_section("Оси / колёса")
+	_add_slider("front_axle_z", "Передняя ось Z", -2.5, 0.5, 0.01, TuningStore.setup.front_axle_z)
+	_add_slider("front_mount_y", "Передняя ось Y", 0.05, 1.0, 0.01, TuningStore.setup.front_mount_y)
+	_add_slider("front_track", "Передняя колея", 0.6, 2.2, 0.01, TuningStore.setup.front_track)
+	_add_slider("front_wheel_radius", "Перед радиус", 0.12, 0.5, 0.005, TuningStore.setup.front_wheel_radius)
+	_add_slider("front_wheel_width", "Перед ширина", 0.1, 0.45, 0.01, TuningStore.setup.front_wheel_width)
+	_add_slider("front_mesh_scale", "Перед mesh scale", 0.5, 6.0, 0.05, TuningStore.setup.front_mesh_scale)
+	_add_slider("rear_axle_z", "Задняя ось Z", -0.5, 2.5, 0.01, TuningStore.setup.rear_axle_z)
+	_add_slider("rear_mount_y", "Задняя ось Y", 0.05, 1.0, 0.01, TuningStore.setup.rear_mount_y)
+	_add_slider("rear_track", "Задняя колея", 0.6, 2.2, 0.01, TuningStore.setup.rear_track)
+	_add_slider("rear_wheel_radius", "Зад радиус", 0.12, 0.5, 0.005, TuningStore.setup.rear_wheel_radius)
+	_add_slider("rear_wheel_width", "Зад ширина", 0.1, 0.45, 0.01, TuningStore.setup.rear_wheel_width)
+	_add_slider("rear_mesh_scale", "Зад mesh scale", 0.5, 6.0, 0.05, TuningStore.setup.rear_mesh_scale)
+	_add_slider("wheel_inertia", "Инерция колеса", 0.3, 3.0, 0.05, TuningStore.setup.wheel_inertia)
 
 	_add_section("Подвеска перед")
 	_add_slider("front_rest_length", "Перед rest", 0.3, 1.0, 0.01, TuningStore.setup.front_rest_length)
@@ -112,7 +113,6 @@ func _rebuild_ui() -> void:
 	_add_section("Сцепление / инерция")
 	_add_slider("clutch_max_torque", "Момент сцепления", 200.0, 1500.0, 10.0, TuningStore.setup.clutch_max_torque)
 	_add_slider("clutch_engage_time", "Время сцепления, с", 0.05, 0.8, 0.01, TuningStore.setup.clutch_engage_time)
-	_add_slider("wheel_inertia", "Инерция колеса", 0.3, 3.0, 0.05, TuningStore.setup.wheel_inertia)
 	_add_slider("engine_inertia", "Инерция двигателя", 0.08, 0.8, 0.01, TuningStore.setup.engine_inertia)
 
 	_add_section("Аэро / симуляция")
@@ -127,7 +127,7 @@ func _rebuild_ui() -> void:
 	_add_section("Руль")
 	_add_slider("max_steer_angle", "Макс. угол руля (стойка)", 10.0, 45.0, 0.5, TuningStore.setup.max_steer_angle)
 	_add_slider("steer_speed", "Скорость отклика руля", 0.3, 6.0, 0.05, TuningStore.setup.steer_speed)
-	_add_slider("steer_curve_max_kmh", "Кривая руля: скорость X=1, км/ч", 60.0, 220.0, 5.0, TuningStore.setup.steer_curve_max_kmh)
+	_add_slider("drift_assist", "Помощь дрифта (0=симулятор)", 0.0, 2.0, 0.05, TuningStore.setup.drift_assist)
 
 
 func _add_section(title: String) -> void:
@@ -236,13 +236,9 @@ func _on_rear_diff_selected(index: int) -> void:
 func _apply_key(key: String, value: float) -> void:
 	var s := TuningStore.setup
 	match key:
-		"model_y_offset":
-			TuningStore.model_y_offset = value
-		"collision_y":
-			TuningStore.collision_y = value
-		"suspension_mount_y":
-			TuningStore.suspension_mount_y = value
-			TuningStore.apply_mount_height()
+		"clearance":
+			TuningStore.clearance = value
+			TuningStore.apply_clearance_to_cars()
 		"mass":
 			s.mass = value
 		"com_x":
@@ -251,10 +247,13 @@ func _apply_key(key: String, value: float) -> void:
 			s.center_of_mass_offset.y = value
 		"com_z":
 			s.center_of_mass_offset.z = value
+		"max_power_hp":
+			s.max_power_hp = value
+			s.max_power_kw = value * CarSetup.KW_PER_HP
 		"max_power_kw":
+			# Legacy settings key → convert into HP.
 			s.max_power_kw = value
-		"torque_boost":
-			s.torque_boost = value
+			s.max_power_hp = value / CarSetup.KW_PER_HP
 		"idle_rpm":
 			s.idle_rpm = value
 		"max_rpm":
@@ -266,11 +265,45 @@ func _apply_key(key: String, value: float) -> void:
 		"shift_time":
 			s.shift_time = value
 		"wheel_radius":
+			s.front_wheel_radius = value
+			s.rear_wheel_radius = value
 			s.wheel_radius = value
 		"wheel_width":
+			s.front_wheel_width = value
+			s.rear_wheel_width = value
 			s.wheel_width = value
-		"track", "front_z", "rear_z":
-			_apply_wheel_layout()
+		"front_axle_z":
+			s.front_axle_z = value
+			s.rebuild_wheel_positions()
+		"front_mount_y":
+			s.front_mount_y = value
+			s.rebuild_wheel_positions()
+		"front_track":
+			s.front_track = value
+			s.rebuild_wheel_positions()
+		"front_wheel_radius":
+			s.front_wheel_radius = value
+			s.wheel_radius = value
+		"front_wheel_width":
+			s.front_wheel_width = value
+			s.wheel_width = value
+		"front_mesh_scale":
+			s.front_mesh_scale = value
+		"rear_axle_z":
+			s.rear_axle_z = value
+			s.rebuild_wheel_positions()
+		"rear_mount_y":
+			s.rear_mount_y = value
+			s.rebuild_wheel_positions()
+		"rear_track":
+			s.rear_track = value
+			s.rebuild_wheel_positions()
+		"rear_wheel_radius":
+			s.rear_wheel_radius = value
+		"rear_wheel_width":
+			s.rear_wheel_width = value
+		"rear_mesh_scale":
+			s.rear_mesh_scale = value
 		"front_rest_length":
 			s.front_rest_length = value
 			s.rest_length = value
@@ -350,8 +383,8 @@ func _apply_key(key: String, value: float) -> void:
 			s.max_steer_angle = value
 		"steer_speed":
 			s.steer_speed = value
-		"steer_curve_max_kmh":
-			s.steer_curve_max_kmh = value
+		"drift_assist":
+			s.drift_assist = value
 		_:
 			if key.begins_with("gear_"):
 				var idx := int(key.get_slice("_", 1)) - 1
@@ -359,21 +392,7 @@ func _apply_key(key: String, value: float) -> void:
 					s.gear_ratios[idx] = value
 
 
-func _apply_wheel_layout() -> void:
-	var track: float = _sliders["track"].value if _sliders.has("track") else 0.52
-	var front_z: float = _sliders["front_z"].value if _sliders.has("front_z") else -0.81
-	var rear_z: float = _sliders["rear_z"].value if _sliders.has("rear_z") else 0.7
-	var y := TuningStore.suspension_mount_y
-	TuningStore.setup.wheel_positions = [
-		Vector3(-track, y, front_z),
-		Vector3(track, y, front_z),
-		Vector3(-track, y, rear_z),
-		Vector3(track, y, rear_z),
-	]
-
-
 func _on_save() -> void:
-	_apply_wheel_layout()
 	TuningStore.save_to_disk()
 	_path_label.text = "Сохранено: %s" % ProjectSettings.globalize_path(TuningStore.SAVE_PATH)
 
@@ -381,10 +400,9 @@ func _on_save() -> void:
 func _on_reset() -> void:
 	TuningStore.reset_to_defaults()
 	_rebuild_ui()
-	_path_label.text = "Сброшено к дефолту и сохранено"
+	_path_label.text = "Сброшено к пакету (%s)" % String(TuningStore.active_car_id)
 
 
 func _on_back() -> void:
-	_apply_wheel_layout()
 	TuningStore.save_to_disk()
 	get_tree().change_scene_to_file("res://assets/scenes/ui/main_menu.tscn")

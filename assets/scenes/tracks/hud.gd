@@ -28,6 +28,13 @@ func _ready() -> void:
 		_on_score_changed(int(_stats.get("score")))
 		_on_xp_changed(float(_stats.get("xp")), float(_stats.get("max_xp")))
 	_update_timer_label(0.0)
+	add_to_group("car_huds")
+
+
+func bind_car(car: CarController) -> void:
+	_car = car
+	if car != null:
+		car_path = get_path_to(car) if is_inside_tree() else car_path
 
 
 func _process(_delta: float) -> void:

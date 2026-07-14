@@ -1,0 +1,7 @@
+[gd_scene format=3 uid="uid://cqnir0sdnrk2s"]
+
+[ext_resource type="PackedScene" uid="uid://wdxl4fdd5nct" path="res://assets/models/cars/golf/golf_wheel.glb" id="1_156c2"]
+
+[node name="VolgaWheel" type="Node3D" unique_id=909345164]
+
+[node name="Mesh" parent="." unique_id=1380513388 instance=ExtResource("1_156c2")]

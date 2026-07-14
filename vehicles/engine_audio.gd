@@ -1,6 +1,7 @@
 extends Node3D
 
 ## Crossfades idling / low / mid / max engine loops from car RPM.
+## Streams come from this node's exports, or from CarController.audio_profile.
 
 @export var master_volume_db: float = -9.1 ## ~0.35 linear (~50% quieter than previous -3.1)
 @export var idle_stream: AudioStream
@@ -14,11 +15,18 @@ var _car: CarController
 var _players: Array[AudioStreamPlayer3D] = []
 var _smooth_rpm: float = 800.0
 var _smooth_load: float = 0.0
+var _profile_applied: bool = false
 
 
 func _ready() -> void:
 	_car = get_parent() as CarController
-	_ensure_defaults()
+	_resolve_streams_from_pack()
+	if idle_stream == null and low_stream == null and mid_stream == null and max_stream == null:
+		push_warning(
+			"EngineAudio: no streams on node and no audio_profile on pack '%s'"
+			% (String(_car.car_id) if _car else "?")
+		)
+		return
 	_players = [
 		_make_player("Idle", idle_stream),
 		_make_player("Low", low_stream),
@@ -26,13 +34,38 @@ func _ready() -> void:
 		_make_player("Max", max_stream),
 	]
 	for p in _players:
-		p.play()
+		if p.stream != null:
+			p.play()
 	if _car and _car.setup:
 		_smooth_rpm = _car.setup.idle_rpm
 
 
+## Apply pack audio. If only_fill_empty, keep any streams already set on this node.
+func apply_profile(profile: CarAudioProfile, only_fill_empty: bool = true) -> void:
+	if profile == null:
+		return
+	if not only_fill_empty or idle_stream == null:
+		idle_stream = profile.idle_stream
+	if not only_fill_empty or low_stream == null:
+		low_stream = profile.low_stream
+	if not only_fill_empty or mid_stream == null:
+		mid_stream = profile.mid_stream
+	if not only_fill_empty or max_stream == null:
+		max_stream = profile.max_stream
+	if not only_fill_empty or not _profile_applied:
+		master_volume_db = profile.master_volume_db
+		max_distance = profile.max_distance
+		unit_size = profile.unit_size
+		_profile_applied = true
+
+
+func _resolve_streams_from_pack() -> void:
+	if _car != null and _car.audio_profile != null:
+		apply_profile(_car.audio_profile, true)
+
+
 func _process(delta: float) -> void:
-	if _car == null or _car.setup == null:
+	if _car == null or _car.setup == null or _players.is_empty():
 		return
 
 	var idle := _car.setup.idle_rpm
@@ -59,6 +92,8 @@ func _process(delta: float) -> void:
 
 	for i in _players.size():
 		var player := _players[i]
+		if player.stream == null:
+			continue
 		var w: float = weights[i]
 		player.pitch_scale = pitch
 		if mute_engine or w <= 0.001:
@@ -112,14 +147,3 @@ func _looped(stream: AudioStream) -> AudioStream:
 	elif copy is AudioStreamOggVorbis:
 		(copy as AudioStreamOggVorbis).loop = true
 	return copy
-
-
-func _ensure_defaults() -> void:
-	if idle_stream == null:
-		idle_stream = load("res://assets/audio/cars/idling.mp3")
-	if low_stream == null:
-		low_stream = load("res://assets/audio/cars/low.mp3")
-	if mid_stream == null:
-		mid_stream = load("res://assets/audio/cars/mid.mp3")
-	if max_stream == null:
-		max_stream = load("res://assets/audio/cars/max.mp3")

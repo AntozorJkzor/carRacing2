@@ -156,6 +156,8 @@ func _header() -> String:
 		"tc_scale",
 		"rear_spin",
 		"rear_diff",
+		"body_slip_deg",
+		"yaw_assist_nm",
 	]
 	for i in 4:
 		cols.append_array(
@@ -246,6 +248,8 @@ func _write_row(delta: float) -> void:
 		"%.3f" % _car.debug_tc_scale,
 		"%d" % _car.debug_rear_spin,
 		"%d" % int(_car.setup.rear_diff_type),
+		"%.2f" % _car.debug_body_slip_deg,
+		"%.1f" % _car.debug_yaw_assist_nm,
 	]
 
 	for i in 4:

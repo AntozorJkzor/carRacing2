@@ -1,6 +1,6 @@
 extends RefCounted
 
-## Simplified Pacejka Magic Formula + soft combined-slip scaling.
+## Simplified Pacejka Magic Formula + combined-slip friction ellipse.
 
 
 static func magic_formula(x: float, b: float, c: float, d: float, e: float) -> float:
@@ -39,21 +39,25 @@ static func evaluate(
 	if load < 1.0:
 		return Vector2.ZERO
 
-	# Slightly higher lateral peak helps turn-in without early snap oversteer.
 	var d_long: float = mu * load
-	var d_lat: float = mu * load * 1.08
+	var d_lat: float = mu * load
 
 	var fx_pure: float = magic_formula(kappa, b_long, c_long, d_long, e_long)
 	var fy_pure: float = -magic_formula(alpha, b_lat, c_lat, d_lat, e_lat)
 
-	# Soft friction ellipse. Prefer cutting longitudinal first under combined
-	# load so a spinning drive axle keeps more cornering grip.
+	# Isotropic friction ellipse — both axes share the mu budget.
 	var gx: float = absf(fx_pure) / maxf(d_long, 1.0)
 	var gy: float = absf(fy_pure) / maxf(d_lat, 1.0)
 	var g: float = sqrt(gx * gx + gy * gy)
 	if g > 1.0:
 		var inv: float = 1.0 / g
-		fx_pure *= inv * inv
-		fy_pure *= sqrt(inv)
+		fx_pure *= inv
+		fy_pure *= inv
+
+	# Excess longitudinal slip softens cornering, but keep enough Fy to steer
+	# out of a slide. Old 0.65*κ→floor 0.12 made any RWD spin an instant donut.
+	var excess_kappa: float = maxf(absf(kappa) - 0.2, 0.0)
+	var kappa_lat_scale: float = clampf(1.0 - excess_kappa * 0.35, 0.4, 1.0)
+	fy_pure *= kappa_lat_scale
 
 	return Vector2(fx_pure, fy_pure)

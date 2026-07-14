@@ -15,7 +15,7 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 [application]
 
 config/name="carRacing"
-run/main_scene="uid://dn1ki43pixwyl"
+run/main_scene="res://assets/scenes/tracks/physics_test_track.tscn"
 config/features=PackedStringArray("4.7", "Forward Plus")
 config/icon="res://icon.svg"
 config/run/main_scene="res://assets/scenes/ui/main_menu.tscn"
@@ -30,7 +30,7 @@ MCPGameInspector="*res://addons/godot_mcp/mcp_game_inspector_service.gd"
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/godot_mcp/plugin.cfg")
+enabled=PackedStringArray("res://addons/godot_mcp/plugin.cfg", "res://addons/terrain_3d/plugin.cfg")
 
 [input]
 

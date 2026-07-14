@@ -1,0 +1,59 @@
+[gd_resource type="Resource" script_class="CarSetup" format=3 uid="uid://cqjf8hwdnrk2s"]
+
+[ext_resource type="Script" uid="uid://cfaj5h28ainqg" path="res://vehicles/car_setup.gd" id="1_setup"]
+
+[sub_resource type="Curve" id="Curve_steer"]
+_data = [Vector2(0, 1), 0.0, 0.0, 0, 0, Vector2(0.2, 0.68), 0.0, 0.0, 0, 0, Vector2(0.36, 0.4), 0.0, 0.0, 0, 0, Vector2(0.5, 0.28), 0.0, 0.0, 0, 0, Vector2(0.75, 0.18), 0.0, 0.0, 0, 0, Vector2(1, 0.14), 0.0, 0.0, 0, 0]
+point_count = 6
+
+[sub_resource type="Curve" id="Curve_torque"]
+_data = [Vector2(0, 0.62), 0.0, 0.0, 0, 0, Vector2(0.2, 0.88), 0.0, 0.0, 0, 0, Vector2(0.45, 1), 0.0, 0.0, 0, 0, Vector2(0.7, 0.98), 0.0, 0.0, 0, 0, Vector2(0.88, 0.9), 0.0, 0.0, 0, 0, Vector2(1, 0.78), 0.0, 0.0, 0, 0]
+point_count = 6
+
+[resource]
+script = ExtResource("1_setup")
+torque_curve = SubResource("Curve_torque")
+rear_diff_type = 2
+locked_diff_stiffness = 1200.0
+wheel_radius = 0.185
+front_axle_z = -0.76418066
+front_mount_y = 0.42
+front_track = 1.0
+front_wheel_radius = 0.185
+front_wheel_width = 0.22
+front_mesh_scale = 2.7
+rear_axle_z = 0.78965956
+rear_mount_y = 0.42
+rear_track = 1.0
+rear_wheel_radius = 0.185
+rear_wheel_width = 0.22
+rear_mesh_scale = 2.7
+wheel_positions = Array[Vector3]([Vector3(-0.5, 0.42, -0.76418066), Vector3(0.5, 0.42, -0.76418066), Vector3(-0.5, 0.42, 0.78965956), Vector3(0.5, 0.42, 0.78965956)])
+front_rest_length = 0.58
+front_travel = 0.16
+front_stiffness = 45000.0
+front_damping_compression = 6200.0
+front_damping_rebound = 5200.0
+front_anti_roll = 4800.0
+rear_rest_length = 0.58
+rear_travel = 0.16
+rear_stiffness = 44000.0
+rear_damping_compression = 6000.0
+rear_damping_rebound = 5000.0
+rear_anti_roll = 2400.0
+rest_length = 0.58
+travel = 0.16
+stiffness = 45000.0
+damping = 6200.0
+anti_roll = 4000.0
+tire_mu_front = 1.4
+pacejka_b_lat = 5.2
+pacejka_e_lat = 0.2
+rolling_resistance = 0.006
+grip_longitudinal = 2.2
+grip_lateral = 2.15
+brake_force = 14000.0
+handbrake_lat_grip = 0.08
+downforce_coefficient = 0.55
+max_steer_angle = 26.0
+steer_angle_curve = SubResource("Curve_steer")

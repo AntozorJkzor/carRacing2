@@ -1,0 +1,29 @@
+[gd_resource type="Resource" script_class="CarsCatalog" format=3 uid="uid://carscatalog0001"]
+
+[ext_resource type="Script" path="res://vehicles/cars_catalog.gd" id="1_catalog"]
+[ext_resource type="Script" path="res://vehicles/car_definition.gd" id="2_def"]
+[ext_resource type="PackedScene" path="res://assets/scenes/cars/volga/volga.tscn" id="3_volga"]
+[ext_resource type="PackedScene" path="res://assets/scenes/cars/demo/demo.tscn" id="4_demo"]
+[ext_resource type="PackedScene" path="res://assets/scenes/cars/golf/golf.tscn" id="5_golf"]
+
+[sub_resource type="Resource" id="CarDefinition_volga"]
+script = ExtResource("2_def")
+id = &"volga"
+display_name = "Volga"
+scene = ExtResource("3_volga")
+
+[sub_resource type="Resource" id="CarDefinition_demo"]
+script = ExtResource("2_def")
+id = &"demo"
+display_name = "Demo"
+scene = ExtResource("4_demo")
+
+[sub_resource type="Resource" id="CarDefinition_golf"]
+script = ExtResource("2_def")
+id = &"golf"
+display_name = "Golf"
+scene = ExtResource("5_golf")
+
+[resource]
+script = ExtResource("1_catalog")
+cars = Array[CarDefinition]([SubResource("CarDefinition_volga"), SubResource("CarDefinition_demo"), SubResource("CarDefinition_golf")])
