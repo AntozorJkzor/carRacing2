@@ -12,6 +12,6 @@ idle_stream = ExtResource("2_idle")
 low_stream = ExtResource("3_low")
 mid_stream = ExtResource("4_mid")
 max_stream = ExtResource("5_max")
-master_volume_db = -9.1
+master_volume_db = -2.0
 max_distance = 80.0
 unit_size = 12.0

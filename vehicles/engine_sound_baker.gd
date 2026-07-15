@@ -181,7 +181,7 @@ static func params_from_setup(
 		"cylinders": cyl,
 		"displacement_cc": liters * 1000.0,
 		"stroke_mm": stroke,
-		"valves_per_cylinder": 4,
+		"valves_per_cylinder": 2,
 		"layout": layout,
 		"bank_angle_deg": 90.0 if layout == 1 else 0.0,
 		"idle_rpm": idle,
@@ -345,10 +345,13 @@ static func user_fingerprint(car_id: StringName) -> String:
 	return str(meta.get_value("bake", "fingerprint", ""))
 
 
-static func load_user(car_id: StringName) -> Dictionary:
-	var out_dir := user_bake_dir(car_id)
+## Load a folder of per-RPM chunks: meta.cfg + rpm_XXXX.tres (250 rpm ladder).
+static func load_dir(out_dir: String) -> Dictionary:
+	if out_dir.is_empty():
+		return {}
 	var meta := ConfigFile.new()
-	if meta.load(out_dir.path_join("meta.cfg")) != OK:
+	var meta_path := out_dir.path_join("meta.cfg")
+	if meta.load(meta_path) != OK:
 		return {}
 	var count := int(meta.get_value("bake", "band_count", 0))
 	if count <= 0:
@@ -359,21 +362,26 @@ static func load_user(car_id: StringName) -> Dictionary:
 	rpms.resize(count)
 	names.resize(count)
 	for b in count:
-		var name := str(meta.get_value("bake", "band_%d" % b, band_name_for_rpm(
-			float(meta.get_value("bake", "rpm_%d" % b, 800.0))
-		)))
+		var rpm_v := float(meta.get_value("bake", "rpm_%d" % b, 800.0))
+		var name := str(meta.get_value("bake", "band_%d" % b, band_name_for_rpm(rpm_v)))
 		var path := out_dir.path_join("%s.tres" % name)
-		if not FileAccess.file_exists(path):
+		if not ResourceLoader.exists(path) and not FileAccess.file_exists(path):
+			push_warning("EngineBankBaker.load_dir: missing %s" % path)
 			return {}
 		var stream := load(path) as AudioStream
 		if stream == null:
+			push_warning("EngineBankBaker.load_dir: failed load %s" % path)
 			return {}
 		names[b] = name
-		rpms[b] = float(meta.get_value("bake", "rpm_%d" % b, 800.0))
+		rpms[b] = rpm_v
 		result[name] = stream
 	result["rpms"] = rpms
 	result["names"] = names
 	return result
+
+
+static func load_user(car_id: StringName) -> Dictionary:
+	return load_dir(user_bake_dir(car_id))
 
 
 ## Legacy live EngineSoundStream mapping (optional debug path).

@@ -12,3 +12,4 @@ idle_stream = ExtResource("1_k7yw2")
 low_stream = ExtResource("2_j00k0")
 mid_stream = ExtResource("4_86bo2")
 max_stream = ExtResource("3_wpxjy")
+master_volume_db = -2.0

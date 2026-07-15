@@ -120,6 +120,10 @@ func _apply_pack_assets() -> void:
 					engine_audio.call("apply_setup", setup)
 			else:
 				var user_banks := EngineBankBaker.load_user(car_id)
+				if user_banks.is_empty() and audio_profile != null:
+					var bank_dir := str(audio_profile.get("engine_bank_dir"))
+					if not bank_dir.is_empty():
+						user_banks = EngineBankBaker.load_dir(bank_dir)
 				if not user_banks.is_empty() and engine_audio.has_method("apply_banks"):
 					engine_audio.call("apply_banks", user_banks)
 	_ensure_wheel_smoke()

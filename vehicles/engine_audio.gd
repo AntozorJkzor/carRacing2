@@ -5,7 +5,7 @@ extends Node3D
 ## Refs: Wwise Blend Container / FMOD Autopitch / BOOM Library loop engines.
 
 @export var use_live_synth: bool = false
-@export var master_volume_db: float = -9.1
+@export var master_volume_db: float = -2.0
 @export var max_distance: float = 80.0
 @export var unit_size: float = 12.0
 ## Legacy 4-slot pack profile (used when user bake missing).
@@ -168,11 +168,25 @@ func _apply_spatial_live() -> void:
 func _resolve_profile_from_pack() -> void:
 	if _car != null and _car.audio_profile != null:
 		apply_profile(_car.audio_profile, true)
+	# Priority: user:// bake → profile.engine_bank_dir (res:// rpm chunks) → legacy 4-slot.
 	if _car != null:
 		var user_banks := EngineBankBaker.load_user(_car.car_id)
 		if not user_banks.is_empty():
 			apply_banks(user_banks)
+			print("EngineAudio: loaded user bake %s (%d bands)" % [
+				String(_car.car_id), (user_banks["names"] as PackedStringArray).size(),
+			])
 			return
+	if _car != null and _car.audio_profile != null:
+		var bank_dir := str(_car.audio_profile.get("engine_bank_dir"))
+		if not bank_dir.is_empty():
+			var res_banks := EngineBankBaker.load_dir(bank_dir)
+			if not res_banks.is_empty():
+				apply_banks(res_banks)
+				print("EngineAudio: loaded bank dir %s (%d bands)" % [
+					bank_dir, (res_banks["names"] as PackedStringArray).size(),
+				])
+				return
 	if _band_streams.is_empty():
 		_band_streams = [idle_stream, low_stream, mid_stream, max_stream]
 
