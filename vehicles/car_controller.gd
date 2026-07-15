@@ -115,10 +115,13 @@ func _apply_pack_assets() -> void:
 		var engine_audio := get_node_or_null("EngineAudio")
 		if engine_audio != null and engine_audio.has_method("apply_profile"):
 			engine_audio.call("apply_profile", audio_profile, true)
-			# Tuned bake from Settings save overrides pack banks.
-			var user_banks := EngineSoundBaker.load_user(car_id)
-			if not user_banks.is_empty() and engine_audio.has_method("apply_banks"):
-				engine_audio.call("apply_banks", user_banks)
+			if engine_audio.has_method("is_live") and bool(engine_audio.call("is_live")):
+				if engine_audio.has_method("apply_setup"):
+					engine_audio.call("apply_setup", setup)
+			else:
+				var user_banks := EngineBankBaker.load_user(car_id)
+				if not user_banks.is_empty() and engine_audio.has_method("apply_banks"):
+					engine_audio.call("apply_banks", user_banks)
 	_ensure_wheel_smoke()
 	_ensure_player_driver()
 

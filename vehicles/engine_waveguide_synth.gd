@@ -1,8 +1,8 @@
 class_name EngineWaveguideSynth
 extends RefCounted
 
-## Baldan-style waveguide engine (offline bake only).
-## Tuned away from harsh intake hiss / “fart pops” — darker, softer combustion.
+## Legacy Baldan waveguide (unused). Bake uses EngineLabSynth from engine-sound-lab.
+## Kept for reference; do not wire new code here.
 
 const SAMPLE_RATE := 22050.0
 const SR_SCALE := SAMPLE_RATE / 44100.0

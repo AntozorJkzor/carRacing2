@@ -1,0 +1,8 @@
+[configuration]
+entry_symbol = "engine_sim_audio_library_init"
+compatibility_minimum = "4.3"
+reloadable = true
+
+[libraries]
+windows.debug.x86_64 = "res://addons/engine_sim_audio/bin/libengine_sim_audio.windows.template_debug.x86_64.dll"
+windows.release.x86_64 = "res://addons/engine_sim_audio/bin/libengine_sim_audio.windows.template_release.x86_64.dll"

@@ -1,11 +1,11 @@
 @tool
 extends EditorScript
 
-## File → Run to bake waveguide banks for one car.
+## File → Run to bake EngineSim banks every 250 RPM for one car.
 ## Change only CAR_NAME (folder + setup/audio names use the same slug).
 
 const CAR_NAME := "volga"
-const DURATION_SEC := 2.0
+const DURATION_SEC := 1.0
 
 
 func _run() -> void:
@@ -21,17 +21,21 @@ func _run() -> void:
 	if setup == null:
 		push_error("Bake: missing setup %s" % car_setup)
 		return
-	var result: Dictionary = EngineSoundBaker.bake_setup(setup, out_dir, DURATION_SEC)
-	print("Bake %s → %s" % [car, result])
+	var result: Dictionary = EngineBankBaker.bake_setup(setup, out_dir, DURATION_SEC)
+	var names: PackedStringArray = result.get("names", PackedStringArray())
+	print("Bake %s → %d bands" % [car, names.size()])
 
 	var profile := load(audio_profile)
 	if profile == null:
 		push_warning("Bake: no audio profile at %s (creating new)" % audio_profile)
 		profile = CarAudioProfile.new()
-	profile.set("idle_stream", load(str(result.get("idle", ""))))
-	profile.set("low_stream", load(str(result.get("low", ""))))
-	profile.set("mid_stream", load(str(result.get("mid", ""))))
-	profile.set("max_stream", load(str(result.get("max", ""))))
+	# Pack profile still has 4 slots — stash idle / ~1/3 / ~2/3 / max as fallbacks.
+	if names.size() > 0:
+		var last := names.size() - 1
+		profile.set("idle_stream", load(str(result.get(names[0], ""))))
+		profile.set("low_stream", load(str(result.get(names[last / 3], ""))))
+		profile.set("mid_stream", load(str(result.get(names[(last * 2) / 3], ""))))
+		profile.set("max_stream", load(str(result.get(names[last], ""))))
 	if profile.get("master_volume_db") == null:
 		profile.set("master_volume_db", -9.1)
 	var err := ResourceSaver.save(profile, audio_profile)

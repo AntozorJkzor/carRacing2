@@ -1,5 +1,5 @@
 ## Spatial + baked engine loop banks for EngineAudio.
-## Bake with EngineSoundBaker (waveguide offline) into assets/audio/engines/<car>/.
+## Bake with EngineBankBaker (native EngineSound offline) into assets/audio/engines/<car>/.
 class_name CarAudioProfile
 extends Resource
 

@@ -453,12 +453,14 @@ func _on_save() -> void:
 	_path_label.text = "Генерация звука двигателя…"
 	await get_tree().process_frame
 	var banks: Dictionary = TuningStore.save_to_disk()
-	if bool(banks.get("skipped", false)):
+	if bool(banks.get("live", false)):
+		_path_label.text = "Сохранено (live-synth, без bake): %s" % String(TuningStore.active_car_id)
+	elif bool(banks.get("skipped", false)):
 		_path_label.text = "Сохранено (звук уже актуален): %s" % String(TuningStore.active_car_id)
 	else:
 		_path_label.text = "Сохранено + новый звук: %s → %s" % [
 			String(TuningStore.active_car_id),
-			ProjectSettings.globalize_path(EngineSoundBaker.user_bake_dir(TuningStore.active_car_id)),
+			ProjectSettings.globalize_path(EngineBankBaker.user_bake_dir(TuningStore.active_car_id)),
 		]
 
 

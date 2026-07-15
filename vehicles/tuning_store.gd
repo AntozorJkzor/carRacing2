@@ -62,7 +62,7 @@ func reset_to_defaults() -> void:
 	var path := save_path_for(active_car_id)
 	if FileAccess.file_exists(path):
 		DirAccess.remove_absolute(path)
-	EngineSoundBaker.clear_user(active_car_id)
+	EngineBankBaker.clear_user(active_car_id)
 	_push_working_to_live_cars()
 	_restore_pack_audio_on_live_cars()
 
@@ -262,19 +262,19 @@ func save_to_disk() -> Dictionary:
 	return rebake_engine_sounds()
 
 
-## Waveguide bake from current setup → user:// + live EngineAudio swap.
-## Skips render if sound fingerprint matches last user bake (still re-applies banks).
-func rebake_engine_sounds(duration_sec: float = 1.5) -> Dictionary:
+## EngineSimBaker bake → user:// banks + swap on live cars.
+## Skips render if fingerprint matches last user bake (still re-applies banks).
+func rebake_engine_sounds(duration_sec: float = EngineBankBaker.DEFAULT_DURATION_SEC) -> Dictionary:
 	if setup == null:
 		return {}
 	var fp := _engine_sound_fingerprint()
-	if EngineSoundBaker.user_fingerprint(active_car_id) == fp:
-		var cached := EngineSoundBaker.load_user(active_car_id)
+	if EngineBankBaker.user_fingerprint(active_car_id) == fp:
+		var cached := EngineBankBaker.load_user(active_car_id)
 		if not cached.is_empty():
 			_apply_engine_banks_to_live_cars(cached)
 			cached["skipped"] = true
 			return cached
-	var banks := EngineSoundBaker.bake_user(setup, active_car_id, duration_sec, fp)
+	var banks := EngineBankBaker.bake_user(setup, active_car_id, duration_sec, fp)
 	_apply_engine_banks_to_live_cars(banks)
 	banks["skipped"] = false
 	return banks
@@ -283,8 +283,8 @@ func rebake_engine_sounds(duration_sec: float = 1.5) -> Dictionary:
 func _engine_sound_fingerprint() -> String:
 	if setup == null:
 		return ""
-	# Bump BAKE_REV when waveguide mapping changes so caches rebuild.
-	const BAKE_REV := "wg7"
+	# Bump BAKE_REV when native synth / mapping changes so caches rebuild.
+	const BAKE_REV := "enginesim1"
 	return "%s|%d|%.2f|%.1f|%.1f|%d|%d|%d|%d|%.1f|%.0f|%.0f|%.0f" % [
 		BAKE_REV,
 		setup.cylinder_count,
