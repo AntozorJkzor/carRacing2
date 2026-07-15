@@ -284,7 +284,7 @@ func _engine_sound_fingerprint() -> String:
 	if setup == null:
 		return ""
 	# Bump BAKE_REV when native synth / mapping changes so caches rebuild.
-	const BAKE_REV := "enginesim1"
+	const BAKE_REV := "enginesim2"
 	return "%s|%d|%.2f|%.1f|%.1f|%d|%d|%d|%d|%.1f|%.0f|%.0f|%.0f" % [
 		BAKE_REV,
 		setup.cylinder_count,

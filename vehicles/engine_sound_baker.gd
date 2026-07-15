@@ -254,12 +254,17 @@ static func _banks_from_sim_result(result: Dictionary, out_dir: String) -> Dicti
 		if not FileAccess.file_exists(path) and not ResourceLoader.exists(path):
 			push_error("EngineBankBaker: missing baked band %s" % path)
 			continue
-		var stream := load(path) as AudioStream
+		var stream := _load_stream_fresh(path)
 		if stream == null:
 			push_error("EngineBankBaker: failed load %s" % path)
 			continue
 		banks[name] = stream
 	return banks
+
+
+static func _load_stream_fresh(path: String) -> AudioStream:
+	## Bake overwrites .tres on disk; ignore/replace Godot cache or we keep silent zeros.
+	return ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_REPLACE) as AudioStream
 
 
 static func bake_streams(setup: Resource, duration_sec: float = DEFAULT_DURATION_SEC) -> Dictionary:
@@ -292,22 +297,29 @@ static func bake_user(
 	duration_sec: float = DEFAULT_DURATION_SEC,
 	fingerprint: String = ""
 ) -> Dictionary:
-	clear_user(car_id)
 	var out_dir := user_bake_dir(car_id)
+	## Bake into a temp folder first so a failed/aborted run never leaves silent banks.
+	var tmp_dir := "user://engine_bake/_tmp_%s" % String(car_id).to_lower()
+	clear_dir(tmp_dir)
 
 	if has_engine_sim():
 		var baker: RefCounted = ClassDB.instantiate("EngineSimBaker")
 		baker.call("apply_params", params_from_setup(setup, car_id, duration_sec, DEFAULT_SETTLE_SEC))
 		var t0 := Time.get_ticks_msec()
-		var result: Dictionary = baker.call("bake_and_save", out_dir)
+		var result: Dictionary = baker.call("bake_and_save", tmp_dir)
 		var dt := Time.get_ticks_msec() - t0
 		if not bool(result.get("ok", false)):
 			push_error("EngineBankBaker: EngineSimBake failed for %s: %s" % [
 				String(car_id), str(result.get("error", "")),
 			])
+			clear_dir(tmp_dir)
 			return {}
-		_append_fingerprint(out_dir, fingerprint)
-		var banks := _banks_from_sim_result(result, out_dir)
+		_append_fingerprint(tmp_dir, fingerprint)
+		var banks := _banks_from_sim_result(result, tmp_dir)
+		if not _promote_bake_dir(tmp_dir, out_dir):
+			push_error("EngineBankBaker: failed to promote bake for %s" % String(car_id))
+			clear_dir(tmp_dir)
+			return {}
 		print("EngineBankBaker: EngineSim bake %s → %d bands in %d ms @ %s" % [
 			String(car_id),
 			int(result.get("band_count", 0)),
@@ -318,12 +330,12 @@ static func bake_user(
 
 	push_warning("EngineBankBaker: EngineSimBaker missing — legacy bake")
 	var banks_legacy := bake_streams(setup, duration_sec)
-	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(out_dir))
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(tmp_dir))
 	var rpms: PackedFloat32Array = banks_legacy["rpms"]
 	var names: PackedStringArray = banks_legacy["names"]
 	for b in rpms.size():
 		var name: String = names[b]
-		var err := ResourceSaver.save(banks_legacy[name], out_dir.path_join("%s.tres" % name))
+		var err := ResourceSaver.save(banks_legacy[name], tmp_dir.path_join("%s.tres" % name))
 		if err != OK:
 			push_error("EngineBankBaker: failed user save %s (%s)" % [name, error_string(err)])
 	var meta := ConfigFile.new()
@@ -334,8 +346,42 @@ static func bake_user(
 		meta.set_value("bake", "band_%d" % b, names[b])
 	if not fingerprint.is_empty():
 		meta.set_value("bake", "fingerprint", fingerprint)
-	meta.save(out_dir.path_join("meta.cfg"))
+	meta.save(tmp_dir.path_join("meta.cfg"))
+	if not _promote_bake_dir(tmp_dir, out_dir):
+		clear_dir(tmp_dir)
+		return {}
 	return banks_legacy
+
+
+static func _promote_bake_dir(tmp_dir: String, out_dir: String) -> bool:
+	if tmp_dir.is_empty() or out_dir.is_empty():
+		return false
+	clear_dir(out_dir)
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(out_dir))
+	var dir := DirAccess.open(tmp_dir)
+	if dir == null:
+		return false
+	dir.list_dir_begin()
+	var file_name := dir.get_next()
+	var ok := true
+	while file_name != "":
+		if not dir.current_is_dir():
+			var from_path := tmp_dir.path_join(file_name)
+			var to_path := out_dir.path_join(file_name)
+			var err := DirAccess.copy_absolute(
+				ProjectSettings.globalize_path(from_path),
+				ProjectSettings.globalize_path(to_path)
+			)
+			if err != OK:
+				push_error("EngineBankBaker: copy %s → %s failed (%s)" % [
+					from_path, to_path, error_string(err),
+				])
+				ok = false
+				break
+		file_name = dir.get_next()
+	dir.list_dir_end()
+	clear_dir(tmp_dir)
+	return ok
 
 
 static func user_fingerprint(car_id: StringName) -> String:
@@ -368,7 +414,7 @@ static func load_dir(out_dir: String) -> Dictionary:
 		if not ResourceLoader.exists(path) and not FileAccess.file_exists(path):
 			push_warning("EngineBankBaker.load_dir: missing %s" % path)
 			return {}
-		var stream := load(path) as AudioStream
+		var stream := _load_stream_fresh(path)
 		if stream == null:
 			push_warning("EngineBankBaker.load_dir: failed load %s" % path)
 			return {}
