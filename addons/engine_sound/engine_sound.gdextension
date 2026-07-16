@@ -1,8 +1,0 @@
-[configuration]
-entry_symbol = "engine_sound_library_init"
-compatibility_minimum = "4.7"
-reloadable = true
-
-[libraries]
-windows.debug.x86_64 = "res://addons/engine_sound/bin/libengine_sound.windows.template_debug.x86_64.dll"
-windows.release.x86_64 = "res://addons/engine_sound/bin/libengine_sound.windows.template_release.x86_64.dll"

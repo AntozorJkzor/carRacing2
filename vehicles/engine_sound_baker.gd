@@ -6,9 +6,12 @@ extends RefCounted
 
 const SAMPLE_RATE := 44100
 const RPM_STEP := 250.0
-## Capture length per RPM band (EngineSimBaker.capture_seconds).
+## Capture / slice length per RPM band (EngineSimBaker.capture_seconds).
+## Sweep mode needs ≥1.0 s — shorter slices + low hf_gain → near-silent loops (clicks only).
 const DEFAULT_DURATION_SEC := 1.0
 const DEFAULT_SETTLE_SEC := 0.5
+const SWEEP_MIN_CAPTURE_SEC := 1.0
+const SWEEP_MIN_SETTLE_SEC := 0.5
 
 
 static func band_name_for_rpm(rpm: float) -> String:
@@ -138,6 +141,87 @@ static func save_wav_mono(path: String, samples: PackedFloat32Array) -> Error:
 	return OK
 
 
+static func write_audit_concat(
+	out_dir: String,
+	banks: Dictionary,
+	seconds_per_band: float = 0.45,
+	gap_sec: float = 0.12
+) -> String:
+	if out_dir.is_empty() or banks.is_empty():
+		return ""
+	if not banks.has("names") or not banks.has("rpms"):
+		return ""
+	var names: PackedStringArray = banks["names"]
+	var rpms: PackedFloat32Array = banks["rpms"]
+	if names.is_empty() or names.size() != rpms.size():
+		return ""
+	var sample_rate := SAMPLE_RATE
+	var gap_frames := maxi(int(gap_sec * float(sample_rate)), 0)
+	var out := PackedFloat32Array()
+	var audit_names: Array[String] = []
+	for i in names.size():
+		audit_names.append(names[i])
+	if banks.has("limiter"):
+		audit_names.append("limiter")
+	for i in audit_names.size():
+		var stream := banks.get(audit_names[i], null) as AudioStreamWAV
+		if stream == null:
+			continue
+		if stream.mix_rate > 0:
+			sample_rate = stream.mix_rate
+			gap_frames = maxi(int(gap_sec * float(sample_rate)), 0)
+		var mono := wav_stream_to_mono_f32(stream)
+		if mono.is_empty():
+			continue
+		if seconds_per_band > 0.0:
+			var keep := mini(mono.size(), int(seconds_per_band * float(sample_rate)))
+			mono = mono.slice(0, keep)
+		fade_edges(mono, mini(128, mono.size() / 8))
+		out.append_array(mono)
+		if gap_frames > 0 and i < audit_names.size() - 1:
+			var silence := PackedFloat32Array()
+			silence.resize(gap_frames)
+			out.append_array(silence)
+	if out.is_empty():
+		return ""
+	var path := out_dir.path_join("audit_concat.wav")
+	return path if save_wav_mono(path, out) == OK else ""
+
+
+static func wav_stream_to_mono_f32(stream: AudioStreamWAV) -> PackedFloat32Array:
+	var data := stream.data
+	if data.is_empty():
+		return PackedFloat32Array()
+	match stream.format:
+		AudioStreamWAV.FORMAT_16_BITS:
+			var channels := 2 if stream.stereo else 1
+			var frames := (data.size() / 2) / channels
+			var out := PackedFloat32Array()
+			out.resize(frames)
+			for f in frames:
+				if channels == 1:
+					out[f] = float(data.decode_s16(f * 2)) / 32768.0
+				else:
+					var l := float(data.decode_s16(f * 4)) / 32768.0
+					var r := float(data.decode_s16(f * 4 + 2)) / 32768.0
+					out[f] = (l + r) * 0.5
+			return out
+		AudioStreamWAV.FORMAT_8_BITS:
+			var frames8 := data.size() / (2 if stream.stereo else 1)
+			var out8 := PackedFloat32Array()
+			out8.resize(frames8)
+			for f in frames8:
+				if stream.stereo:
+					var l8 := (float(data[f * 2]) - 128.0) / 128.0
+					var r8 := (float(data[f * 2 + 1]) - 128.0) / 128.0
+					out8[f] = (l8 + r8) * 0.5
+				else:
+					out8[f] = (float(data[f]) - 128.0) / 128.0
+			return out8
+		_:
+			return PackedFloat32Array()
+
+
 static func user_bake_dir(car_id: StringName) -> String:
 	return "user://engine_bake/%s" % String(car_id).to_lower()
 
@@ -150,58 +234,58 @@ static func has_native_baker() -> bool:
 	return has_engine_sim() or ClassDB.class_exists("EngineSoundBaker")
 
 
-## Map CarSetup → EngineSimBaker.apply_params (see addons/engine_sim_audio/bake_example.gd).
+## Map CarSetup → EngineSimBaker.apply_params (1:1 API keys).
 static func params_from_setup(
 	setup: Resource,
 	car_id: StringName = &"",
 	capture_seconds: float = DEFAULT_DURATION_SEC,
 	settle_seconds: float = DEFAULT_SETTLE_SEC
 ) -> Dictionary:
-	var liters := clampf(float(setup.get("displacement_liters")), 0.5, 12.0)
-	var cyl := clampi(int(setup.get("cylinder_count")), 2, 12)
+	var cyl := clampi(int(setup.get("cylinders")), 2, 12)
+	var disp_cc := clampf(float(setup.get("displacement_cc")), 500.0, 10000.0)
 	var idle := maxf(float(setup.get("idle_rpm")), 100.0)
 	var mx := maxf(float(setup.get("max_rpm")), idle + RPM_STEP)
-	var stroke := clampf(float(setup.get("piston_stroke_mm")), 50.0, 120.0)
-	var tip := clampf(float(setup.get("exhaust_diameter_mm")), 30.0, 120.0)
-	var layout := 0 # Inline
-	if cyl >= 8:
-		layout = 1 # V
-	elif cyl == 6 and liters >= 3.0:
-		layout = 1
-	var exhaust_len := lerpf(640.0, 360.0, clampf(inverse_lerp(35.0, 100.0, tip), 0.0, 1.0))
-	if bool(setup.get("has_muffler")):
-		exhaust_len *= 1.12
-	else:
-		exhaust_len *= 0.88
-	var resonators := clampi(int(setup.get("resonator_count")), 0, 3)
-	exhaust_len *= lerpf(1.0, 1.08, float(resonators) / 3.0)
+	var stroke := clampf(float(setup.get("stroke_mm")), 50.0, 120.0)
+	var bore := clampf(float(setup.get("bore_mm")), 0.0, 120.0)
+	var layout := clampi(int(setup.get("engine_layout")), 0, 2)
+	var bank := clampf(float(setup.get("bank_angle_deg")), 0.0, 180.0)
+	var valves := 4 if int(setup.get("valves_per_cylinder")) >= 4 else 2
+
+	var capture := maxf(capture_seconds, 0.25)
+	var settle := maxf(settle_seconds, 0.05)
+	capture = maxf(capture, SWEEP_MIN_CAPTURE_SEC)
+	settle = maxf(settle, SWEEP_MIN_SETTLE_SEC)
 
 	var params := {
 		"name": String(car_id) if not String(car_id).is_empty() else "engine",
 		"cylinders": cyl,
-		"displacement_cc": liters * 1000.0,
+		"displacement_cc": disp_cc,
 		"stroke_mm": stroke,
-		"valves_per_cylinder": 2,
+		"valves_per_cylinder": valves,
 		"layout": layout,
-		"bank_angle_deg": 90.0 if layout == 1 else 0.0,
+		"bank_angle_deg": bank if layout != 0 else 0.0,
 		"idle_rpm": idle,
 		"redline_rpm": mx,
 		"min_rpm": idle,
 		"max_rpm": mx,
 		"rpm_step": RPM_STEP,
 		"throttle": 1.0,
-		"settle_seconds": maxf(settle_seconds, 0.05),
-		"capture_seconds": maxf(capture_seconds, 0.25),
-		"exhaust_length_mm": exhaust_len,
-		"cam_duration_deg": 220.0,
-		"cam_lift_mm": 9.5,
+		"settle_seconds": settle,
+		"capture_seconds": capture,
+		"use_rpm_sweep": true,
+		"sweep_seconds": 0.0, # auto from band count
+		"bake_limiter": true,
+		"limiter_seconds": 0.0, # auto ≥ capture
+		"limiter_cut_seconds": 0.10,
+		"exhaust_length_mm": clampf(float(setup.get("exhaust_length_mm")), 300.0, 900.0),
+		"cam_duration_deg": clampf(float(setup.get("cam_duration_deg")), 180.0, 280.0),
+		"cam_lift_mm": clampf(float(setup.get("cam_lift_mm")), 6.0, 14.0),
+		"hf_gain": clampf(float(setup.get("hf_gain")), 0.0, 1.0),
+		"noise": clampf(float(setup.get("noise")), 0.0, 2.0),
+		"jitter": clampf(float(setup.get("jitter")), 0.0, 1.0),
 	}
-	if bool(setup.get("has_turbo")):
-		params["noise"] = 0.35
-		params["hf_gain"] = 1.15
-	elif bool(setup.get("has_supercharger")):
-		params["noise"] = 0.28
-		params["hf_gain"] = 1.08
+	if bore > 1.0:
+		params["bore_mm"] = bore
 	return params
 
 
@@ -259,7 +343,24 @@ static func _banks_from_sim_result(result: Dictionary, out_dir: String) -> Dicti
 			push_error("EngineBankBaker: failed load %s" % path)
 			continue
 		banks[name] = stream
+	_load_limiter_into_banks(banks, out_dir, result)
 	return banks
+
+
+static func _load_limiter_into_banks(banks: Dictionary, out_dir: String, result: Dictionary = {}) -> void:
+	var lim_name := "rpm_limiter"
+	if result.has("limiter_band") and not str(result.get("limiter_band")).is_empty():
+		lim_name = str(result.get("limiter_band"))
+	var path := out_dir.path_join("%s.tres" % lim_name)
+	if not FileAccess.file_exists(path) and not ResourceLoader.exists(path):
+		return
+	var stream := _load_stream_fresh(path)
+	if stream == null:
+		return
+	banks[lim_name] = stream
+	banks["limiter"] = stream
+	banks["has_limiter"] = true
+	banks["limiter_band"] = lim_name
 
 
 static func _load_stream_fresh(path: String) -> AudioStream:
@@ -316,6 +417,7 @@ static func bake_user(
 			return {}
 		_append_fingerprint(tmp_dir, fingerprint)
 		var banks := _banks_from_sim_result(result, tmp_dir)
+		var audit_path := write_audit_concat(tmp_dir, banks)
 		if not _promote_bake_dir(tmp_dir, out_dir):
 			push_error("EngineBankBaker: failed to promote bake for %s" % String(car_id))
 			clear_dir(tmp_dir)
@@ -326,6 +428,8 @@ static func bake_user(
 			dt,
 			out_dir,
 		])
+		if not audit_path.is_empty():
+			print("EngineBankBaker: audit concat → %s" % out_dir.path_join("audit_concat.wav"))
 		return banks
 
 	push_warning("EngineBankBaker: EngineSimBaker missing — legacy bake")
@@ -347,10 +451,32 @@ static func bake_user(
 	if not fingerprint.is_empty():
 		meta.set_value("bake", "fingerprint", fingerprint)
 	meta.save(tmp_dir.path_join("meta.cfg"))
+	write_audit_concat(tmp_dir, banks_legacy)
 	if not _promote_bake_dir(tmp_dir, out_dir):
 		clear_dir(tmp_dir)
 		return {}
 	return banks_legacy
+
+
+static func write_bake_meta(
+	out_dir: String,
+	rpms: PackedFloat32Array,
+	names: PackedStringArray,
+	fingerprint: String
+) -> void:
+	var meta := ConfigFile.new()
+	meta.set_value("bake", "band_count", rpms.size())
+	meta.set_value("bake", "rpm_step", RPM_STEP)
+	for b in rpms.size():
+		meta.set_value("bake", "rpm_%d" % b, rpms[b])
+		meta.set_value("bake", "band_%d" % b, names[b])
+	if not fingerprint.is_empty():
+		meta.set_value("bake", "fingerprint", fingerprint)
+	meta.save(out_dir.path_join("meta.cfg"))
+
+
+static func promote_bake_dir(tmp_dir: String, out_dir: String) -> bool:
+	return _promote_bake_dir(tmp_dir, out_dir)
 
 
 static func _promote_bake_dir(tmp_dir: String, out_dir: String) -> bool:
@@ -423,6 +549,10 @@ static func load_dir(out_dir: String) -> Dictionary:
 		result[name] = stream
 	result["rpms"] = rpms
 	result["names"] = names
+	if bool(meta.get_value("bake", "has_limiter", false)):
+		_load_limiter_into_banks(result, out_dir, {
+			"limiter_band": str(meta.get_value("bake", "limiter_band", "rpm_limiter")),
+		})
 	return result
 
 
@@ -434,29 +564,24 @@ static func load_user(car_id: StringName) -> Dictionary:
 static func apply_setup_to_native(native: Object, setup: Resource) -> void:
 	if native == null or setup == null:
 		return
-	native.set("displacement_l", clampf(float(setup.get("displacement_liters")), 0.5, 8.0))
+	var liters := clampf(float(setup.get("displacement_cc")) * 0.001, 0.5, 8.0)
+	native.set("displacement_l", liters)
 	native.set("power_hp", clampf(float(setup.get("max_power_hp")), 50.0, 1000.0))
-	var cyl := clampi(int(setup.get("cylinder_count")), 3, 12)
+	var cyl := clampi(int(setup.get("cylinders")), 3, 12)
 	native.set("cylinders", cyl)
-	var layout := 0
-	if cyl >= 8:
-		layout = 1
-	elif cyl == 6 and float(setup.get("displacement_liters")) >= 3.0:
-		layout = 1
+	var layout := clampi(int(setup.get("engine_layout")), 0, 2)
 	native.set("layout", layout)
-	native.set("exhaust_diameter_mm", clampf(float(setup.get("exhaust_diameter_mm")), 30.0, 120.0))
-	native.set("has_turbo", bool(setup.get("has_turbo")))
-	native.set("has_supercharger", bool(setup.get("has_supercharger")))
-	var muffler := bool(setup.get("has_muffler"))
-	var resonators := clampi(int(setup.get("resonator_count")), 0, 2)
-	var style := 1
-	if not muffler:
-		style = 0
-	elif resonators >= 2:
-		style = 2
+	# Approximate tip diameter from exhaust length for legacy baker.
+	var ex_len := clampf(float(setup.get("exhaust_length_mm")), 300.0, 900.0)
+	var tip := lerpf(100.0, 35.0, clampf(inverse_lerp(360.0, 640.0, ex_len), 0.0, 1.0))
+	native.set("exhaust_diameter_mm", tip)
+	native.set("has_turbo", float(setup.get("noise")) < 0.6)
+	native.set("has_supercharger", false)
+	var muffler := ex_len > 520.0
+	var style := 1 if muffler else 0
 	native.set("exhaust_style", style)
-	native.set("resonators", resonators)
-	native.set("bank_angle_deg", 90.0 if layout == 1 else 0.0)
+	native.set("resonators", 1 if muffler else 0)
+	native.set("bank_angle_deg", float(setup.get("bank_angle_deg")) if layout != 0 else 0.0)
 	if native.has_method("configure"):
 		native.call("configure")
 
@@ -507,6 +632,7 @@ static func bake_setup(setup: Resource, out_dir: String, duration_sec: float = D
 			push_error("EngineBankBaker: bake_setup failed: %s" % str(result.get("error", "")))
 			return {}
 		var banks := _banks_from_sim_result(result, out_dir)
+		write_audit_concat(out_dir, banks)
 		# Paths for editor tool convenience.
 		var names: PackedStringArray = banks["names"]
 		for name: String in names:

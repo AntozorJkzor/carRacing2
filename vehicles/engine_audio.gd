@@ -32,6 +32,10 @@ var _profile_applied: bool = false
 var _vols: PackedFloat32Array = PackedFloat32Array()
 var _vols_smooth: PackedFloat32Array = PackedFloat32Array()
 var _pitch_smooth: PackedFloat32Array = PackedFloat32Array()
+var _limiter_stream: AudioStream
+var _limiter_player: AudioStreamPlayer3D
+var _limiter_vol_smooth: float = 0.0
+var _limiter_pitch_smooth: float = 1.0
 
 var _live: bool = false
 var _live_player: AudioStreamPlayer3D
@@ -123,12 +127,21 @@ func apply_banks(banks: Dictionary) -> void:
 		low_stream = _band_streams[clampi(last / 3, 0, last)]
 		mid_stream = _band_streams[clampi((last * 2) / 3, 0, last)]
 		max_stream = _band_streams[last]
+	_limiter_stream = null
+	if banks.has("limiter") and banks["limiter"] is AudioStream:
+		_limiter_stream = banks["limiter"] as AudioStream
+	elif banks.has("rpm_limiter") and banks["rpm_limiter"] is AudioStream:
+		_limiter_stream = banks["rpm_limiter"] as AudioStream
 	_profile_applied = true
 	_ensure_players()
+	_ensure_limiter_player()
 	for p in _players:
 		if p.stream != null:
 			p.stop()
 			p.play()
+	if _limiter_player and _limiter_stream:
+		_limiter_player.stop()
+		_limiter_player.play()
 
 
 func _setup_live() -> void:
@@ -193,6 +206,34 @@ func _resolve_profile_from_pack() -> void:
 
 func _apply_default_rpm_refs_from_setup(setup: Resource) -> void:
 	_band_rpms = EngineBankBaker.band_rpms(setup)
+
+
+func _ensure_limiter_player() -> void:
+	if _limiter_stream == null:
+		if _limiter_player:
+			_limiter_player.volume_db = -80.0
+			if _limiter_player.playing:
+				_limiter_player.stop()
+		return
+	if _limiter_player == null:
+		_limiter_player = AudioStreamPlayer3D.new()
+		_limiter_player.name = "Limiter"
+		_limiter_player.bus = "Master"
+		_limiter_player.volume_db = -80.0
+		_limiter_player.max_distance = max_distance
+		_limiter_player.unit_size = unit_size
+		_limiter_player.attenuation_model = AudioStreamPlayer3D.ATTENUATION_INVERSE_DISTANCE
+		_limiter_player.doppler_tracking = AudioStreamPlayer3D.DOPPLER_TRACKING_DISABLED
+		add_child(_limiter_player)
+	if _limiter_player.stream != _limiter_stream:
+		var was := _limiter_player.playing
+		_limiter_player.stream = _limiter_stream
+		if was and _limiter_stream != null:
+			_limiter_player.play()
+	elif _limiter_stream != null and not _limiter_player.playing:
+		_limiter_player.play()
+	_limiter_player.max_distance = max_distance
+	_limiter_player.unit_size = unit_size
 
 
 func _ensure_players() -> void:
@@ -312,6 +353,19 @@ func _process_baked(delta: float) -> void:
 		_apply_default_rpm_refs_from_setup(_car.setup)
 	_compute_band_weights(_smooth_rpm)
 
+	# Near redline + throttle → blend in baked ignition-cut loop.
+	var limiter_t := 0.0
+	if _limiter_stream != null and _smooth_load > 0.45:
+		if _car.rev_limiter_active:
+			limiter_t = clampf((_smooth_load - 0.45) / 0.55, 0.0, 1.0)
+		else:
+			var lim_start := max_r * 0.96
+			limiter_t = clampf(inverse_lerp(lim_start, max_r, _smooth_rpm), 0.0, 1.0)
+			limiter_t *= clampf((_smooth_load - 0.45) / 0.55, 0.0, 1.0)
+	if limiter_t > 0.001:
+		for i in _vols.size():
+			_vols[i] *= (1.0 - 0.88 * limiter_t)
+
 	var vol_k := clampf(vol_smooth_rate * delta, 0.0, 1.0)
 	var pitch_k := clampf(pitch_smooth_rate * delta, 0.0, 1.0)
 	var n := mini(_players.size(), mini(_band_streams.size(), _band_rpms.size()))
@@ -335,6 +389,19 @@ func _process_baked(delta: float) -> void:
 		p.volume_db = master + linear_to_db(clampf(w, 0.0, 1.0))
 		if not p.playing and not mute:
 			p.play()
+
+	_ensure_limiter_player()
+	if _limiter_player != null and _limiter_stream != null:
+		_limiter_vol_smooth = lerpf(_limiter_vol_smooth, limiter_t, vol_k)
+		var lim_pitch := clampf(_smooth_rpm / maxf(max_r, 100.0), pitch_min, pitch_max)
+		_limiter_pitch_smooth = lerpf(_limiter_pitch_smooth, lim_pitch, pitch_k)
+		_limiter_player.pitch_scale = _limiter_pitch_smooth
+		if mute or _limiter_vol_smooth < 0.004:
+			_limiter_player.volume_db = -80.0
+		else:
+			_limiter_player.volume_db = master + linear_to_db(clampf(_limiter_vol_smooth, 0.0, 1.0))
+			if not _limiter_player.playing:
+				_limiter_player.play()
 
 
 ## Full-span equal-power crossfade between adjacent banks (Blend Container style).

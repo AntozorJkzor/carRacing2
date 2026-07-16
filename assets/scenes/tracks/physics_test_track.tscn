@@ -1,8 +1,9 @@
 [gd_scene format=3 uid="uid://dxjqvbkvoxl8c"]
 
 [ext_resource type="Script" uid="uid://1ru6riksi846" path="res://assets/scenes/tracks/physics_test_track.gd" id="1_track"]
-[ext_resource type="Texture2D" uid="uid://cmjajghjnlft3" path="res://assets/textures/tracks/asphalt.jpg" id="2_asphalt"]
+[ext_resource type="PackedScene" uid="uid://cjter3gqyyryv" path="res://assets/models/track/track1.glb" id="2_nc687"]
 [ext_resource type="PackedScene" uid="uid://rjds4u2jgfvk" path="res://assets/scenes/cars/volga/volga.tscn" id="3_car"]
+[ext_resource type="Texture2D" uid="uid://dowcjerxh0wo1" path="res://assets/textures/tracks/grass.jpg" id="3_qaki3"]
 [ext_resource type="Script" uid="uid://b6kalqnamm3fi" path="res://vehicles/follow_camera.gd" id="5_cam"]
 [ext_resource type="Script" uid="uid://dkgl45y64oxb1" path="res://assets/scenes/tracks/hud.gd" id="6_hud"]
 [ext_resource type="PackedScene" uid="uid://dy2dmlkpk6eqq" path="res://assets/scenes/characters/player.tscn" id="7_player"]
@@ -28,7 +29,7 @@ glow_enabled = true
 glow_intensity = 0.25
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_asphalt"]
-albedo_texture = ExtResource("2_asphalt")
+albedo_texture = ExtResource("3_qaki3")
 roughness = 0.92
 uv1_scale = Vector3(125, 125, 1)
 texture_filter = 5
@@ -63,20 +64,26 @@ shadow_enabled = true
 directional_shadow_max_distance = 400.0
 
 [node name="Ground" type="StaticBody3D" parent="." unique_id=928915321]
-transform = Transform3D(3, 0, 0, 0, 3, 0, 0, 0, 3, 0, 0, 0)
+transform = Transform3D(3, 0, 0, 0, 3, 0, 0, 0, 3, 0, -1.6119938, 0)
 
 [node name="Mesh" type="MeshInstance3D" parent="Ground" unique_id=1075552345]
+transform = Transform3D(4.5, 0, 0, 0, 4.5, 0, 0, 0, 4.5, 0.87, 0.5, 1.677)
+top_level = true
 mesh = SubResource("PlaneMesh_ground")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="Ground" unique_id=2042095367]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
+transform = Transform3D(1.5, 0, 0, 0, 1.5, 0, 0, 0, 1.5, 0, -0.043074965, 0)
 shape = SubResource("BoxShape3D_ground")
+
+[node name="track1" parent="Ground" unique_id=103587468 instance=ExtResource("2_nc687")]
+transform = Transform3D(-0.47970623, 0, -7.985605, 0, 8, 0, 7.985605, 0, -0.47970623, 0, 0.56, 0)
+top_level = true
 
 [node name="Car" parent="." unique_id=422780937 instance=ExtResource("3_car")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 0)
 
 [node name="Player" parent="." unique_id=1255242294 instance=ExtResource("7_player")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.5, 0.05, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.5, 0.72296697, 0)
 
 [node name="FollowCamera" type="Camera3D" parent="." unique_id=502018337]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5, 12)

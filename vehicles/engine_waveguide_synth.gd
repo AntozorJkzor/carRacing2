@@ -173,17 +173,17 @@ class _Cyl extends RefCounted:
 
 
 func configure_from_setup(setup: Resource) -> void:
-	var cyl_n := clampi(int(setup.get("cylinder_count")), 2, 12)
-	var stroke := clampf(float(setup.get("piston_stroke_mm")), 50.0, 120.0)
-	var exhaust_mm := clampf(float(setup.get("exhaust_diameter_mm")), 30.0, 120.0)
-	var disp := clampf(float(setup.get("displacement_liters")), 0.5, 12.0)
+	var cyl_n := clampi(int(setup.get("cylinders")), 2, 12)
+	var stroke := clampf(float(setup.get("stroke_mm")), 50.0, 120.0)
+	var exhaust_mm := lerpf(100.0, 35.0, clampf(inverse_lerp(360.0, 640.0, float(setup.get("exhaust_length_mm"))), 0.0, 1.0))
+	var disp := clampf(float(setup.get("displacement_cc")) * 0.001, 0.5, 12.0)
 	var stroke_t := clampf(inverse_lerp(65.0, 100.0, stroke), 0.0, 1.0)
 	var dia_t := clampf((exhaust_mm - 30.0) / 90.0, 0.0, 1.0)
 	var size_t := clampf((disp - 0.5) / 5.5, 0.0, 1.0)
 	var per_cyl := disp / float(cyl_n)
 	var per_t := clampf((per_cyl - 0.2) / 0.9, 0.0, 1.0)
-	var muffler := bool(setup.get("has_muffler"))
-	var resonator_count := clampi(int(setup.get("resonator_count")), 0, 3)
+	var muffler := float(setup.get("exhaust_length_mm")) > 520.0
+	var resonator_count := 1 if muffler else 0
 	var res_t := float(resonator_count) / 3.0
 	var vol_db := float(setup.get("engine_sound_volume_db"))
 	var hp := clampf(float(setup.get("max_power_hp")), 40.0, 900.0)
@@ -191,8 +191,8 @@ func configure_from_setup(setup: Resource) -> void:
 	var specific := hp / maxf(disp, 0.5) # hp per litre
 	var sp_t := clampf((specific - 35.0) / 130.0, 0.0, 1.0) # stock→hot
 	_has_muffler = muffler
-	_has_turbo = bool(setup.get("has_turbo"))
-	_has_supercharger = bool(setup.get("has_supercharger"))
+	_has_turbo = float(setup.get("noise")) < 0.6
+	_has_supercharger = false
 	_size_t = size_t
 	_res_t = res_t
 	# From CarSetup / Settings — not hardwired bake defaults.

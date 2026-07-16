@@ -1,5 +1,7 @@
 extends Node
 
+signal engine_bake_progress(current: int, total: int, rpm: float, phase: String)
+
 ## Per-car debug overrides. Scene CarSetup + WheelLayout/Collision are source of truth for layout.
 const CATALOG_PATH := "res://vehicles/cars_catalog.tres"
 const LEGACY_SAVE_PATH := "user://car_tuning.cfg"
@@ -153,6 +155,20 @@ func _push_working_to_live_cars() -> void:
 func save_to_disk() -> Dictionary:
 	if setup == null:
 		return {}
+	_write_config_to_disk()
+	_push_working_to_live_cars()
+	return rebake_engine_sounds()
+
+
+func save_to_disk_async() -> Dictionary:
+	if setup == null:
+		return {}
+	_write_config_to_disk()
+	_push_working_to_live_cars()
+	return await rebake_engine_sounds_async()
+
+
+func _write_config_to_disk() -> void:
 	var cfg := ConfigFile.new()
 	cfg.set_value("visual", "clearance", clearance)
 
@@ -168,14 +184,19 @@ func save_to_disk() -> Dictionary:
 	cfg.set_value("engine", "torque_boost", setup.torque_boost)
 	cfg.set_value("engine", "engine_inertia", setup.engine_inertia)
 
-	cfg.set_value("engine_sound", "cylinder_count", setup.cylinder_count)
-	cfg.set_value("engine_sound", "displacement_liters", setup.displacement_liters)
-	cfg.set_value("engine_sound", "piston_stroke_mm", setup.piston_stroke_mm)
-	cfg.set_value("engine_sound", "exhaust_diameter_mm", setup.exhaust_diameter_mm)
-	cfg.set_value("engine_sound", "has_turbo", setup.has_turbo)
-	cfg.set_value("engine_sound", "has_supercharger", setup.has_supercharger)
-	cfg.set_value("engine_sound", "has_muffler", setup.has_muffler)
-	cfg.set_value("engine_sound", "resonator_count", setup.resonator_count)
+	cfg.set_value("engine_sound", "cylinders", setup.cylinders)
+	cfg.set_value("engine_sound", "displacement_cc", setup.displacement_cc)
+	cfg.set_value("engine_sound", "bore_mm", setup.bore_mm)
+	cfg.set_value("engine_sound", "stroke_mm", setup.stroke_mm)
+	cfg.set_value("engine_sound", "engine_layout", int(setup.engine_layout))
+	cfg.set_value("engine_sound", "bank_angle_deg", setup.bank_angle_deg)
+	cfg.set_value("engine_sound", "valves_per_cylinder", setup.valves_per_cylinder)
+	cfg.set_value("engine_sound", "exhaust_length_mm", setup.exhaust_length_mm)
+	cfg.set_value("engine_sound", "cam_duration_deg", setup.cam_duration_deg)
+	cfg.set_value("engine_sound", "cam_lift_mm", setup.cam_lift_mm)
+	cfg.set_value("engine_sound", "hf_gain", setup.hf_gain)
+	cfg.set_value("engine_sound", "noise", setup.noise)
+	cfg.set_value("engine_sound", "jitter", setup.jitter)
 	cfg.set_value("engine_sound", "engine_sound_volume_db", setup.engine_sound_volume_db)
 
 	cfg.set_value("drivetrain", "reverse_ratio", setup.reverse_ratio)
@@ -258,8 +279,6 @@ func save_to_disk() -> Dictionary:
 	cfg.set_value("simulation", "tc_min_scale", setup.tc_min_scale)
 
 	cfg.save(save_path_for(active_car_id))
-	_push_working_to_live_cars()
-	return rebake_engine_sounds()
 
 
 ## EngineSimBaker bake → user:// banks + swap on live cars.
@@ -280,22 +299,119 @@ func rebake_engine_sounds(duration_sec: float = EngineBankBaker.DEFAULT_DURATION
 	return banks
 
 
+func rebake_engine_sounds_async(duration_sec: float = EngineBankBaker.DEFAULT_DURATION_SEC) -> Dictionary:
+	if setup == null:
+		return {}
+	engine_bake_progress.emit(0, 1, 0.0, "check")
+	await get_tree().process_frame
+	var fp := _engine_sound_fingerprint()
+	if EngineBankBaker.user_fingerprint(active_car_id) == fp:
+		var cached := EngineBankBaker.load_user(active_car_id)
+		if not cached.is_empty():
+			engine_bake_progress.emit(1, 1, 0.0, "cached")
+			await get_tree().process_frame
+			_apply_engine_banks_to_live_cars(cached)
+			cached["skipped"] = true
+			return cached
+	return await _bake_engine_sweep_async(duration_sec, fp)
+
+
+const _SWEEP_PROGRESS_STEPS := 4
+
+
+func _bake_engine_sweep_async(duration_sec: float, fingerprint: String) -> Dictionary:
+	if EngineBankBaker.has_engine_sim():
+		var rpms := EngineBankBaker.band_rpms(setup)
+		var band_count := rpms.size()
+		var idle_rpm := rpms[0] if band_count > 0 else setup.idle_rpm
+		var max_rpm := rpms[band_count - 1] if band_count > 0 else setup.max_rpm
+		engine_bake_progress.emit(0, _SWEEP_PROGRESS_STEPS, idle_rpm, "start")
+		await get_tree().process_frame
+		engine_bake_progress.emit(1, _SWEEP_PROGRESS_STEPS, max_rpm, "sweep")
+		await get_tree().process_frame
+		var t0 := Time.get_ticks_msec()
+		var banks := EngineBankBaker.bake_user(setup, active_car_id, duration_sec, fingerprint)
+		if banks.is_empty():
+			engine_bake_progress.emit(0, _SWEEP_PROGRESS_STEPS, 0.0, "error")
+			return {}
+		print("TuningStore: engine sweep bake %s → %d bands in %d ms" % [
+			String(active_car_id), band_count, Time.get_ticks_msec() - t0,
+		])
+		engine_bake_progress.emit(2, _SWEEP_PROGRESS_STEPS, max_rpm, "promote")
+		await get_tree().process_frame
+		engine_bake_progress.emit(_SWEEP_PROGRESS_STEPS, _SWEEP_PROGRESS_STEPS, max_rpm, "apply")
+		await get_tree().process_frame
+		_apply_engine_banks_to_live_cars(banks)
+		banks["skipped"] = false
+		return banks
+
+	return await _bake_engine_legacy_incremental(duration_sec, fingerprint)
+
+
+func _bake_engine_legacy_incremental(duration_sec: float, fingerprint: String) -> Dictionary:
+	push_warning("TuningStore: EngineSimBaker missing — legacy incremental bake")
+	var out_dir := EngineBankBaker.user_bake_dir(active_car_id)
+	var tmp_dir := "user://engine_bake/_tmp_%s" % String(active_car_id).to_lower()
+	EngineBankBaker.clear_dir(tmp_dir)
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(tmp_dir))
+
+	var rpms := EngineBankBaker.band_rpms(setup)
+	var names := EngineBankBaker.band_names(rpms)
+	var total := rpms.size()
+	engine_bake_progress.emit(0, total, 0.0, "start")
+	await get_tree().process_frame
+
+	var loads := EngineBankBaker.band_loads_for(rpms)
+	for i in total:
+		var rpm := rpms[i]
+		var name: String = names[i]
+		engine_bake_progress.emit(i + 1, total, rpm, "rpm")
+		await get_tree().process_frame
+		var stream: AudioStreamWAV = EngineBankBaker.samples_to_stream(
+			EngineBankBaker.render_band(setup, rpm, loads[i], duration_sec)
+		)
+		var err := ResourceSaver.save(stream, tmp_dir.path_join("%s.tres" % name))
+		if err != OK:
+			EngineBankBaker.clear_dir(tmp_dir)
+			engine_bake_progress.emit(0, total, rpm, "error")
+			return {}
+		await get_tree().process_frame
+
+	EngineBankBaker.write_bake_meta(tmp_dir, rpms, names, fingerprint)
+	engine_bake_progress.emit(total, total, 0.0, "promote")
+	await get_tree().process_frame
+	if not EngineBankBaker.promote_bake_dir(tmp_dir, out_dir):
+		EngineBankBaker.clear_dir(tmp_dir)
+		engine_bake_progress.emit(0, total, 0.0, "error")
+		return {}
+	var banks := EngineBankBaker.load_user(active_car_id)
+	engine_bake_progress.emit(total, total, 0.0, "apply")
+	await get_tree().process_frame
+	_apply_engine_banks_to_live_cars(banks)
+	banks["skipped"] = false
+	return banks
+
+
 func _engine_sound_fingerprint() -> String:
 	if setup == null:
 		return ""
 	# Bump BAKE_REV when native synth / mapping changes so caches rebuild.
-	const BAKE_REV := "enginesim2"
-	return "%s|%d|%.2f|%.1f|%.1f|%d|%d|%d|%d|%.1f|%.0f|%.0f|%.0f" % [
+	const BAKE_REV := "enginesim6-limiter"
+	return "%s|%d|%.0f|%.0f|%.0f|%d|%.0f|%d|%.0f|%.0f|%.1f|%.2f|%.2f|%.2f|%.0f|%.0f|%.0f" % [
 		BAKE_REV,
-		setup.cylinder_count,
-		setup.displacement_liters,
-		setup.piston_stroke_mm,
-		setup.exhaust_diameter_mm,
-		int(setup.has_turbo),
-		int(setup.has_supercharger),
-		int(setup.has_muffler),
-		setup.resonator_count,
-		setup.engine_sound_volume_db,
+		setup.cylinders,
+		setup.displacement_cc,
+		setup.bore_mm,
+		setup.stroke_mm,
+		int(setup.engine_layout),
+		setup.bank_angle_deg,
+		setup.valves_per_cylinder,
+		setup.exhaust_length_mm,
+		setup.cam_duration_deg,
+		setup.cam_lift_mm,
+		setup.hf_gain,
+		setup.noise,
+		setup.jitter,
 		setup.idle_rpm,
 		setup.max_rpm,
 		setup.max_power_hp,
@@ -344,6 +460,66 @@ func load_from_disk() -> void:
 	clearance = float(cfg.get_value("visual", "clearance", clearance))
 
 
+func _apply_engine_sound_cfg(target: CarSetup, cfg: ConfigFile) -> void:
+	## New EngineSimBaker keys, with migration from pre-enginesim3 tuning.cfg.
+	if cfg.has_section_key("engine_sound", "cylinders") or cfg.has_section_key("engine_sound", "displacement_cc"):
+		target.cylinders = int(cfg.get_value("engine_sound", "cylinders", target.cylinders))
+		target.displacement_cc = float(cfg.get_value("engine_sound", "displacement_cc", target.displacement_cc))
+		target.bore_mm = float(cfg.get_value("engine_sound", "bore_mm", target.bore_mm))
+		target.stroke_mm = float(cfg.get_value("engine_sound", "stroke_mm", target.stroke_mm))
+		target.engine_layout = int(cfg.get_value("engine_sound", "engine_layout", int(target.engine_layout))) as CarSetup.EngineLayout
+		target.bank_angle_deg = float(cfg.get_value("engine_sound", "bank_angle_deg", target.bank_angle_deg))
+		target.valves_per_cylinder = int(cfg.get_value("engine_sound", "valves_per_cylinder", target.valves_per_cylinder))
+		target.exhaust_length_mm = float(cfg.get_value("engine_sound", "exhaust_length_mm", target.exhaust_length_mm))
+		target.cam_duration_deg = float(cfg.get_value("engine_sound", "cam_duration_deg", target.cam_duration_deg))
+		target.cam_lift_mm = float(cfg.get_value("engine_sound", "cam_lift_mm", target.cam_lift_mm))
+		target.hf_gain = float(cfg.get_value("engine_sound", "hf_gain", target.hf_gain))
+		target.noise = float(cfg.get_value("engine_sound", "noise", target.noise))
+		target.jitter = float(cfg.get_value("engine_sound", "jitter", target.jitter))
+	else:
+		# Legacy synth-oriented keys → approximate EngineSim params.
+		var cyl := int(cfg.get_value("engine_sound", "cylinder_count", target.cylinders))
+		var liters := float(cfg.get_value("engine_sound", "displacement_liters", target.get_displacement_liters()))
+		var tip := float(cfg.get_value("engine_sound", "exhaust_diameter_mm", 55.0))
+		var muffler := bool(cfg.get_value("engine_sound", "has_muffler", true))
+		var resonators := int(cfg.get_value("engine_sound", "resonator_count", 1))
+		var turbo := bool(cfg.get_value("engine_sound", "has_turbo", false))
+		var sc := bool(cfg.get_value("engine_sound", "has_supercharger", false))
+		target.cylinders = clampi(cyl, 2, 12)
+		target.displacement_cc = clampf(liters, 0.5, 12.0) * 1000.0
+		target.stroke_mm = float(cfg.get_value("engine_sound", "piston_stroke_mm", target.stroke_mm))
+		target.bore_mm = 0.0
+		if cyl >= 8:
+			target.engine_layout = CarSetup.EngineLayout.V
+			target.bank_angle_deg = 90.0
+		elif cyl == 6 and liters >= 3.0:
+			target.engine_layout = CarSetup.EngineLayout.V
+			target.bank_angle_deg = 60.0
+		else:
+			target.engine_layout = CarSetup.EngineLayout.INLINE
+			target.bank_angle_deg = 0.0
+		target.valves_per_cylinder = 2
+		var exhaust_len := lerpf(640.0, 360.0, clampf(inverse_lerp(35.0, 100.0, tip), 0.0, 1.0))
+		exhaust_len *= 1.12 if muffler else 0.88
+		exhaust_len *= lerpf(1.0, 1.08, float(clampi(resonators, 0, 3)) / 3.0)
+		target.exhaust_length_mm = clampf(exhaust_len, 300.0, 900.0)
+		target.cam_duration_deg = 220.0
+		target.cam_lift_mm = 9.5
+		if turbo:
+			target.noise = 0.35
+			target.hf_gain = 0.15
+		elif sc:
+			target.noise = 0.28
+			target.hf_gain = 0.08
+		else:
+			target.noise = 1.0
+			target.hf_gain = 0.01
+		target.jitter = 0.5
+	target.engine_sound_volume_db = float(
+		cfg.get_value("engine_sound", "engine_sound_volume_db", target.engine_sound_volume_db)
+	)
+
+
 func _apply_physics_cfg(target: CarSetup, cfg: ConfigFile) -> void:
 	target.mass = float(cfg.get_value("body", "mass", target.mass))
 	target.center_of_mass_offset = Vector3(
@@ -363,17 +539,7 @@ func _apply_physics_cfg(target: CarSetup, cfg: ConfigFile) -> void:
 	target.torque_boost = float(cfg.get_value("engine", "torque_boost", target.torque_boost))
 	target.engine_inertia = float(cfg.get_value("engine", "engine_inertia", target.engine_inertia))
 
-	target.cylinder_count = int(cfg.get_value("engine_sound", "cylinder_count", target.cylinder_count))
-	target.displacement_liters = float(cfg.get_value("engine_sound", "displacement_liters", target.displacement_liters))
-	target.piston_stroke_mm = float(cfg.get_value("engine_sound", "piston_stroke_mm", target.piston_stroke_mm))
-	target.exhaust_diameter_mm = float(cfg.get_value("engine_sound", "exhaust_diameter_mm", target.exhaust_diameter_mm))
-	target.has_turbo = bool(cfg.get_value("engine_sound", "has_turbo", target.has_turbo))
-	target.has_supercharger = bool(cfg.get_value("engine_sound", "has_supercharger", target.has_supercharger))
-	target.has_muffler = bool(cfg.get_value("engine_sound", "has_muffler", target.has_muffler))
-	target.resonator_count = int(cfg.get_value("engine_sound", "resonator_count", target.resonator_count))
-	target.engine_sound_volume_db = float(
-		cfg.get_value("engine_sound", "engine_sound_volume_db", target.engine_sound_volume_db)
-	)
+	_apply_engine_sound_cfg(target, cfg)
 
 	target.reverse_ratio = float(cfg.get_value("drivetrain", "reverse_ratio", target.reverse_ratio))
 	target.final_drive = float(cfg.get_value("drivetrain", "final_drive", target.final_drive))

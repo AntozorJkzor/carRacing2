@@ -9,6 +9,8 @@ enum DriveType { FWD, RWD, AWD }
 ## Rear axle only. Front axle is always open.
 ## Values: 0=open, 1=LSD, 2=welded (same as vehicle_diff.gd).
 enum RearDiffType { OPEN, LSD, WELDED }
+## EngineSimBaker layout (matches GDExtension Layout enum).
+enum EngineLayout { INLINE, V, BOXER }
 
 @export_group("Body")
 @export var mass: float = 1200.0
@@ -25,25 +27,31 @@ enum RearDiffType { OPEN, LSD, WELDED }
 @export var torque_boost: float = 1.0
 ## Crankshaft inertia (kg·m²) for clutch / free-rev integration.
 @export var engine_inertia: float = 0.25
+## Spark cut above this × max_rpm (open throttle). Re-enable below rev_limiter_cut_low_frac.
+@export_range(0.94, 1.0, 0.005) var rev_limiter_cut_high_frac: float = 0.98
+@export_range(0.84, 0.97, 0.005) var rev_limiter_cut_low_frac: float = 0.91
+## Extra RPM-dependent friction when throttle released (neutral / coast).
+@export_range(0.5, 3.0, 0.05) var engine_coast_friction_scale: float = 1.65
 ## X = RPM (0..1 normalized against max_rpm), Y = torque multiplier (0..1+).
 @export var torque_curve: Curve
 
 @export_group("Engine Sound")
-## Cylinder count for firing frequency / harmonic character (4-stroke).
-@export_range(2, 12, 1) var cylinder_count: int = 4
-## Engine displacement in litres — pulse weight / low-end.
-@export_range(0.5, 12.0, 0.1) var displacement_liters: float = 2.0
-## Piston stroke (mm). Long stroke = deeper / bassier; short = higher bite.
-@export_range(50.0, 120.0, 1.0) var piston_stroke_mm: float = 86.0
-## Exhaust tip diameter (mm) — pipe brightness / bass.
-@export_range(30.0, 120.0, 1.0) var exhaust_diameter_mm: float = 55.0
-@export var has_turbo: bool = false
-@export var has_supercharger: bool = false
-## false = straight pipe (brighter / louder HF).
-@export var has_muffler: bool = true
-## Number of exhaust resonators (tonal shelves).
-@export_range(0, 3, 1) var resonator_count: int = 1
-## Extra volume trim on top of CarAudioProfile master.
+## Maps 1:1 to EngineSimBaker.apply_params (idle/max RPM taken from Engine group).
+@export_range(2, 12, 1) var cylinders: int = 4
+@export_range(500.0, 10000.0, 50.0) var displacement_cc: float = 2000.0
+## 0 = auto from displacement + stroke.
+@export_range(0.0, 120.0, 1.0) var bore_mm: float = 0.0
+@export_range(50.0, 120.0, 1.0) var stroke_mm: float = 86.0
+@export var engine_layout: EngineLayout = EngineLayout.INLINE
+@export_range(0.0, 180.0, 1.0) var bank_angle_deg: float = 90.0
+@export_range(2, 4, 2) var valves_per_cylinder: int = 2
+@export_range(300.0, 900.0, 10.0) var exhaust_length_mm: float = 500.0
+@export_range(180.0, 280.0, 1.0) var cam_duration_deg: float = 220.0
+@export_range(6.0, 14.0, 0.1) var cam_lift_mm: float = 9.5
+@export_range(0.0, 1.0, 0.01) var hf_gain: float = 0.01
+@export_range(0.0, 2.0, 0.01) var noise: float = 1.0
+@export_range(0.0, 1.0, 0.01) var jitter: float = 0.5
+## Playback trim only (EngineAudio) — not sent to bake API.
 @export_range(-24.0, 12.0, 0.1) var engine_sound_volume_db: float = 0.0
 
 @export_group("Drivetrain")
@@ -177,7 +185,7 @@ enum RearDiffType { OPEN, LSD, WELDED }
 ## How fast throttle command rises toward pedal (1/s). Lower = softer throttle onset.
 @export var throttle_rise_rate: float = 2.0
 ## How fast throttle command falls when lifting (1/s).
-@export var throttle_fall_rate: float = 4.0
+@export var throttle_fall_rate: float = 6.0
 
 @export_group("Assist")
 ## Помощь дрифта: 0 = выкл (симулятор), 1 = норма, до 2 = сильнее держит угол / гасит спин.
@@ -193,6 +201,15 @@ enum RearDiffType { OPEN, LSD, WELDED }
 @export_range(0.5, 12.0) var tc_gain: float = 1.4
 ## Never cut driven-wheel torque below this fraction (0 = can kill all drive).
 @export_range(0.0, 1.0) var tc_min_scale: float = 0.55
+
+
+## Litres helper for legacy synth paths / UI display.
+func get_displacement_liters() -> float:
+	return displacement_cc * 0.001
+
+
+func set_displacement_liters(liters: float) -> void:
+	displacement_cc = clampf(liters, 0.5, 12.0) * 1000.0
 
 
 func migrate_legacy_fields() -> void:

@@ -4,6 +4,9 @@ extends Control
 
 @onready var _list: VBoxContainer = %ParamList
 @onready var _path_label: Label = %PathLabel
+@onready var _bake_row: VBoxContainer = %BakeRow
+@onready var _bake_status: Label = %BakeStatusLabel
+@onready var _bake_progress: ProgressBar = %BakeProgressBar
 @onready var _back_button: Button = %BackButton
 @onready var _save_button: Button = %SaveButton
 @onready var _reset_button: Button = %ResetButton
@@ -12,6 +15,7 @@ var _sliders: Dictionary = {}
 var _value_labels: Dictionary = {}
 var _drive_option: OptionButton
 var _rear_diff_option: OptionButton
+var _layout_option: OptionButton
 
 
 func _ready() -> void:
@@ -32,6 +36,7 @@ func _rebuild_ui() -> void:
 	_value_labels.clear()
 	_drive_option = null
 	_rear_diff_option = null
+	_layout_option = null
 
 	_add_section("Визуал / высота")
 	_add_slider("clearance", "Клиренс (модель + коллизия)", -0.3, 0.5, 0.01, TuningStore.clearance)
@@ -47,18 +52,23 @@ func _rebuild_ui() -> void:
 	_add_slider("idle_rpm", "Холостые, об/мин", 600.0, 1500.0, 10.0, TuningStore.setup.idle_rpm)
 	_add_slider("max_rpm", "Макс. обороты", 4000.0, 10000.0, 50.0, TuningStore.setup.max_rpm)
 
-	_add_section("Звук двигателя")
-	_add_slider("cylinder_count", "Цилиндры", 2.0, 12.0, 1.0, float(TuningStore.setup.cylinder_count))
-	_add_slider("displacement_liters", "Объём, л", 0.5, 12.0, 0.1, TuningStore.setup.displacement_liters)
-	_add_slider("piston_stroke_mm", "Ход поршня, мм", 50.0, 120.0, 1.0, TuningStore.setup.piston_stroke_mm)
-	_add_slider("exhaust_diameter_mm", "Диаметр выхлопа, мм", 30.0, 120.0, 1.0, TuningStore.setup.exhaust_diameter_mm)
-	_add_checkbox("has_turbo", "Турбина", TuningStore.setup.has_turbo)
-	_add_checkbox("has_supercharger", "Компрессор", TuningStore.setup.has_supercharger)
-	_add_checkbox("has_muffler", "Глушитель (выкл = прямоток)", TuningStore.setup.has_muffler)
-	_add_slider("resonator_count", "Резонаторы", 0.0, 3.0, 1.0, float(TuningStore.setup.resonator_count))
+	_add_section("Звук двигателя (EngineSim)")
+	_add_slider("cylinders", "Цилиндры", 2.0, 12.0, 1.0, float(TuningStore.setup.cylinders))
+	_add_slider("displacement_cc", "Объём, cc", 500.0, 10000.0, 50.0, TuningStore.setup.displacement_cc)
+	_add_slider("bore_mm", "Диаметр цилиндра, мм (0=авто)", 0.0, 120.0, 1.0, TuningStore.setup.bore_mm)
+	_add_slider("stroke_mm", "Ход поршня, мм", 50.0, 120.0, 1.0, TuningStore.setup.stroke_mm)
+	_add_engine_layout()
+	_add_slider("bank_angle_deg", "Угол развала, °", 0.0, 180.0, 1.0, TuningStore.setup.bank_angle_deg)
+	_add_slider("valves_per_cylinder", "Клапанов на цилиндр", 2.0, 4.0, 2.0, float(TuningStore.setup.valves_per_cylinder))
+	_add_slider("exhaust_length_mm", "Длина выхлопа, мм", 300.0, 900.0, 10.0, TuningStore.setup.exhaust_length_mm)
+	_add_slider("cam_duration_deg", "Длительность кулачка, °", 180.0, 280.0, 1.0, TuningStore.setup.cam_duration_deg)
+	_add_slider("cam_lift_mm", "Подъём кулачка, мм", 6.0, 14.0, 0.1, TuningStore.setup.cam_lift_mm)
+	_add_slider("hf_gain", "HF gain", 0.0, 1.0, 0.01, TuningStore.setup.hf_gain)
+	_add_slider("noise", "Noise", 0.0, 2.0, 0.01, TuningStore.setup.noise)
+	_add_slider("jitter", "Jitter", 0.0, 1.0, 0.01, TuningStore.setup.jitter)
 	_add_slider(
 		"engine_sound_volume_db",
-		"Громкость звука, дБ",
+		"Громкость в игре, дБ",
 		-24.0,
 		12.0,
 		0.5,
@@ -156,6 +166,23 @@ func _add_section(title: String) -> void:
 	_list.add_child(label)
 	var sep := HSeparator.new()
 	_list.add_child(sep)
+
+
+func _add_engine_layout() -> void:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 12)
+	var name_l := Label.new()
+	name_l.text = "Компоновка"
+	name_l.custom_minimum_size = Vector2(240, 0)
+	row.add_child(name_l)
+	_layout_option = OptionButton.new()
+	_layout_option.add_item("Inline", CarSetup.EngineLayout.INLINE)
+	_layout_option.add_item("V", CarSetup.EngineLayout.V)
+	_layout_option.add_item("Boxer", CarSetup.EngineLayout.BOXER)
+	_layout_option.select(int(TuningStore.setup.engine_layout))
+	_layout_option.item_selected.connect(_on_layout_selected)
+	row.add_child(_layout_option)
+	_list.add_child(row)
 
 
 func _add_drive_type() -> void:
@@ -259,6 +286,10 @@ func _format_value(value: float, step: float) -> String:
 	return "%.3f" % value
 
 
+func _on_layout_selected(index: int) -> void:
+	TuningStore.setup.engine_layout = _layout_option.get_item_id(index) as CarSetup.EngineLayout
+
+
 func _on_drive_selected(index: int) -> void:
 	TuningStore.setup.drive_type = _drive_option.get_item_id(index) as CarSetup.DriveType
 
@@ -267,15 +298,8 @@ func _on_rear_diff_selected(index: int) -> void:
 	TuningStore.setup.rear_diff_type = _rear_diff_option.get_item_id(index) as CarSetup.RearDiffType
 
 
-func _apply_bool_key(key: String, value: bool) -> void:
-	var s := TuningStore.setup
-	match key:
-		"has_turbo":
-			s.has_turbo = value
-		"has_supercharger":
-			s.has_supercharger = value
-		"has_muffler":
-			s.has_muffler = value
+func _apply_bool_key(_key: String, _value: bool) -> void:
+	pass
 
 
 func _apply_key(key: String, value: float) -> void:
@@ -303,16 +327,30 @@ func _apply_key(key: String, value: float) -> void:
 			s.idle_rpm = value
 		"max_rpm":
 			s.max_rpm = value
-		"cylinder_count":
-			s.cylinder_count = clampi(int(round(value)), 2, 12)
-		"displacement_liters":
-			s.displacement_liters = value
-		"piston_stroke_mm":
-			s.piston_stroke_mm = value
-		"exhaust_diameter_mm":
-			s.exhaust_diameter_mm = value
-		"resonator_count":
-			s.resonator_count = clampi(int(round(value)), 0, 3)
+		"cylinders":
+			s.cylinders = clampi(int(round(value)), 2, 12)
+		"displacement_cc":
+			s.displacement_cc = value
+		"bore_mm":
+			s.bore_mm = value
+		"stroke_mm":
+			s.stroke_mm = value
+		"bank_angle_deg":
+			s.bank_angle_deg = value
+		"valves_per_cylinder":
+			s.valves_per_cylinder = 4 if int(round(value)) >= 4 else 2
+		"exhaust_length_mm":
+			s.exhaust_length_mm = value
+		"cam_duration_deg":
+			s.cam_duration_deg = value
+		"cam_lift_mm":
+			s.cam_lift_mm = value
+		"hf_gain":
+			s.hf_gain = value
+		"noise":
+			s.noise = value
+		"jitter":
+			s.jitter = value
 		"engine_sound_volume_db":
 			s.engine_sound_volume_db = value
 		"final_drive":
@@ -361,6 +399,16 @@ func _apply_key(key: String, value: float) -> void:
 			s.rear_wheel_width = value
 		"rear_mesh_scale":
 			s.rear_mesh_scale = value
+		"diff_preload":
+			s.diff_preload = value
+		"diff_power_lock":
+			s.diff_power_lock = value
+		"diff_coast_lock":
+			s.diff_coast_lock = value
+		"locked_diff_stiffness":
+			s.locked_diff_stiffness = value
+		"awd_front_bias":
+			s.awd_front_bias = value
 		"front_rest_length":
 			s.front_rest_length = value
 			s.rest_length = value
@@ -408,16 +456,6 @@ func _apply_key(key: String, value: float) -> void:
 			s.clutch_max_torque = value
 		"clutch_engage_time":
 			s.clutch_engage_time = value
-		"awd_front_bias":
-			s.awd_front_bias = value
-		"diff_preload":
-			s.diff_preload = value
-		"diff_power_lock":
-			s.diff_power_lock = value
-		"diff_coast_lock":
-			s.diff_coast_lock = value
-		"locked_diff_stiffness":
-			s.locked_diff_stiffness = value
 		"wheel_inertia":
 			s.wheel_inertia = value
 		"engine_inertia":
@@ -450,9 +488,16 @@ func _apply_key(key: String, value: float) -> void:
 
 
 func _on_save() -> void:
-	_path_label.text = "Генерация звука двигателя…"
-	await get_tree().process_frame
-	var banks: Dictionary = TuningStore.save_to_disk()
+	await _run_save_with_progress()
+
+
+func _run_save_with_progress() -> void:
+	_begin_bake_ui()
+	var banks: Dictionary = await TuningStore.save_to_disk_async()
+	_end_bake_ui()
+	if banks.is_empty():
+		_path_label.text = "Ошибка сохранения / генерации звука"
+		return
 	if bool(banks.get("live", false)):
 		_path_label.text = "Сохранено (live-synth, без bake): %s" % String(TuningStore.active_car_id)
 	elif bool(banks.get("skipped", false)):
@@ -464,6 +509,56 @@ func _on_save() -> void:
 		]
 
 
+func _begin_bake_ui() -> void:
+	_save_button.disabled = true
+	_reset_button.disabled = true
+	_back_button.disabled = true
+	_bake_row.visible = true
+	_bake_progress.value = 0
+	_bake_status.text = "Подготовка…"
+	if not TuningStore.engine_bake_progress.is_connected(_on_engine_bake_progress):
+		TuningStore.engine_bake_progress.connect(_on_engine_bake_progress)
+
+
+func _end_bake_ui() -> void:
+	_save_button.disabled = false
+	_reset_button.disabled = false
+	_back_button.disabled = false
+	_bake_row.visible = false
+	if TuningStore.engine_bake_progress.is_connected(_on_engine_bake_progress):
+		TuningStore.engine_bake_progress.disconnect(_on_engine_bake_progress)
+
+
+func _on_engine_bake_progress(current: int, total: int, rpm: float, phase: String) -> void:
+	_bake_progress.max_value = maxf(float(maxi(total, 1)), 1.0)
+	match phase:
+		"check":
+			_bake_status.text = "Проверка кэша звука…"
+			_bake_progress.value = 0.0
+		"cached":
+			_bake_status.text = "Звук уже актуален — перегенерация не нужна"
+			_bake_progress.value = _bake_progress.max_value
+		"start":
+			_bake_status.text = "Подготовка sweep-бейка (шаг %.0f об/мин)…" % EngineBankBaker.RPM_STEP
+			_bake_progress.value = float(current)
+		"sweep":
+			_bake_status.text = "Синтез sweep idle→%.0f об/мин (один прогон)…" % rpm
+			_bake_progress.value = float(current)
+		"rpm":
+			_bake_status.text = "Синтез %d / %d  ·  %.0f об/мин" % [current, total, rpm]
+			_bake_progress.value = float(current)
+		"promote":
+			_bake_status.text = "Сохранение банков на диск…"
+			_bake_progress.value = float(current)
+		"apply":
+			_bake_status.text = "Подключение звука к машине…"
+			_bake_progress.value = _bake_progress.max_value
+		"error":
+			_bake_status.text = "Ошибка генерации звука"
+		_:
+			_bake_status.text = phase
+
+
 func _on_reset() -> void:
 	TuningStore.reset_to_defaults()
 	_rebuild_ui()
@@ -471,7 +566,5 @@ func _on_reset() -> void:
 
 
 func _on_back() -> void:
-	_path_label.text = "Сохранение…"
-	await get_tree().process_frame
-	TuningStore.save_to_disk()
+	await _run_save_with_progress()
 	get_tree().change_scene_to_file("res://assets/scenes/ui/main_menu.tscn")

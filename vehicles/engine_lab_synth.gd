@@ -94,22 +94,23 @@ static func displacement_size_t(disp_l: float) -> float:
 
 func configure_from_setup(setup: Resource) -> void:
 	sample_rate = 22050.0
-	_cyl_n = clampi(int(setup.get("cylinder_count")), 2, 12)
-	_disp_l = clampf(float(setup.get("displacement_liters")), 0.5, 12.0)
+	_cyl_n = clampi(int(setup.get("cylinders")), 2, 12)
+	_disp_l = clampf(float(setup.get("displacement_cc")) * 0.001, 0.5, 12.0)
 	_power_hp = clampf(float(setup.get("max_power_hp")), 40.0, 900.0)
-	_ex_mm = clampf(float(setup.get("exhaust_diameter_mm")), 30.0, 120.0)
-	_has_turbo = bool(setup.get("has_turbo"))
-	_has_sc = bool(setup.get("has_supercharger"))
-	var muffler := bool(setup.get("has_muffler"))
-	var resonators := clampi(int(setup.get("resonator_count")), 0, 3)
+	_ex_mm = lerpf(100.0, 35.0, clampf(inverse_lerp(360.0, 640.0, float(setup.get("exhaust_length_mm"))), 0.0, 1.0))
+	_has_turbo = float(setup.get("noise")) < 0.6
+	_has_sc = false
+	var muffler := float(setup.get("exhaust_length_mm")) > 520.0
+	var resonators := 1 if muffler else 0
 	_vol_db = float(setup.get("engine_sound_volume_db"))
 
-	# Layout heuristic (CarSetup has no layout yet).
+	# Layout from CarSetup.EngineLayout.
+	var layout_i := clampi(int(setup.get("engine_layout")), 0, 2)
 	var layout := "inline"
-	if _cyl_n >= 8:
+	if layout_i == 1:
 		layout = "v"
-	elif _cyl_n == 6 and _disp_l >= 3.0:
-		layout = "v"
+	elif layout_i == 2:
+		layout = "boxer"
 	_set_firing(layout, _cyl_n)
 
 	var style := "muffler"

@@ -199,11 +199,13 @@ func render_to_playback(
 	if playback == null or setup == null or frame_count <= 0:
 		return
 
-	var cyl_n := clampi(setup.cylinder_count, 2, 12)
+	var cyl_n := clampi(setup.cylinders, 2, 12)
+	var stroke := clampf(setup.stroke_mm, 50.0, 120.0)
+	var disp := clampf(setup.get_displacement_liters(), 0.5, 12.0)
+	var exhaust_mm := lerpf(100.0, 35.0, clampf(inverse_lerp(360.0, 640.0, setup.exhaust_length_mm), 0.0, 1.0))
+	var muffler := setup.exhaust_length_mm > 520.0
+	var has_forced := setup.noise < 0.6
 	var cyl_inv := 1.0 / float(cyl_n)
-	var disp := clampf(setup.displacement_liters, 0.5, 12.0)
-	var stroke := clampf(setup.piston_stroke_mm, 50.0, 120.0)
-	var exhaust_mm := clampf(setup.exhaust_diameter_mm, 30.0, 120.0)
 	var load_a := clampf(engine_load, 0.0, 1.0)
 	var rpm_c := maxf(rpm, setup.idle_rpm * 0.5)
 	var rpm_t := clampf(
@@ -215,7 +217,6 @@ func render_to_playback(
 	var stroke_t := clampf(inverse_lerp(65.0, 100.0, stroke), 0.0, 1.0)
 	var hp := clampf(setup.max_power_hp, 40.0, 600.0)
 	var hp_t := clampf(inverse_lerp(80.0, 380.0, hp), 0.0, 1.0)
-	var muffler := setup.has_muffler
 	var straight := not muffler
 	var dia_t := clampf((exhaust_mm - 30.0) / 90.0, 0.0, 1.0)
 
@@ -257,7 +258,7 @@ func render_to_playback(
 	var pipe_delay := int(lerpf(110.0, 200.0, thump_t) * lerpf(1.05, 0.88, dia_t))
 	pipe_delay = clampi(pipe_delay, 72, PIPE_SIZE - 2)
 	var muff_delay := clampi(int(lerpf(32.0, 62.0, thump_t)), 18, MUFF_SIZE - 2)
-	var muff2_delay := clampi(muff_delay + 10 + clampi(setup.resonator_count, 0, 3) * 6, 18, MUFF_SIZE - 2)
+	var muff2_delay := clampi(muff_delay + 10 + (6 if muffler else 0), 18, MUFF_SIZE - 2)
 	var pipe_fb := (0.28 if muffler else 0.16) * lerpf(0.95, 1.05, street_t)
 	pipe_fb *= lerpf(1.0, 0.65, rpm_t)
 	var muff_fb := (0.18 if muffler else 0.07) * lerpf(0.95, 1.1, street_t)
@@ -283,7 +284,7 @@ func render_to_playback(
 	var sub_trim := 0.55 if muffler else 0.32
 	var chest_a := 1.0 - exp(-TAU * lerpf(140.0, 210.0, thump_t) * inv_sr)
 
-	if setup.has_turbo:
+	if has_forced:
 		_turbo_spool = lerpf(_turbo_spool, load_a * lerpf(0.35, 1.0, rpm_t), 0.012)
 	else:
 		_turbo_spool = lerpf(_turbo_spool, 0.0, 0.02)
@@ -397,19 +398,12 @@ func render_to_playback(
 		_chest_lp += chest_a * (timed - _chest_lp)
 		var sample := timed + _chest_lp * (0.18 + thump_t * 0.28) * (0.75 if muffler else 1.0)
 
-		if setup.has_turbo and _turbo_spool > 0.01:
+		if has_forced and _turbo_spool > 0.01:
 			var tw := lerpf(2200.0, 5200.0, _turbo_spool)
 			_turbo_phase += tw * inv_sr
 			if _turbo_phase >= 1.0:
 				_turbo_phase -= floorf(_turbo_phase)
 			sample += sin(_turbo_phase * TAU) * 0.028 * _turbo_spool
-
-		if setup.has_supercharger:
-			var sw := lerpf(3600.0, 7000.0, rpm_t)
-			_sc_phase += sw * inv_sr
-			if _sc_phase >= 1.0:
-				_sc_phase -= floorf(_sc_phase)
-			sample += sin(_sc_phase * TAU) * (0.018 + load_a * 0.02)
 
 		sample *= lerpf(0.75, 1.0, load_a * 0.55 + 0.45)
 		sample *= gain

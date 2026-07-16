@@ -55,6 +55,8 @@ var debug_want_up: int = 0
 var debug_want_down: int = 0
 var debug_tc_scale: float = 1.0
 var debug_eff_throttle: float = 0.0
+var debug_rev_limiter_cut: bool = false
+var rev_limiter_active: bool = false
 var debug_rear_spin: int = 0
 var debug_body_slip_deg: float = 0.0
 var debug_yaw_assist_nm: float = 0.0
@@ -70,6 +72,7 @@ var _base_angular_damp: float = 1.2
 var _auto_shift_cooldown: float = 0.0
 var _spawn_transform: Transform3D = Transform3D.IDENTITY
 var _clutch_engage_timer: float = 0.0
+var _rev_limiter_cut: bool = false
 var occupied: bool = false
 var occupant: Node = null
 var _model_base_y: float = 0.0
@@ -740,19 +743,25 @@ func _update_engine_clutch_diff(dt: float) -> void:
 	var max_omega := setup.max_rpm * TAU / 60.0
 
 	var effective_throttle := _throttle_cmd
-	# Soft redline taper — hard zero made the clutch slam ±max torque and
-	# punch engine-brake pulses that killed top-end acceleration.
-	var redline_start := setup.max_rpm * 0.96
-	if engine_rpm >= redline_start:
-		var over := (engine_rpm - redline_start) / maxf(setup.max_rpm - redline_start, 1.0)
-		effective_throttle *= clampf(1.0 - over, 0.0, 1.0)
+	_rev_limiter_cut = _update_rev_limiter_cut(engine_rpm)
+	rev_limiter_active = _rev_limiter_cut
+	debug_rev_limiter_cut = _rev_limiter_cut
+	if _rev_limiter_cut:
+		effective_throttle = 0.0
+	elif throttle < 0.05:
+		# Cut fuel immediately on pedal release — don't wait for _throttle_cmd bleed.
+		effective_throttle = 0.0
 	debug_eff_throttle = effective_throttle
 
 	var combustion := setup.get_engine_torque(engine_rpm) * effective_throttle
-	# Mild friction / pumping losses so free-rev falls without throttle.
 	var engine_friction := 12.0 + 0.004 * engine_rpm
-	if _throttle_cmd < 0.05:
-		combustion -= engine_friction
+	if throttle < 0.05:
+		var coast := setup.engine_coast_friction_scale
+		engine_friction += coast * (14.0 + 0.018 * engine_rpm)
+		combustion = -engine_friction
+	elif _rev_limiter_cut:
+		engine_friction += 0.35 * (10.0 + 0.012 * engine_rpm)
+		combustion = -engine_friction
 
 	var in_gear := absf(gear_ratio) > 0.001
 	var trans_omega := 0.0
@@ -770,20 +779,20 @@ func _update_engine_clutch_diff(dt: float) -> void:
 		if clutch >= 0.95 and absf(slip_w) < lock_band:
 			var sync := clampf(slip_w * 28.0, -max_t * 0.25, max_t * 0.25)
 			clutch_torque = clampf(combustion + sync, -max_t, max_t)
-			if _throttle_cmd > 0.1:
+			if throttle > 0.1:
 				clutch_torque = maxf(clutch_torque, -max_t * 0.08)
 			engine_omega = lerpf(engine_omega, trans_omega, clampf(10.0 * dt, 0.0, 1.0))
 			slip_w = engine_omega - trans_omega
-		elif _throttle_cmd < 0.05:
+		elif throttle < 0.05:
 			# Idle / coast slip: soft viscous coupling only.
 			clutch_torque = clampf(slip_w * 12.0, -60.0, 60.0)
 		else:
 			# Kinetic: viscous slip toward combustion — NEVER full ±max slam.
 			# Old dir*max_t flipped driveline ±8kNm every substep and erased accel.
-			var slip_limit := max_t * clampf(_throttle_cmd, 0.15, 1.0)
+			var slip_limit := max_t * clampf(maxf(_throttle_cmd, throttle), 0.15, 1.0)
 			var target := combustion + slip_w * 45.0
 			# Under power, cap engine-brake so the clutch can't haul the car down.
-			if _throttle_cmd > 0.1:
+			if throttle > 0.1:
 				target = maxf(target, -slip_limit * 0.08)
 			clutch_torque = clampf(target, -slip_limit, slip_limit)
 
@@ -846,6 +855,18 @@ func _update_engine_clutch_diff(dt: float) -> void:
 		# Must run AFTER torque assign — old order re-applied welded ±24kNm
 		# and fought settle every substep.
 		_settle_parked(dt)
+
+
+func _update_rev_limiter_cut(rpm: float) -> bool:
+	if setup == null or throttle < 0.3:
+		return false
+	var cut_high := setup.max_rpm * setup.rev_limiter_cut_high_frac
+	var cut_low := minf(setup.max_rpm * setup.rev_limiter_cut_low_frac, cut_high - 50.0)
+	if rpm >= cut_high:
+		return true
+	if rpm <= cut_low:
+		return false
+	return _rev_limiter_cut
 
 
 func _is_planted() -> bool:
