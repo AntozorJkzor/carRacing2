@@ -45,10 +45,16 @@ func _ready() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode == KEY_F3:
-			enabled = not enabled
-			_apply_visibility()
-			get_viewport().set_input_as_handled()
+		if event.keycode != KEY_F3:
+			return
+		if _car == null:
+			_car = get_parent() as CarController
+		# Only the car you're driving — otherwise another pack in the scene steals F3.
+		if _car == null or not _car.occupied:
+			return
+		enabled = not enabled
+		_apply_visibility()
+		get_viewport().set_input_as_handled()
 
 
 func _physics_process(_delta: float) -> void:

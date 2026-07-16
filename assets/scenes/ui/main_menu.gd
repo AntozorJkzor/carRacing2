@@ -13,6 +13,8 @@ const PHYSICS_TRACK := "res://assets/scenes/tracks/physics_test_track.tscn"
 
 
 func _ready() -> void:
+	GraphicsConfig.load_from_disk()
+	GraphicsConfig.apply_all(get_tree())
 	GameAudio.restart_music()
 	_new_game_button.pressed.connect(_on_new_game_pressed)
 	_leaders_button.pressed.connect(_on_leaders_pressed)
@@ -43,7 +45,7 @@ func _on_leaders_pressed() -> void:
 
 
 func _on_settings_pressed() -> void:
-	get_tree().change_scene_to_file("res://assets/scenes/ui/settings_menu.tscn")
+	get_tree().change_scene_to_file("res://assets/scenes/ui/settings_hub.tscn")
 
 
 func _on_exit_pressed() -> void:

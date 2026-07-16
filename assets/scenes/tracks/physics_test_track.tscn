@@ -91,8 +91,9 @@ fov = 72.0
 far = 800.0
 script = ExtResource("5_cam")
 target_path = NodePath("../Car")
-follow_distance = 2.5
-follow_height = 1.0
+follow_distance = 7.0
+follow_height = 2.2
+look_height = 0.9
 
 [node name="HUD" type="CanvasLayer" parent="." unique_id=796749115]
 script = ExtResource("6_hud")

@@ -310,7 +310,10 @@ func _process_live(delta: float) -> void:
 	else:
 		var occupied_db := 0.0 if _car.occupied else -8.0
 		var vol_trim := float(_car.setup.get("engine_sound_volume_db"))
-		_live_player.volume_db = master_volume_db + vol_trim + occupied_db
+		var car_user := 0.0
+		if GameAudio != null and GameAudio.has_method("get_car_volume_offset_db"):
+			car_user = float(GameAudio.get_car_volume_offset_db())
+		_live_player.volume_db = master_volume_db + vol_trim + occupied_db + car_user
 		if not _live_player.playing:
 			_live_player.play()
 		_live_stream.call("set_driving", _smooth_rpm, _smooth_load, _smooth_load)
@@ -347,7 +350,10 @@ func _process_baked(delta: float) -> void:
 	var rpm_t := clampf(inverse_lerp(idle_r, max_r, _smooth_rpm), 0.0, 1.0)
 	var rpm_db := lerpf(-1.0, 1.8, pow(rpm_t, 1.15))
 	var vol_trim := float(_car.setup.get("engine_sound_volume_db"))
-	var master := -80.0 if mute else (master_volume_db + vol_trim + load_db + occupied_db + rpm_db)
+	var car_user := 0.0
+	if GameAudio != null and GameAudio.has_method("get_car_volume_offset_db"):
+		car_user = float(GameAudio.get_car_volume_offset_db())
+	var master := -80.0 if mute else (master_volume_db + vol_trim + load_db + occupied_db + rpm_db + car_user)
 
 	if _band_rpms.is_empty() and _car.setup:
 		_apply_default_rpm_refs_from_setup(_car.setup)

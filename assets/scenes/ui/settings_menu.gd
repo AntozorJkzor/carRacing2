@@ -98,19 +98,7 @@ func _rebuild_ui() -> void:
 	_add_slider("locked_diff_stiffness", "Жёсткость заварки", 100.0, 2000.0, 25.0, TuningStore.setup.locked_diff_stiffness)
 	_add_slider("awd_front_bias", "AWD bias перед", 0.0, 1.0, 0.05, TuningStore.setup.awd_front_bias)
 
-	_add_section("Оси / колёса")
-	_add_slider("front_axle_z", "Передняя ось Z", -2.5, 0.5, 0.01, TuningStore.setup.front_axle_z)
-	_add_slider("front_mount_y", "Передняя ось Y", 0.05, 1.0, 0.01, TuningStore.setup.front_mount_y)
-	_add_slider("front_track", "Передняя колея", 0.6, 2.2, 0.01, TuningStore.setup.front_track)
-	_add_slider("front_wheel_radius", "Перед радиус", 0.12, 0.5, 0.005, TuningStore.setup.front_wheel_radius)
-	_add_slider("front_wheel_width", "Перед ширина", 0.1, 0.45, 0.01, TuningStore.setup.front_wheel_width)
-	_add_slider("front_mesh_scale", "Перед mesh scale", 0.5, 6.0, 0.05, TuningStore.setup.front_mesh_scale)
-	_add_slider("rear_axle_z", "Задняя ось Z", -0.5, 2.5, 0.01, TuningStore.setup.rear_axle_z)
-	_add_slider("rear_mount_y", "Задняя ось Y", 0.05, 1.0, 0.01, TuningStore.setup.rear_mount_y)
-	_add_slider("rear_track", "Задняя колея", 0.6, 2.2, 0.01, TuningStore.setup.rear_track)
-	_add_slider("rear_wheel_radius", "Зад радиус", 0.12, 0.5, 0.005, TuningStore.setup.rear_wheel_radius)
-	_add_slider("rear_wheel_width", "Зад ширина", 0.1, 0.45, 0.01, TuningStore.setup.rear_wheel_width)
-	_add_slider("rear_mesh_scale", "Зад mesh scale", 0.5, 6.0, 0.05, TuningStore.setup.rear_mesh_scale)
+	_add_section("Колёса (физика)")
 	_add_slider("wheel_inertia", "Инерция колеса", 0.3, 3.0, 0.05, TuningStore.setup.wheel_inertia)
 
 	_add_section("Подвеска перед")
@@ -359,46 +347,6 @@ func _apply_key(key: String, value: float) -> void:
 			s.reverse_ratio = value
 		"shift_time":
 			s.shift_time = value
-		"wheel_radius":
-			s.front_wheel_radius = value
-			s.rear_wheel_radius = value
-			s.wheel_radius = value
-		"wheel_width":
-			s.front_wheel_width = value
-			s.rear_wheel_width = value
-			s.wheel_width = value
-		"front_axle_z":
-			s.front_axle_z = value
-			s.rebuild_wheel_positions()
-		"front_mount_y":
-			s.front_mount_y = value
-			s.rebuild_wheel_positions()
-		"front_track":
-			s.front_track = value
-			s.rebuild_wheel_positions()
-		"front_wheel_radius":
-			s.front_wheel_radius = value
-			s.wheel_radius = value
-		"front_wheel_width":
-			s.front_wheel_width = value
-			s.wheel_width = value
-		"front_mesh_scale":
-			s.front_mesh_scale = value
-		"rear_axle_z":
-			s.rear_axle_z = value
-			s.rebuild_wheel_positions()
-		"rear_mount_y":
-			s.rear_mount_y = value
-			s.rebuild_wheel_positions()
-		"rear_track":
-			s.rear_track = value
-			s.rebuild_wheel_positions()
-		"rear_wheel_radius":
-			s.rear_wheel_radius = value
-		"rear_wheel_width":
-			s.rear_wheel_width = value
-		"rear_mesh_scale":
-			s.rear_mesh_scale = value
 		"diff_preload":
 			s.diff_preload = value
 		"diff_power_lock":
@@ -409,6 +357,8 @@ func _apply_key(key: String, value: float) -> void:
 			s.locked_diff_stiffness = value
 		"awd_front_bias":
 			s.awd_front_bias = value
+		"wheel_inertia":
+			s.wheel_inertia = value
 		"front_rest_length":
 			s.front_rest_length = value
 			s.rest_length = value
@@ -567,4 +517,4 @@ func _on_reset() -> void:
 
 func _on_back() -> void:
 	await _run_save_with_progress()
-	get_tree().change_scene_to_file("res://assets/scenes/ui/main_menu.tscn")
+	get_tree().change_scene_to_file("res://assets/scenes/ui/settings_hub.tscn")

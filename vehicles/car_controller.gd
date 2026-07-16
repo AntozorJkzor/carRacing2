@@ -5,6 +5,8 @@ const _VehicleDiff = preload("res://vehicles/vehicle_diff.gd")
 const _TireModel = preload("res://vehicles/tire_model.gd")
 const _WheelSmokeScript = preload("res://vehicles/wheel_smoke.gd")
 const _PlayerDriverScript = preload("res://vehicles/player_driver.gd")
+const _CarLightsScript = preload("res://vehicles/car_lights.gd")
+const _ExhaustFlameScript = preload("res://vehicles/exhaust_flame.gd")
 
 ## Tuning resource assigned on the car pack scene (.tres). Scene is source of truth.
 @export var setup: CarSetup
@@ -18,6 +20,8 @@ const _PlayerDriverScript = preload("res://vehicles/player_driver.gd")
 @export var clearance: float = 0.0
 ## When false, reverse gear is disabled (endless-road / arcade modes).
 @export var allow_reverse: bool = true
+
+signal gear_shifted(from_gear: int, to_gear: int)
 
 ## Driver inputs. Set these from gameplay code each frame.
 ## throttle / brake / handbrake: 0..1, steering: -1..1 (negative = left).
@@ -131,6 +135,8 @@ func _apply_pack_assets() -> void:
 					engine_audio.call("apply_banks", user_banks)
 	_ensure_wheel_smoke()
 	_ensure_player_driver()
+	_ensure_car_lights()
+	_ensure_exhaust_flame()
 
 
 func _ensure_wheel_smoke() -> void:
@@ -151,6 +157,24 @@ func _ensure_player_driver() -> void:
 	driver.name = "PlayerDriver"
 	driver.set_script(_PlayerDriverScript)
 	add_child(driver)
+
+
+func _ensure_car_lights() -> void:
+	if get_node_or_null("CarLights") != null:
+		return
+	var lights := Node3D.new()
+	lights.name = "CarLights"
+	lights.set_script(_CarLightsScript)
+	add_child(lights)
+
+
+func _ensure_exhaust_flame() -> void:
+	if get_node_or_null("ExhaustFlame") != null:
+		return
+	var fx := Node3D.new()
+	fx.name = "ExhaustFlame"
+	fx.set_script(_ExhaustFlameScript)
+	add_child(fx)
 
 
 func set_occupied(value: bool, who: Node = null) -> void:
@@ -307,8 +331,9 @@ func shift_up() -> void:
 		return
 	var max_gear := setup.get_forward_gear_count()
 	if current_gear < max_gear:
+		var from_gear := current_gear
 		current_gear += 1
-		_begin_shift()
+		_begin_shift(from_gear, current_gear)
 		if automatic:
 			_auto_shift_cooldown = 0.7
 
@@ -318,16 +343,18 @@ func shift_down() -> void:
 		return
 	var min_gear := -1 if allow_reverse else 1
 	if current_gear > min_gear:
+		var from_gear := current_gear
 		current_gear -= 1
-		_begin_shift()
+		_begin_shift(from_gear, current_gear)
 		if automatic:
 			_auto_shift_cooldown = 0.55
 
 
-func _begin_shift() -> void:
+func _begin_shift(from_gear: int, to_gear: int) -> void:
 	_shift_timer = setup.shift_time
 	clutch = 0.0
 	_clutch_engage_timer = setup.clutch_engage_time
+	gear_shifted.emit(from_gear, to_gear)
 
 
 func toggle_transmission() -> void:
@@ -496,8 +523,9 @@ func _auto_set_gear(gear: int) -> void:
 		target = 1
 	if target == current_gear:
 		return
+	var from_gear := current_gear
 	current_gear = target
-	_begin_shift()
+	_begin_shift(from_gear, current_gear)
 
 
 func set_gear(gear: int) -> void:
@@ -505,8 +533,12 @@ func set_gear(gear: int) -> void:
 		return
 	var max_gear := setup.get_forward_gear_count()
 	var min_gear := -1 if allow_reverse else 1
-	current_gear = clampi(gear, min_gear, max_gear)
-	_begin_shift()
+	var target := clampi(gear, min_gear, max_gear)
+	if target == current_gear:
+		return
+	var from_gear := current_gear
+	current_gear = target
+	_begin_shift(from_gear, current_gear)
 
 
 func get_speed_ms() -> float:

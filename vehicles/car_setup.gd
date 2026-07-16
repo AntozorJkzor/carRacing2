@@ -97,8 +97,15 @@ enum EngineLayout { INLINE, V, BOXER }
 @export var front_mount_y: float = 0.4
 ## Track width (full left↔right, meters).
 @export var front_track: float = 1.5
-@export var front_wheel_radius: float = 0.22
-@export var front_wheel_width: float = 0.22
+## Rim diameter in inches (e.g. 14 for R14).
+@export_range(10.0, 22.0, 0.5) var front_rim_inches: float = 14.0
+## Tire section width in mm (e.g. 205).
+@export_range(125.0, 355.0, 5.0) var front_tire_width_mm: float = 205.0
+## Aspect ratio / profile height % (e.g. 70 for 205/70).
+@export_range(25.0, 85.0, 5.0) var front_tire_aspect: float = 70.0
+## Overall tire radius (m) — usually from rim + width + aspect.
+@export var front_wheel_radius: float = 0.321
+@export var front_wheel_width: float = 0.205
 ## Visual mesh scale for front tires.
 @export var front_mesh_scale: float = 2.875
 
@@ -106,8 +113,11 @@ enum EngineLayout { INLINE, V, BOXER }
 @export var rear_axle_z: float = 1.25
 @export var rear_mount_y: float = 0.4
 @export var rear_track: float = 1.5
-@export var rear_wheel_radius: float = 0.22
-@export var rear_wheel_width: float = 0.22
+@export_range(10.0, 22.0, 0.5) var rear_rim_inches: float = 14.0
+@export_range(125.0, 355.0, 5.0) var rear_tire_width_mm: float = 205.0
+@export_range(25.0, 85.0, 5.0) var rear_tire_aspect: float = 70.0
+@export var rear_wheel_radius: float = 0.321
+@export var rear_wheel_width: float = 0.205
 @export var rear_mesh_scale: float = 2.875
 
 @export_group("Suspension Front")
@@ -365,6 +375,28 @@ func get_wheel_width(index: int) -> float:
 
 func get_mesh_scale(index: int) -> float:
 	return front_mesh_scale if is_front_wheel(index) else rear_mesh_scale
+
+
+## Overall tire radius from ISO size: width_mm / aspect% R rim_inches.
+static func tire_radius_from_iso(rim_inches: float, width_mm: float, aspect_pct: float) -> float:
+	return rim_inches * 0.0127 + width_mm * aspect_pct * 0.00001
+
+
+static func tire_width_from_iso(width_mm: float) -> float:
+	return width_mm * 0.001
+
+
+static func tire_size_label(rim_inches: float, width_mm: float, aspect_pct: float) -> String:
+	return "%d/%d R%.0f" % [int(round(width_mm)), int(round(aspect_pct)), rim_inches]
+
+
+func apply_tire_iso_to_radii() -> void:
+	front_wheel_radius = tire_radius_from_iso(front_rim_inches, front_tire_width_mm, front_tire_aspect)
+	rear_wheel_radius = tire_radius_from_iso(rear_rim_inches, rear_tire_width_mm, rear_tire_aspect)
+	front_wheel_width = tire_width_from_iso(front_tire_width_mm)
+	rear_wheel_width = tire_width_from_iso(rear_tire_width_mm)
+	wheel_radius = front_wheel_radius
+	wheel_width = front_wheel_width
 
 
 func get_forward_gear_count() -> int:

@@ -2,7 +2,14 @@ extends Node3D
 
 
 func _ready() -> void:
+	GraphicsConfig.load_from_disk()
+	# After scene nodes (WorldEnvironment / Sun) are ready.
+	call_deferred("_apply_graphics")
 	GameAudio.restart_music()
+
+
+func _apply_graphics() -> void:
+	GraphicsConfig.apply_all(get_tree())
 
 
 func _unhandled_input(event: InputEvent) -> void:

@@ -91,9 +91,19 @@ func apply_overrides_to_car(car: Node) -> void:
 		if car_id == &"volga" and cfg.load(LEGACY_SAVE_PATH) == OK:
 			_apply_physics_cfg(target_setup, cfg)
 			_apply_clearance_cfg(car, cfg)
+		_restore_pack_axle_layout(car_id, target_setup)
 		return
 	_apply_physics_cfg(target_setup, cfg)
 	_apply_clearance_cfg(car, cfg)
+	_restore_pack_axle_layout(car_id, target_setup)
+
+
+func _restore_pack_axle_layout(car_id: StringName, target: CarSetup) -> void:
+	var pack := load(_pack_setup_path(car_id)) as CarSetup
+	if pack == null or target == null:
+		return
+	_copy_axle_layout(pack, target)
+	target.rebuild_wheel_positions()
 
 
 func _apply_clearance_cfg(car: Node, cfg: ConfigFile) -> void:
@@ -119,6 +129,7 @@ func apply_clearance_to_cars() -> void:
 func _push_working_to_live_cars() -> void:
 	if not is_inside_tree() or setup == null:
 		return
+	var pack := load(_pack_setup_path(active_car_id)) as CarSetup
 	for node in get_tree().get_nodes_in_group("player_cars"):
 		if String(node.get("car_id")) != String(active_car_id):
 			continue
@@ -126,19 +137,11 @@ func _push_working_to_live_cars() -> void:
 		if live == null:
 			continue
 		var copy := setup.duplicate(true) as CarSetup
-		# Keep editor axle layout from the live car (track pack .tres).
-		copy.front_axle_z = live.front_axle_z
-		copy.front_mount_y = live.front_mount_y
-		copy.front_track = live.front_track
-		copy.front_wheel_radius = live.front_wheel_radius
-		copy.front_wheel_width = live.front_wheel_width
-		copy.front_mesh_scale = live.front_mesh_scale
-		copy.rear_axle_z = live.rear_axle_z
-		copy.rear_mount_y = live.rear_mount_y
-		copy.rear_track = live.rear_track
-		copy.rear_wheel_radius = live.rear_wheel_radius
-		copy.rear_wheel_width = live.rear_wheel_width
-		copy.rear_mesh_scale = live.rear_mesh_scale
+		# Geometry is pack-owned (WheelLayout / .tres) — never override from game settings.
+		if pack != null:
+			_copy_axle_layout(pack, copy)
+		else:
+			_copy_axle_layout(live, copy)
 		copy.ensure_torque_curve()
 		copy.ensure_steer_angle_curve()
 		copy.migrate_legacy_fields()
@@ -150,6 +153,33 @@ func _push_working_to_live_cars() -> void:
 		node.set("clearance", clearance)
 		if node.has_method("refresh_visual_tuning"):
 			node.call("refresh_visual_tuning")
+
+
+## Axle geometry + tire ISO size — authored in editor WheelLayout / pack .tres only.
+func _copy_axle_layout(from_setup: CarSetup, to_setup: CarSetup) -> void:
+	if from_setup == null or to_setup == null:
+		return
+	to_setup.front_axle_z = from_setup.front_axle_z
+	to_setup.front_mount_y = from_setup.front_mount_y
+	to_setup.front_track = from_setup.front_track
+	to_setup.front_rim_inches = from_setup.front_rim_inches
+	to_setup.front_tire_width_mm = from_setup.front_tire_width_mm
+	to_setup.front_tire_aspect = from_setup.front_tire_aspect
+	to_setup.front_wheel_radius = from_setup.front_wheel_radius
+	to_setup.front_wheel_width = from_setup.front_wheel_width
+	to_setup.front_mesh_scale = from_setup.front_mesh_scale
+	to_setup.rear_axle_z = from_setup.rear_axle_z
+	to_setup.rear_mount_y = from_setup.rear_mount_y
+	to_setup.rear_track = from_setup.rear_track
+	to_setup.rear_rim_inches = from_setup.rear_rim_inches
+	to_setup.rear_tire_width_mm = from_setup.rear_tire_width_mm
+	to_setup.rear_tire_aspect = from_setup.rear_tire_aspect
+	to_setup.rear_wheel_radius = from_setup.rear_wheel_radius
+	to_setup.rear_wheel_width = from_setup.rear_wheel_width
+	to_setup.rear_mesh_scale = from_setup.rear_mesh_scale
+	to_setup.wheel_radius = from_setup.front_wheel_radius
+	to_setup.wheel_width = from_setup.front_wheel_width
+	to_setup.wheel_positions = from_setup.wheel_positions.duplicate()
 
 
 func save_to_disk() -> Dictionary:
@@ -214,23 +244,8 @@ func _write_config_to_disk() -> void:
 	for i in setup.gear_ratios.size():
 		cfg.set_value("drivetrain", "gear_%d" % (i + 1), setup.gear_ratios[i])
 
-	# Axle layout + inertia. Corner mounts are rebuilt from axles.
+	# Wheel inertia only — axle geometry / tire ISO live in pack WheelLayout.
 	cfg.set_value("wheels", "wheel_inertia", setup.wheel_inertia)
-	cfg.set_value("wheels", "front_axle_z", setup.front_axle_z)
-	cfg.set_value("wheels", "front_mount_y", setup.front_mount_y)
-	cfg.set_value("wheels", "front_track", setup.front_track)
-	cfg.set_value("wheels", "front_wheel_radius", setup.front_wheel_radius)
-	cfg.set_value("wheels", "front_wheel_width", setup.front_wheel_width)
-	cfg.set_value("wheels", "front_mesh_scale", setup.front_mesh_scale)
-	cfg.set_value("wheels", "rear_axle_z", setup.rear_axle_z)
-	cfg.set_value("wheels", "rear_mount_y", setup.rear_mount_y)
-	cfg.set_value("wheels", "rear_track", setup.rear_track)
-	cfg.set_value("wheels", "rear_wheel_radius", setup.rear_wheel_radius)
-	cfg.set_value("wheels", "rear_wheel_width", setup.rear_wheel_width)
-	cfg.set_value("wheels", "rear_mesh_scale", setup.rear_mesh_scale)
-	# Legacy keys still written for older readers.
-	cfg.set_value("wheels", "wheel_radius", setup.front_wheel_radius)
-	cfg.set_value("wheels", "wheel_width", setup.front_wheel_width)
 
 	cfg.set_value("suspension", "front_rest_length", setup.front_rest_length)
 	cfg.set_value("suspension", "rear_rest_length", setup.rear_rest_length)
@@ -455,9 +470,11 @@ func load_from_disk() -> void:
 				var old_model := float(cfg.get_value("visual", "model_y_offset", -0.082))
 				var old_col := float(cfg.get_value("visual", "collision_y", 0.456))
 				clearance = 0.5 * ((old_model - (-0.082)) + (old_col - 0.456))
+		_restore_pack_axle_layout(active_car_id, setup)
 		return
 	_apply_physics_cfg(setup, cfg)
 	clearance = float(cfg.get_value("visual", "clearance", clearance))
+	_restore_pack_axle_layout(active_car_id, setup)
 
 
 func _apply_engine_sound_cfg(target: CarSetup, cfg: ConfigFile) -> void:
@@ -559,24 +576,8 @@ func _apply_physics_cfg(target: CarSetup, cfg: ConfigFile) -> void:
 		gears.append(float(cfg.get_value("drivetrain", "gear_%d" % (i + 1), default_g)))
 	target.gear_ratios = gears
 
+	# Layout geometry is pack-owned — ignore any legacy keys in user://tuning_*.cfg.
 	target.wheel_inertia = float(cfg.get_value("wheels", "wheel_inertia", target.wheel_inertia))
-	var legacy_radius := float(cfg.get_value("wheels", "wheel_radius", target.wheel_radius))
-	var legacy_width := float(cfg.get_value("wheels", "wheel_width", target.wheel_width))
-	target.front_axle_z = float(cfg.get_value("wheels", "front_axle_z", target.front_axle_z))
-	target.front_mount_y = float(cfg.get_value("wheels", "front_mount_y", target.front_mount_y))
-	target.front_track = float(cfg.get_value("wheels", "front_track", target.front_track))
-	target.front_wheel_radius = float(cfg.get_value("wheels", "front_wheel_radius", legacy_radius))
-	target.front_wheel_width = float(cfg.get_value("wheels", "front_wheel_width", legacy_width))
-	target.front_mesh_scale = float(cfg.get_value("wheels", "front_mesh_scale", target.front_mesh_scale))
-	target.rear_axle_z = float(cfg.get_value("wheels", "rear_axle_z", target.rear_axle_z))
-	target.rear_mount_y = float(cfg.get_value("wheels", "rear_mount_y", target.rear_mount_y))
-	target.rear_track = float(cfg.get_value("wheels", "rear_track", target.rear_track))
-	target.rear_wheel_radius = float(cfg.get_value("wheels", "rear_wheel_radius", legacy_radius))
-	target.rear_wheel_width = float(cfg.get_value("wheels", "rear_wheel_width", legacy_width))
-	target.rear_mesh_scale = float(cfg.get_value("wheels", "rear_mesh_scale", target.rear_mesh_scale))
-	target.wheel_radius = target.front_wheel_radius
-	target.wheel_width = target.front_wheel_width
-	target.rebuild_wheel_positions()
 
 	var legacy_rest := float(cfg.get_value("suspension", "rest_length", target.rest_length))
 	var legacy_travel := float(cfg.get_value("suspension", "travel", target.travel))
