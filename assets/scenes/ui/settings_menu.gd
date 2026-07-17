@@ -143,6 +143,9 @@ func _rebuild_ui() -> void:
 	_add_section("Руль")
 	_add_slider("max_steer_angle", "Макс. угол руля (стойка)", 10.0, 45.0, 0.5, TuningStore.setup.max_steer_angle)
 	_add_slider("steer_speed", "Скорость отклика руля", 0.3, 6.0, 0.05, TuningStore.setup.steer_speed)
+	_add_slider("steer_curve_max_kmh", "Мягкий лок: скорость полной урезки (км/ч)", 60.0, 260.0, 5.0, TuningStore.setup.steer_curve_max_kmh)
+	_add_slider("steer_high_speed_factor", "Отклик на скорости (меньше=спокойнее)", 0.15, 1.0, 0.05, TuningStore.setup.steer_high_speed_factor)
+	_add_slider("steer_input_gamma", "Точность у центра (gamma)", 1.0, 2.5, 0.05, TuningStore.setup.steer_input_gamma)
 	_add_slider("drift_assist", "Помощь дрифта (0=симулятор)", 0.0, 2.0, 0.05, TuningStore.setup.drift_assist)
 
 
@@ -428,6 +431,12 @@ func _apply_key(key: String, value: float) -> void:
 			s.max_steer_angle = value
 		"steer_speed":
 			s.steer_speed = value
+		"steer_curve_max_kmh":
+			s.steer_curve_max_kmh = value
+		"steer_high_speed_factor":
+			s.steer_high_speed_factor = value
+		"steer_input_gamma":
+			s.steer_input_gamma = value
 		"drift_assist":
 			s.drift_assist = value
 		_:

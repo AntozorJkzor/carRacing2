@@ -8,6 +8,9 @@
 [ext_resource type="Script" uid="uid://dkgl45y64oxb1" path="res://assets/scenes/tracks/hud.gd" id="6_hud"]
 [ext_resource type="PackedScene" uid="uid://dy2dmlkpk6eqq" path="res://assets/scenes/characters/player.tscn" id="7_player"]
 [ext_resource type="PackedScene" uid="uid://cp2b6m7dnrk2s" path="res://assets/scenes/cars/golf/golf.tscn" id="8_nc687"]
+[ext_resource type="Script" uid="uid://dqjvsw6cml4bd" path="res://assets/scenes/tracks/minimap.gd" id="9_minimap"]
+[ext_resource type="Script" uid="uid://bhgb7mbvcyyk7" path="res://assets/scenes/tracks/minimap_camera.gd" id="10_minimap_cam"]
+[ext_resource type="Script" uid="uid://dfoj1vbwvwfkh" path="res://assets/scenes/tracks/minimap_marker.gd" id="11_minimap_marker"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_sky"]
 sky_top_color = Color(0.4, 0.62, 0.9, 1)
@@ -41,6 +44,24 @@ size = Vector2(500, 500)
 [sub_resource type="BoxShape3D" id="BoxShape3D_ground"]
 size = Vector3(500, 1, 500)
 
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_minimap"]
+bg_color = Color(0.05, 0.06, 0.08, 0.75)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.2, 0.24, 0.3, 0.9)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="Environment" id="Environment_minimap"]
+background_mode = 1
+background_color = Color(0.12, 0.14, 0.16, 1)
+ambient_light_source = 2
+ambient_light_color = Color(1, 1, 1, 1)
+
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
 content_margin_left = 14.0
 content_margin_top = 10.0
@@ -61,6 +82,8 @@ environment = SubResource("Environment_main")
 [node name="Sun" type="DirectionalLight3D" parent="." unique_id=402990280]
 transform = Transform3D(0.8, -0.4, 0.45, 0, 0.75, 0.66, -0.6, -0.53, 0.6, 40, 60, 20)
 shadow_enabled = true
+shadow_bias = 0.2
+shadow_normal_bias = 4.0
 directional_shadow_max_distance = 400.0
 
 [node name="Ground" type="StaticBody3D" parent="." unique_id=928915321]
@@ -91,13 +114,54 @@ fov = 72.0
 far = 800.0
 script = ExtResource("5_cam")
 target_path = NodePath("../Car")
-follow_distance = 7.0
-follow_height = 2.2
-look_height = 0.9
 
 [node name="HUD" type="CanvasLayer" parent="." unique_id=796749115]
 script = ExtResource("6_hud")
 car_path = NodePath("../Car")
+
+[node name="Minimap" type="PanelContainer" parent="HUD" unique_id=106528464]
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 16.0
+offset_top = -196.0
+offset_right = 196.0
+offset_bottom = -16.0
+grow_vertical = 0
+theme_override_styles/panel = SubResource("StyleBoxFlat_minimap")
+script = ExtResource("9_minimap")
+
+[node name="MapFrame" type="Control" parent="HUD/Minimap" unique_id=657941175]
+custom_minimum_size = Vector2(168, 168)
+layout_mode = 2
+
+[node name="SubViewportContainer" type="SubViewportContainer" parent="HUD/Minimap/MapFrame" unique_id=1063756793]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+stretch = true
+
+[node name="SubViewport" type="SubViewport" parent="HUD/Minimap/MapFrame/SubViewportContainer" unique_id=536814677]
+handle_input_locally = false
+size = Vector2i(176, 176)
+render_target_update_mode = 4
+
+[node name="MinimapCamera" type="Camera3D" parent="HUD/Minimap/MapFrame/SubViewportContainer/SubViewport" unique_id=1802095230]
+environment = SubResource("Environment_minimap")
+script = ExtResource("10_minimap_cam")
+
+[node name="MarkerOverlay" type="Control" parent="HUD/Minimap/MapFrame" unique_id=1147700976]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("11_minimap_marker")
 
 [node name="Telemetry" type="PanelContainer" parent="HUD" unique_id=88405296]
 anchors_preset = 1
@@ -151,9 +215,9 @@ text = "1"
 anchors_preset = 2
 anchor_top = 1.0
 anchor_bottom = 1.0
-offset_left = 16.0
+offset_left = 208.0
 offset_top = -72.0
-offset_right = 480.0
+offset_right = 672.0
 offset_bottom = -16.0
 grow_vertical = 0
 theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
@@ -162,7 +226,7 @@ theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
 layout_mode = 2
 theme_override_colors/font_color = Color(0.9, 0.92, 0.95, 1)
 theme_override_font_sizes/font_size = 14
-text = "WASD ходьба  Shift бег  Space прыжок  E сесть/выйти  в машине: P T F3  Esc меню"
+text = "WASD ходьба  Shift бег  Space прыжок  E сесть/выйти  в машине: P T  карта +/-  F3  Esc меню"
 
 [node name="Car2" parent="." unique_id=2002535293 instance=ExtResource("8_nc687")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.7750435, 1.8040769, 0)

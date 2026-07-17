@@ -67,6 +67,7 @@ var debug_yaw_assist_nm: float = 0.0
 
 var _wheels: Array[Wheel] = []
 var _current_steer: float = 0.0
+var _steer_lock_smooth: float = 1.0
 ## Filtered throttle used by engine/clutch (pedal input stays in `throttle`).
 var _throttle_cmd: float = 0.0
 var _shift_timer: float = 0.0
@@ -205,6 +206,7 @@ func reset_to_spawn() -> void:
 	handbrake = 0.0
 	steering = 0.0
 	_current_steer = 0.0
+	_steer_lock_smooth = 1.0
 	_throttle_cmd = 0.0
 	current_gear = 1
 	engine_rpm = setup.idle_rpm if setup else 800.0
@@ -616,11 +618,70 @@ func _update_throttle_response(delta: float) -> void:
 
 
 func _update_steering(delta: float) -> void:
-	## Full lock at any speed — needed to catch a slide with opposite lock.
-	var target := steering * deg_to_rad(setup.max_steer_angle)
-	_current_steer = move_toward(_current_steer, target, setup.steer_speed * delta)
+	## Soft-lock + rate damping, with asymmetric counter-steer:
+	## catch an opening slide quickly, but bleed authority as yaw recovers
+	## so FWD (and RWD) don't pendulum into the opposite slide.
+	var speed_ms := Vector3(linear_velocity.x, 0.0, linear_velocity.z).length()
+	var base_lock := setup.sample_steer_lock_factor(speed_ms)
+	var lock_desired := base_lock
+
+	var forward := -global_transform.basis.z
+	var right := global_transform.basis.x
+	var up := global_transform.basis.y
+	var v_long := linear_velocity.dot(forward)
+	var v_lat := linear_velocity.dot(right)
+	var beta := atan2(v_lat, maxf(absf(v_long), 0.8))
+	var yaw_rate := angular_velocity.dot(up)
+	var slip_enter := deg_to_rad(setup.counter_steer_slip_deg)
+	var abs_beta := absf(beta)
+	var countering := (
+		abs_beta > slip_enter
+		and steering * beta < 0.0
+		and absf(steering) > 0.05
+	)
+	## Opening = slip growing; closing = yaw bringing the nose back.
+	var closing := yaw_rate * beta < -0.05
+	var opening := yaw_rate * beta > 0.05
+
+	if countering:
+		var slip_t := clampf((abs_beta - slip_enter) / deg_to_rad(22.0), 0.0, 1.0)
+		if closing:
+			# Bleed catch authority as soon as the car starts to recover.
+			var close_strength := clampf(absf(yaw_rate) / 1.35, 0.0, 1.0)
+			slip_t *= lerpf(0.85, 0.15, close_strength)
+		var boost_lock := clampf(setup.counter_steer_lock_max, base_lock, 1.0)
+		lock_desired = lerpf(base_lock, boost_lock, slip_t)
+
+	var lock_w := clampf(setup.steer_lock_smooth * delta, 0.0, 1.0)
+	# Rise slower than fall — easy to catch, quick to release.
+	if lock_desired < _steer_lock_smooth:
+		lock_w = clampf(setup.steer_lock_smooth * 1.8 * delta, 0.0, 1.0)
+	_steer_lock_smooth = lerpf(_steer_lock_smooth, lock_desired, lock_w)
+	var lock_f := _steer_lock_smooth
+
+	var raw := clampf(steering, -1.0, 1.0)
+	var gamma := maxf(setup.steer_input_gamma, 1.0)
+	var shaped := signf(raw) * pow(absf(raw), gamma)
+
+	var max_angle := deg_to_rad(setup.max_steer_angle) * lock_f
+	var target := shaped * max_angle
+
+	var rate_t := clampf(speed_ms / maxf(setup.steer_speed_ref, 1.0), 0.0, 1.0)
+	var rate_f := lerpf(1.0, setup.steer_high_speed_factor, rate_t)
+	var increasing := absf(target) > absf(_current_steer) + 0.002
+	if countering and opening:
+		rate_f = maxf(rate_f, setup.counter_steer_rate_mult)
+	elif countering and closing and increasing:
+		# Still holding opposite lock while recovering — don't add more angle.
+		rate_f *= setup.counter_steer_recover_rate
+	elif countering and closing and not increasing:
+		# Unwind toward center / reduced target quickly.
+		rate_f = maxf(rate_f, setup.counter_steer_rate_mult * 1.15)
+	var rate := maxf(setup.steer_speed, 0.1) * rate_f
+
+	_current_steer = move_toward(_current_steer, target, rate * delta)
 	debug_steer_rad = _current_steer
-	debug_steer_lock = 1.0
+	debug_steer_lock = lock_f
 	debug_steer_target = target
 	for wheel in _wheels:
 		wheel.steer_angle = _current_steer if wheel.is_steering else 0.0
@@ -1103,22 +1164,27 @@ func _apply_yaw_stability(force_scale: float) -> void:
 
 	var t_drift := clampf((abs_beta - enter) / maxf(hold - enter, 0.001), 0.0, 1.0)
 	var damp := BASE_DAMP_DRIFT * assist * t_drift * lerpf(0.4, 1.0, thr)
+	var restore := 0.0
 
 	var opening := yaw_rate * beta > 0.0
 	if opening:
 		damp *= 1.35
 	else:
-		damp *= 0.55
+		# Closing the slide: hold harder so FWD front bite doesn't pendulum.
+		damp *= 1.15
 
 	var steer_into := _current_steer * beta > 0.0 and absf(steering) > 0.25
 	if steer_into and thr > 0.15:
 		damp *= 0.65
+	var countering := _current_steer * beta < 0.0 and absf(steering) > 0.15
+	if countering and not opening:
+		damp *= 1.25
+		restore += BASE_BETA_RESTORE * assist * 0.35 * t_drift
 
-	var restore := 0.0
 	if abs_beta > hold:
 		var t_spin := clampf((abs_beta - hold) / maxf(spin - hold, 0.001), 0.0, 1.0)
 		damp += BASE_DAMP_SPIN * assist * t_spin
-		restore = BASE_BETA_RESTORE * assist * t_spin
+		restore += BASE_BETA_RESTORE * assist * t_spin
 
 	var max_tq := BASE_MAX_TORQUE * assist
 	var torque_nm := -damp * yaw_rate - restore * beta

@@ -16,7 +16,7 @@
 [ext_resource type="Script" uid="uid://bnrlcsj4dtctx" path="res://vehicles/exhaust_flame.gd" id="17_exhaust"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_body"]
-size = Vector3(1.9499092, 1.1821076, 4.449256)
+size = Vector3(1.9499092, 1.2712295, 4.449256)
 
 [node name="Car" type="RigidBody3D" unique_id=1895402657]
 collision_mask = 5
@@ -31,11 +31,11 @@ wheel_scene = ExtResource("13_wheelmesh")
 audio_profile = ExtResource("6_audio")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1595122183]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.010225296, 0.8136699, -0.008579433)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.010225296, 0.8582309, -0.008579433)
 shape = SubResource("BoxShape3D_body")
 
 [node name="Model" parent="." unique_id=1120378103 instance=ExtResource("3_model")]
-transform = Transform3D(4.5, 0, 0, 0, 4.5, 0, 0, 0, 4.5, 0.00033056736, -0.08225283, -0.006801367)
+transform = Transform3D(4.5, 0, 0, 0, 4.5, 0, 0, 0, 4.5, 0.00033056736, 0.06979111, -0.006801367)
 
 [node name="EngineAudio" type="Node3D" parent="." unique_id=530712626]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.4, 0.6)

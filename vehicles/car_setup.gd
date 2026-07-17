@@ -181,15 +181,30 @@ enum EngineLayout { INLINE, V, BOXER }
 @export var air_density: float = 1.225
 
 @export_group("Steering")
-## Absolute max road-wheel steer angle (degrees) — full lock at any speed (needed for counter-steer).
+## Absolute max road-wheel steer angle at low speed (degrees).
 @export var max_steer_angle: float = 32.0
-## How fast the road wheels follow the input target (rad/s).
+## How fast the road wheels follow the input target at low speed (rad/s).
 @export var steer_speed: float = 2.4
-## Legacy unused — kept so old .tres / tuning cfg still load.
+## Speed at which steer_angle_curve reaches X=1 (km/h).
 @export var steer_curve_max_kmh: float = 140.0
+## X = speed / steer_curve_max_kmh, Y = max-steer multiplier (NWH / arcade soft-lock).
 @export var steer_angle_curve: Curve
-@export var steer_speed_ref: float = 14.0
-@export_range(0.2, 1.0) var steer_high_speed_factor: float = 1.0
+## Speed (m/s) where high-speed steer rate fully applies.
+@export var steer_speed_ref: float = 22.0
+## Steer rate multiplier at steer_speed_ref+ (keyboard / gamepad damping).
+@export_range(0.15, 1.0, 0.05) var steer_high_speed_factor: float = 0.35
+## Input gamma >1 = more precise near center (Assetto Corsa-style).
+@export_range(1.0, 2.5, 0.05) var steer_input_gamma: float = 1.35
+## Body slip (deg) above which opposite steering gets faster catch rate.
+@export_range(3.0, 25.0, 0.5) var counter_steer_slip_deg: float = 7.0
+## Max soft-lock fraction while counter-steering (1 = full rack). Cap prevents FWD snap.
+@export_range(0.35, 1.0, 0.05) var counter_steer_lock_max: float = 0.58
+## Extra rate multiplier while catching an opening slide (steer into recovery).
+@export_range(1.0, 4.0, 0.1) var counter_steer_rate_mult: float = 1.85
+## Rate scale when slip is already closing but player still holds opposite lock.
+@export_range(0.15, 1.0, 0.05) var counter_steer_recover_rate: float = 0.32
+## How fast steer_lock may rise/fall (1/s). Stops one-frame lock jumps.
+@export_range(1.0, 20.0, 0.5) var steer_lock_smooth: float = 6.0
 
 @export_group("Throttle response")
 ## How fast throttle command rises toward pedal (1/s). Lower = softer throttle onset.
@@ -430,19 +445,21 @@ func ensure_steer_angle_curve() -> void:
 	if steer_angle_curve != null and steer_angle_curve.get_point_count() > 0:
 		return
 	steer_angle_curve = Curve.new()
-	# Stronger high-speed cut: ~40% at 50 km/h, ~25% at 70 if max=140.
+	# Soft-lock vs normalized speed (0 = standstill, 1 = steer_curve_max_kmh).
+	# Low speed: full rack. Highway: ~12–15% lock so keyboard doesn't spin the car.
 	steer_angle_curve.add_point(Vector2(0.0, 1.0))
-	steer_angle_curve.add_point(Vector2(0.2, 0.68))
-	steer_angle_curve.add_point(Vector2(0.36, 0.40))
-	steer_angle_curve.add_point(Vector2(0.5, 0.28))
-	steer_angle_curve.add_point(Vector2(0.75, 0.18))
-	steer_angle_curve.add_point(Vector2(1.0, 0.14))
+	steer_angle_curve.add_point(Vector2(0.18, 0.72))
+	steer_angle_curve.add_point(Vector2(0.32, 0.42))
+	steer_angle_curve.add_point(Vector2(0.48, 0.26))
+	steer_angle_curve.add_point(Vector2(0.7, 0.16))
+	steer_angle_curve.add_point(Vector2(1.0, 0.12))
 
 
-func sample_steer_lock_factor(_speed_ms: float) -> float:
-	## Always full lock — limiting by speed blocks counter-steer in a slide.
-	## Soft throttle response is used instead (see throttle_rise_rate).
-	return 1.0
+func sample_steer_lock_factor(speed_ms: float) -> float:
+	ensure_steer_angle_curve()
+	var max_kmh := maxf(steer_curve_max_kmh, 40.0)
+	var t := clampf((speed_ms * 3.6) / max_kmh, 0.0, 1.0)
+	return clampf(steer_angle_curve.sample(t), 0.08, 1.0)
 
 
 func sample_torque_multiplier(rpm: float) -> float:

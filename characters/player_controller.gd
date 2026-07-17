@@ -191,6 +191,7 @@ func set_on_foot(enabled: bool) -> void:
 		_camera.current = true
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 		_current_car = null
+		_rebind_minimap()
 		if _anim and _anim_idle != "":
 			_anim.play(_anim_idle, anim_blend)
 		elif _anim and _anim_run != "":
@@ -268,3 +269,12 @@ func exit_car() -> void:
 	if away.length_squared() > 0.01:
 		look_at(global_position + away.normalized(), Vector3.UP)
 	set_on_foot(true)
+
+
+func _rebind_minimap() -> void:
+	if not is_inside_tree():
+		return
+	for hud in get_tree().get_nodes_in_group("car_huds"):
+		var minimap := hud.get_node_or_null("Minimap")
+		if minimap != null and minimap.has_method("bind_target"):
+			minimap.bind_target(self)

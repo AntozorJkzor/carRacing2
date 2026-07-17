@@ -560,6 +560,10 @@ static func load_user(car_id: StringName) -> Dictionary:
 	return load_dir(user_bake_dir(car_id))
 
 
+static func has_user_bake(car_id: StringName) -> bool:
+	return not load_user(car_id).is_empty()
+
+
 ## Legacy live EngineSoundStream mapping (optional debug path).
 static func apply_setup_to_native(native: Object, setup: Resource) -> void:
 	if native == null or setup == null:

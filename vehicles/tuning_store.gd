@@ -284,6 +284,12 @@ func _write_config_to_disk() -> void:
 	cfg.set_value("steering", "steer_curve_max_kmh", setup.steer_curve_max_kmh)
 	cfg.set_value("steering", "steer_speed_ref", setup.steer_speed_ref)
 	cfg.set_value("steering", "steer_high_speed_factor", setup.steer_high_speed_factor)
+	cfg.set_value("steering", "steer_input_gamma", setup.steer_input_gamma)
+	cfg.set_value("steering", "counter_steer_slip_deg", setup.counter_steer_slip_deg)
+	cfg.set_value("steering", "counter_steer_lock_max", setup.counter_steer_lock_max)
+	cfg.set_value("steering", "counter_steer_rate_mult", setup.counter_steer_rate_mult)
+	cfg.set_value("steering", "counter_steer_recover_rate", setup.counter_steer_recover_rate)
+	cfg.set_value("steering", "steer_lock_smooth", setup.steer_lock_smooth)
 	cfg.set_value("throttle", "throttle_rise_rate", setup.throttle_rise_rate)
 	cfg.set_value("throttle", "throttle_fall_rate", setup.throttle_fall_rate)
 	cfg.set_value("assist", "drift_assist", setup.drift_assist)
@@ -407,29 +413,30 @@ func _bake_engine_legacy_incremental(duration_sec: float, fingerprint: String) -
 	return banks
 
 
-func _engine_sound_fingerprint() -> String:
-	if setup == null:
+func _engine_sound_fingerprint(setup_override: CarSetup = null) -> String:
+	var target := setup_override if setup_override != null else setup
+	if target == null:
 		return ""
 	# Bump BAKE_REV when native synth / mapping changes so caches rebuild.
 	const BAKE_REV := "enginesim6-limiter"
 	return "%s|%d|%.0f|%.0f|%.0f|%d|%.0f|%d|%.0f|%.0f|%.1f|%.2f|%.2f|%.2f|%.0f|%.0f|%.0f" % [
 		BAKE_REV,
-		setup.cylinders,
-		setup.displacement_cc,
-		setup.bore_mm,
-		setup.stroke_mm,
-		int(setup.engine_layout),
-		setup.bank_angle_deg,
-		setup.valves_per_cylinder,
-		setup.exhaust_length_mm,
-		setup.cam_duration_deg,
-		setup.cam_lift_mm,
-		setup.hf_gain,
-		setup.noise,
-		setup.jitter,
-		setup.idle_rpm,
-		setup.max_rpm,
-		setup.max_power_hp,
+		target.cylinders,
+		target.displacement_cc,
+		target.bore_mm,
+		target.stroke_mm,
+		int(target.engine_layout),
+		target.bank_angle_deg,
+		target.valves_per_cylinder,
+		target.exhaust_length_mm,
+		target.cam_duration_deg,
+		target.cam_lift_mm,
+		target.hf_gain,
+		target.noise,
+		target.jitter,
+		target.idle_rpm,
+		target.max_rpm,
+		target.max_power_hp,
 	]
 
 
@@ -442,6 +449,100 @@ func _apply_engine_banks_to_live_cars(banks: Dictionary) -> void:
 		var engine_audio: Node = node.get_node_or_null("EngineAudio")
 		if engine_audio != null and engine_audio.has_method("apply_banks"):
 			engine_audio.call("apply_banks", banks)
+
+
+func _refresh_all_car_engine_audio() -> void:
+	if not is_inside_tree():
+		return
+	for node in get_tree().get_nodes_in_group("player_cars"):
+		var car_id: StringName = node.get("car_id") as StringName
+		if car_id == StringName():
+			continue
+		var banks := EngineBankBaker.load_user(car_id)
+		if banks.is_empty():
+			continue
+		var engine_audio: Node = node.get_node_or_null("EngineAudio")
+		if engine_audio != null and engine_audio.has_method("apply_banks"):
+			engine_audio.call("apply_banks", banks)
+
+
+func _enumerate_bake_car_ids() -> Array[StringName]:
+	var ids: Array[StringName] = []
+	var seen := {}
+	if is_inside_tree():
+		for node in get_tree().get_nodes_in_group("player_cars"):
+			var car_id: StringName = node.get("car_id") as StringName
+			if car_id == StringName() or seen.has(car_id):
+				continue
+			seen[car_id] = true
+			ids.append(car_id)
+	if ids.is_empty() and catalog != null:
+		for car_id in catalog.all_ids():
+			if not seen.has(car_id):
+				ids.append(car_id)
+	return ids
+
+
+func _snapshot_car_setup(car_id: StringName) -> CarSetup:
+	var saved_active := active_car_id
+	_reset_working_from_pack(car_id)
+	load_from_disk()
+	var snap := setup.duplicate(true) as CarSetup
+	_reset_working_from_pack(saved_active)
+	load_from_disk()
+	return snap
+
+
+func _car_needs_engine_bake(car_id: StringName) -> bool:
+	if not EngineBankBaker.has_engine_sim():
+		return false
+	var snap := _snapshot_car_setup(car_id)
+	if snap == null:
+		return false
+	var fp := _engine_sound_fingerprint(snap)
+	if fp.is_empty():
+		return false
+	if EngineBankBaker.user_fingerprint(car_id) != fp:
+		return true
+	return not EngineBankBaker.has_user_bake(car_id)
+
+
+func _collect_cars_needing_bake() -> Array[StringName]:
+	var pending: Array[StringName] = []
+	for car_id in _enumerate_bake_car_ids():
+		if _car_needs_engine_bake(car_id):
+			pending.append(car_id)
+	return pending
+
+
+## First launch / missing user:// banks: bake every car on the track (or catalog).
+func ensure_engine_sounds_on_startup() -> Dictionary:
+	if not EngineBankBaker.has_engine_sim():
+		return {"skipped": true, "reason": "no_baker"}
+	if not is_inside_tree():
+		return {}
+	var pending := _collect_cars_needing_bake()
+	if pending.is_empty():
+		_refresh_all_car_engine_audio()
+		return {"baked": 0, "skipped": true}
+	var saved_active := active_car_id
+	var baked := 0
+	var total := pending.size()
+	for i in total:
+		var car_id := pending[i]
+		engine_bake_progress.emit(i, total, 0.0, "car|%s|start" % String(car_id))
+		await get_tree().process_frame
+		active_car_id = car_id
+		_reset_working_from_pack(car_id)
+		load_from_disk()
+		var result: Dictionary = await rebake_engine_sounds_async()
+		if not result.is_empty() and not bool(result.get("skipped", false)):
+			baked += 1
+	_refresh_all_car_engine_audio()
+	_reset_working_from_pack(saved_active)
+	load_from_disk()
+	engine_bake_progress.emit(total, total, 0.0, "done")
+	return {"baked": baked, "total": total}
 
 
 func _restore_pack_audio_on_live_cars() -> void:
@@ -628,7 +729,17 @@ func _apply_physics_cfg(target: CarSetup, cfg: ConfigFile) -> void:
 	target.steer_speed = float(cfg.get_value("steering", "steer_speed", target.steer_speed))
 	target.steer_curve_max_kmh = float(cfg.get_value("steering", "steer_curve_max_kmh", target.steer_curve_max_kmh))
 	target.steer_speed_ref = float(cfg.get_value("steering", "steer_speed_ref", target.steer_speed_ref))
-	target.steer_high_speed_factor = float(cfg.get_value("steering", "steer_high_speed_factor", target.steer_high_speed_factor))
+	var hs := float(cfg.get_value("steering", "steer_high_speed_factor", target.steer_high_speed_factor))
+	# Old saves kept 1.0 (= no rate damping) while soft-lock was disabled — migrate.
+	if is_equal_approx(hs, 1.0) and not cfg.has_section_key("steering", "steer_input_gamma"):
+		hs = 0.35
+	target.steer_high_speed_factor = hs
+	target.steer_input_gamma = float(cfg.get_value("steering", "steer_input_gamma", target.steer_input_gamma))
+	target.counter_steer_slip_deg = float(cfg.get_value("steering", "counter_steer_slip_deg", target.counter_steer_slip_deg))
+	target.counter_steer_lock_max = float(cfg.get_value("steering", "counter_steer_lock_max", target.counter_steer_lock_max))
+	target.counter_steer_rate_mult = float(cfg.get_value("steering", "counter_steer_rate_mult", target.counter_steer_rate_mult))
+	target.counter_steer_recover_rate = float(cfg.get_value("steering", "counter_steer_recover_rate", target.counter_steer_recover_rate))
+	target.steer_lock_smooth = float(cfg.get_value("steering", "steer_lock_smooth", target.steer_lock_smooth))
 	target.throttle_rise_rate = float(cfg.get_value("throttle", "throttle_rise_rate", target.throttle_rise_rate))
 	target.throttle_fall_rate = float(cfg.get_value("throttle", "throttle_fall_rate", target.throttle_fall_rate))
 	if cfg.has_section_key("assist", "drift_assist"):
