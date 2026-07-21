@@ -323,11 +323,14 @@ func rebake_engine_sounds(duration_sec: float = EngineBankBaker.DEFAULT_DURATION
 func rebake_engine_sounds_async(duration_sec: float = EngineBankBaker.DEFAULT_DURATION_SEC) -> Dictionary:
 	if setup == null:
 		return {}
+	## Fingerprint BEFORE any await — cars call TuningStore.bind_car_id() on ready/enter
+	## and would otherwise mutate setup mid-check, forcing a full rebake every launch.
+	var car_id := active_car_id
+	var fp := _engine_sound_fingerprint()
 	engine_bake_progress.emit(0, 1, 0.0, "check")
 	await get_tree().process_frame
-	var fp := _engine_sound_fingerprint()
-	if EngineBankBaker.user_fingerprint(active_car_id) == fp:
-		var cached := EngineBankBaker.load_user(active_car_id)
+	if EngineBankBaker.user_fingerprint(car_id) == fp:
+		var cached := EngineBankBaker.load_user(car_id)
 		if not cached.is_empty():
 			engine_bake_progress.emit(1, 1, 0.0, "cached")
 			await get_tree().process_frame
@@ -342,21 +345,27 @@ const _SWEEP_PROGRESS_STEPS := 4
 
 func _bake_engine_sweep_async(duration_sec: float, fingerprint: String) -> Dictionary:
 	if EngineBankBaker.has_engine_sim():
-		var rpms := EngineBankBaker.band_rpms(setup)
+		var bake_setup := setup
+		var bake_car_id := active_car_id
+		var rpms := EngineBankBaker.band_rpms(bake_setup)
 		var band_count := rpms.size()
-		var idle_rpm := rpms[0] if band_count > 0 else setup.idle_rpm
-		var max_rpm := rpms[band_count - 1] if band_count > 0 else setup.max_rpm
+		var idle_rpm := rpms[0] if band_count > 0 else bake_setup.idle_rpm
+		var max_rpm := rpms[band_count - 1] if band_count > 0 else bake_setup.max_rpm
 		engine_bake_progress.emit(0, _SWEEP_PROGRESS_STEPS, idle_rpm, "start")
 		await get_tree().process_frame
 		engine_bake_progress.emit(1, _SWEEP_PROGRESS_STEPS, max_rpm, "sweep")
 		await get_tree().process_frame
 		var t0 := Time.get_ticks_msec()
-		var banks := EngineBankBaker.bake_user(setup, active_car_id, duration_sec, fingerprint)
+		## Re-bind working setup in case another car stole TuningStore during awaits.
+		if setup != bake_setup or active_car_id != bake_car_id:
+			active_car_id = bake_car_id
+			setup = bake_setup
+		var banks := EngineBankBaker.bake_user(bake_setup, bake_car_id, duration_sec, fingerprint)
 		if banks.is_empty():
 			engine_bake_progress.emit(0, _SWEEP_PROGRESS_STEPS, 0.0, "error")
 			return {}
 		print("TuningStore: engine sweep bake %s → %d bands in %d ms" % [
-			String(active_car_id), band_count, Time.get_ticks_msec() - t0,
+			String(bake_car_id), band_count, Time.get_ticks_msec() - t0,
 		])
 		engine_bake_progress.emit(2, _SWEEP_PROGRESS_STEPS, max_rpm, "promote")
 		await get_tree().process_frame
@@ -502,9 +511,11 @@ func _car_needs_engine_bake(car_id: StringName) -> bool:
 	var fp := _engine_sound_fingerprint(snap)
 	if fp.is_empty():
 		return false
-	if EngineBankBaker.user_fingerprint(car_id) != fp:
-		return true
-	return not EngineBankBaker.has_user_bake(car_id)
+	var stored := EngineBankBaker.user_fingerprint(car_id)
+	## Fingerprint is written only after a successful bake — match means banks are valid.
+	if stored == fp:
+		return false
+	return true
 
 
 func _collect_cars_needing_bake() -> Array[StringName]:
@@ -516,12 +527,13 @@ func _collect_cars_needing_bake() -> Array[StringName]:
 
 
 ## First launch / missing user:// banks: bake every car on the track (or catalog).
-func ensure_engine_sounds_on_startup() -> Dictionary:
+## Pass `precollected` to avoid scanning twice when the caller already checked.
+func ensure_engine_sounds_on_startup(precollected: Array[StringName] = []) -> Dictionary:
 	if not EngineBankBaker.has_engine_sim():
 		return {"skipped": true, "reason": "no_baker"}
 	if not is_inside_tree():
 		return {}
-	var pending := _collect_cars_needing_bake()
+	var pending: Array[StringName] = precollected if not precollected.is_empty() else _collect_cars_needing_bake()
 	if pending.is_empty():
 		_refresh_all_car_engine_audio()
 		return {"baked": 0, "skipped": true}
@@ -535,6 +547,9 @@ func ensure_engine_sounds_on_startup() -> Dictionary:
 		active_car_id = car_id
 		_reset_working_from_pack(car_id)
 		load_from_disk()
+		## Snapshot setup so awaits inside rebake can't lose the car we're baking.
+		var bake_setup := setup.duplicate(true) as CarSetup
+		setup = bake_setup
 		var result: Dictionary = await rebake_engine_sounds_async()
 		if not result.is_empty() and not bool(result.get("skipped", false)):
 			baked += 1
@@ -543,6 +558,14 @@ func ensure_engine_sounds_on_startup() -> Dictionary:
 	load_from_disk()
 	engine_bake_progress.emit(total, total, 0.0, "done")
 	return {"baked": baked, "total": total}
+
+
+func cars_needing_engine_bake() -> Array[StringName]:
+	return _collect_cars_needing_bake()
+
+
+func refresh_all_car_engine_audio() -> void:
+	_refresh_all_car_engine_audio()
 
 
 func _restore_pack_audio_on_live_cars() -> void:

@@ -1,6 +1,9 @@
 extends Node3D
 
+const PAUSE_MENU_SCENE := preload("res://assets/scenes/ui/pause_menu.tscn")
+
 var _bootstrap_layer: CanvasLayer
+var _pause_menu: CanvasLayer
 
 
 func _ready() -> void:
@@ -8,6 +11,8 @@ func _ready() -> void:
 	call_deferred("_apply_graphics")
 	call_deferred("_bootstrap_engine_sounds")
 	GameAudio.restart_music()
+	_pause_menu = PAUSE_MENU_SCENE.instantiate()
+	add_child(_pause_menu)
 
 
 func _apply_graphics() -> void:
@@ -17,11 +22,16 @@ func _apply_graphics() -> void:
 func _bootstrap_engine_sounds() -> void:
 	if not EngineBankBaker.has_engine_sim():
 		return
+	## Quick check first — don't flash the bake UI when banks are already valid.
+	var pending: Array[StringName] = TuningStore.cars_needing_engine_bake()
+	if pending.is_empty():
+		TuningStore.refresh_all_car_engine_audio()
+		return
 	_show_bootstrap_ui()
 	var on_progress := Callable(self, "_on_engine_bake_progress")
 	if not TuningStore.engine_bake_progress.is_connected(on_progress):
 		TuningStore.engine_bake_progress.connect(on_progress)
-	var result: Dictionary = await TuningStore.ensure_engine_sounds_on_startup()
+	var result: Dictionary = await TuningStore.ensure_engine_sounds_on_startup(pending)
 	if TuningStore.engine_bake_progress.is_connected(on_progress):
 		TuningStore.engine_bake_progress.disconnect(on_progress)
 	_hide_bootstrap_ui()
@@ -150,6 +160,10 @@ func _on_engine_bake_progress(current: int, total: int, rpm: float, phase: Strin
 func _unhandled_input(event: InputEvent) -> void:
 	if _bootstrap_layer != null:
 		return
-	if event.is_action_pressed("ui_cancel"):
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-		get_tree().change_scene_to_file("res://assets/scenes/ui/main_menu.tscn")
+	if not event.is_action_pressed("ui_cancel"):
+		return
+	if _pause_menu != null and _pause_menu.has_method("is_open") and _pause_menu.is_open():
+		return
+	if _pause_menu != null and _pause_menu.has_method("open"):
+		_pause_menu.open()
+		get_viewport().set_input_as_handled()

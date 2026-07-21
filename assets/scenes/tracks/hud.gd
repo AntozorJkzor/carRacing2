@@ -9,6 +9,8 @@ extends CanvasLayer
 @onready var _minimap: Node = get_node_or_null("Minimap")
 @onready var _score_label: Label = get_node_or_null("%ScoreLabel") as Label
 @onready var _timer_label: Label = get_node_or_null("%TimerLabel") as Label
+@onready var _countdown_label: Label = get_node_or_null("%CountdownLabel") as Label
+@onready var _status_label: Label = get_node_or_null("%StatusLabel") as Label
 @onready var _xp_bar: ProgressBar = get_node_or_null("%XpBar") as ProgressBar
 @onready var _xp_label: Label = get_node_or_null("%XpLabel") as Label
 
@@ -24,10 +26,12 @@ func _ready() -> void:
 	if _stats != null:
 		if _stats.has_signal("score_changed"):
 			_stats.score_changed.connect(_on_score_changed)
+			if "score" in _stats:
+				_on_score_changed(int(_stats.get("score")))
 		if _stats.has_signal("xp_changed"):
 			_stats.xp_changed.connect(_on_xp_changed)
-		_on_score_changed(int(_stats.get("score")))
-		_on_xp_changed(float(_stats.get("xp")), float(_stats.get("max_xp")))
+			if "xp" in _stats and "max_xp" in _stats:
+				_on_xp_changed(float(_stats.get("xp")), float(_stats.get("max_xp")))
 	_update_timer_label(0.0)
 	add_to_group("car_huds")
 
@@ -43,6 +47,10 @@ func bind_car(car: CarController) -> void:
 func _process(_delta: float) -> void:
 	if _stats != null and "elapsed" in _stats:
 		_update_timer_label(float(_stats.get("elapsed")))
+		if _countdown_label != null and "countdown_text" in _stats:
+			_countdown_label.text = str(_stats.get("countdown_text"))
+		if _status_label != null and "status_text" in _stats:
+			_status_label.text = str(_stats.get("status_text"))
 	if _car == null:
 		return
 	_speed_label.text = "%d км/ч" % int(round(_car.get_speed_kmh()))
@@ -56,10 +64,11 @@ func _process(_delta: float) -> void:
 func _update_timer_label(elapsed_sec: float) -> void:
 	if _timer_label == null:
 		return
-	var total := maxi(int(floor(elapsed_sec)), 0)
-	var mins := total / 60
-	var secs := total % 60
-	_timer_label.text = "%02d:%02d" % [mins, secs]
+	var total_ms := maxi(int(round(elapsed_sec * 1000.0)), 0)
+	var mins := total_ms / 60000
+	var secs := (total_ms / 1000) % 60
+	var centis := (total_ms % 1000) / 10
+	_timer_label.text = "%02d:%02d.%02d" % [mins, secs, centis]
 
 
 func _on_score_changed(score: int) -> void:

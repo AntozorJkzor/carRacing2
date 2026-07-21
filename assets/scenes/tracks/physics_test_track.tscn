@@ -11,6 +11,7 @@
 [ext_resource type="Script" uid="uid://dqjvsw6cml4bd" path="res://assets/scenes/tracks/minimap.gd" id="9_minimap"]
 [ext_resource type="Script" uid="uid://bhgb7mbvcyyk7" path="res://assets/scenes/tracks/minimap_camera.gd" id="10_minimap_cam"]
 [ext_resource type="Script" uid="uid://dfoj1vbwvwfkh" path="res://assets/scenes/tracks/minimap_marker.gd" id="11_minimap_marker"]
+[ext_resource type="Script" uid="uid://dyv2w3nhfqs1x" path="res://assets/scenes/tracks/track_run_manager.gd" id="12_run"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_sky"]
 sky_top_color = Color(0.4, 0.62, 0.9, 1)
@@ -73,6 +74,20 @@ corner_radius_top_right = 8
 corner_radius_bottom_right = 8
 corner_radius_bottom_left = 8
 
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_start"]
+albedo_color = Color(0.98, 0.98, 0.98, 1)
+roughness = 0.85
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_start"]
+material = SubResource("StandardMaterial3D_start")
+size = Vector2(18, 2.8)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_start"]
+size = Vector3(24.471771, 3, 3)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_checkpoint"]
+size = Vector3(22, 4, 6)
+
 [node name="PhysicsTestTrack" type="Node3D" unique_id=1341290839]
 script = ExtResource("1_track")
 
@@ -99,14 +114,14 @@ transform = Transform3D(1.5, 0, 0, 0, 1.5, 0, 0, 0, 1.5, 0, -0.043074965, 0)
 shape = SubResource("BoxShape3D_ground")
 
 [node name="track1" parent="Ground" unique_id=103587468 instance=ExtResource("2_nc687")]
-transform = Transform3D(-0.47970623, 0, -7.985605, 0, 8, 0, 7.985605, 0, -0.47970623, 0, 0.56, 0)
+transform = Transform3D(-2.6226832e-07, 0, 6, 0, 6, 0, -6, 0, -2.6226832e-07, 0, 0.6, 0)
 top_level = true
 
 [node name="Car" parent="." unique_id=422780937 instance=ExtResource("3_car")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 0)
 
 [node name="Player" parent="." unique_id=1255242294 instance=ExtResource("7_player")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.5, 0.72296697, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.5, 1.7229669, 0)
 
 [node name="FollowCamera" type="Camera3D" parent="." unique_id=502018337]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5, 12)
@@ -118,6 +133,7 @@ target_path = NodePath("../Car")
 [node name="HUD" type="CanvasLayer" parent="." unique_id=796749115]
 script = ExtResource("6_hud")
 car_path = NodePath("../Car")
+run_stats_path = NodePath("../RunManager")
 
 [node name="Minimap" type="PanelContainer" parent="HUD" unique_id=106528464]
 anchors_preset = 2
@@ -211,6 +227,59 @@ theme_override_colors/font_color = Color(1, 0.85, 0.35, 1)
 theme_override_font_sizes/font_size = 22
 text = "1"
 
+[node name="TimerPanel" type="PanelContainer" parent="HUD" unique_id=84405296]
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -92.0
+offset_top = 16.0
+offset_right = 92.0
+offset_bottom = 62.0
+grow_horizontal = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+
+[node name="TimerLabel" type="Label" parent="HUD/TimerPanel" unique_id=70441233]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.97, 0.98, 1, 1)
+theme_override_font_sizes/font_size = 26
+text = "00:00.00"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="StatusLabel" type="Label" parent="HUD" unique_id=90011231]
+unique_name_in_owner = true
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -180.0
+offset_top = 70.0
+offset_right = 180.0
+offset_bottom = 100.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(0.9, 0.93, 0.98, 1)
+theme_override_font_sizes/font_size = 16
+text = "Встань на старт и остановись"
+horizontal_alignment = 1
+
+[node name="CountdownLabel" type="Label" parent="HUD" unique_id=90011232]
+unique_name_in_owner = true
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -120.0
+offset_top = -70.0
+offset_right = 120.0
+offset_bottom = 70.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(1, 0.96, 0.4, 1)
+theme_override_font_sizes/font_size = 64
+horizontal_alignment = 1
+vertical_alignment = 1
+
 [node name="Hint" type="PanelContainer" parent="HUD" unique_id=2022808385]
 anchors_preset = 2
 anchor_top = 1.0
@@ -227,6 +296,85 @@ layout_mode = 2
 theme_override_colors/font_color = Color(0.9, 0.92, 0.95, 1)
 theme_override_font_sizes/font_size = 14
 text = "WASD ходьба  Shift бег  Space прыжок  E сесть/выйти  в машине: P T  карта +/-  F3  Esc меню"
+
+[node name="RunManager" type="Node3D" parent="." unique_id=144118100]
+script = ExtResource("12_run")
+start_area_path = NodePath("../StartFinish/StartArea")
+
+[node name="StartFinish" type="Node3D" parent="." unique_id=144118101]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -0.5, 0.02, -11)
+
+[node name="Stripe" type="MeshInstance3D" parent="StartFinish" unique_id=144118102]
+mesh = SubResource("PlaneMesh_start")
+
+[node name="StartArea" type="Area3D" parent="StartFinish" unique_id=144118103]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2459526, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="StartFinish/StartArea" unique_id=144118104]
+transform = Transform3D(-0.06334478, 0, -0.9979918, 0, 1, 0, 0.9979918, 0, -0.06334478, 0.019945145, 0, -0.31261206)
+shape = SubResource("BoxShape3D_start")
+
+[node name="Checkpoints" type="Node3D" parent="." unique_id=144118105]
+
+[node name="CP01" type="Area3D" parent="Checkpoints" unique_id=144118106]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 2, 1.5, -42)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Checkpoints/CP01" unique_id=144118107]
+shape = SubResource("BoxShape3D_checkpoint")
+
+[node name="CP02" type="Area3D" parent="Checkpoints" unique_id=144118108]
+transform = Transform3D(0.71, 0, -0.71, 0, 1, 0, 0.71, 0, 0.71, -32.60617, -15.346771, -58.000004)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Checkpoints/CP02" unique_id=144118109]
+shape = SubResource("BoxShape3D_checkpoint")
+
+[node name="CP03" type="Area3D" parent="Checkpoints" unique_id=144118110]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -40.993954, -34.858273, -509.73883)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Checkpoints/CP03" unique_id=144118111]
+shape = SubResource("BoxShape3D_checkpoint")
+
+[node name="CP04" type="Area3D" parent="Checkpoints" unique_id=144118112]
+transform = Transform3D(0.98, 0, 0.17, 0, 1, 0, -0.17, 0, 0.98, 88, 1.5, 24)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Checkpoints/CP04" unique_id=144118113]
+shape = SubResource("BoxShape3D_checkpoint")
+
+[node name="CP05" type="Area3D" parent="Checkpoints" unique_id=144118114]
+transform = Transform3D(0.64, 0, 0.77, 0, 1, 0, -0.77, 0, 0.64, 60, 1.5, 70)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Checkpoints/CP05" unique_id=144118115]
+shape = SubResource("BoxShape3D_checkpoint")
+
+[node name="CP06" type="Area3D" parent="Checkpoints" unique_id=144118116]
+transform = Transform3D(0.08, 0, 1, 0, 1, 0, -1, 0, 0.08, 0, 1.5, 92)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Checkpoints/CP06" unique_id=144118117]
+shape = SubResource("BoxShape3D_checkpoint")
+
+[node name="CP07" type="Area3D" parent="Checkpoints" unique_id=144118118]
+transform = Transform3D(-0.64, 0, 0.77, 0, 1, 0, -0.77, 0, -0.64, -58, 1.5, 70)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Checkpoints/CP07" unique_id=144118119]
+shape = SubResource("BoxShape3D_checkpoint")
+
+[node name="CP08" type="Area3D" parent="Checkpoints" unique_id=144118120]
+transform = Transform3D(1, 0, 0.04, 0, 1, 0, -0.04, 0, 1, -92, 1.5, 20)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Checkpoints/CP08" unique_id=144118121]
+shape = SubResource("BoxShape3D_checkpoint")
+
+[node name="CP09" type="Area3D" parent="Checkpoints" unique_id=144118122]
+transform = Transform3D(0.76, 0, -0.65, 0, 1, 0, 0.65, 0, 0.76, -82, 1.5, -34)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Checkpoints/CP09" unique_id=144118123]
+shape = SubResource("BoxShape3D_checkpoint")
+
+[node name="CP10" type="Area3D" parent="Checkpoints" unique_id=144118124]
+transform = Transform3D(0.45, 0, -0.89, 0, 1, 0, 0.89, 0, 0.45, -36, 1.5, -64)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Checkpoints/CP10" unique_id=144118125]
+shape = SubResource("BoxShape3D_checkpoint")
 
 [node name="Car2" parent="." unique_id=2002535293 instance=ExtResource("8_nc687")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.7750435, 1.8040769, 0)
