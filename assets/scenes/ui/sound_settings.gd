@@ -13,6 +13,7 @@ extends Control
 
 
 func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	_master_slider.value = GameAudio.master_linear * 100.0
 	_car_slider.value = GameAudio.car_linear * 100.0
 	_music_slider.value = GameAudio.music_linear * 100.0
@@ -52,4 +53,4 @@ func _on_save() -> void:
 
 func _on_back() -> void:
 	GameAudio.save_audio_settings()
-	get_tree().change_scene_to_file("res://assets/scenes/ui/settings_hub.tscn")
+	SettingsNav.back(self, "res://assets/scenes/ui/settings_hub.tscn")

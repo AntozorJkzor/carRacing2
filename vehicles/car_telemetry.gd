@@ -174,6 +174,7 @@ func _header() -> String:
 		"want_up",
 		"want_down",
 		"tc_scale",
+		"fwd_lat_scale",
 		"rear_spin",
 		"rear_diff",
 		"body_slip_deg",
@@ -201,6 +202,7 @@ func _header() -> String:
 			[
 				"front_fy_sum",
 				"rear_fy_sum",
+				"front_a_avg_deg",
 				"rear_k_avg",
 				"rear_a_avg_deg",
 				"yaw",
@@ -227,6 +229,8 @@ func _write_row(delta: float) -> void:
 	var wheels := _car.get_wheels()
 	var front_fy := 0.0
 	var rear_fy := 0.0
+	var front_a := 0.0
+	var front_n := 0
 	var rear_k := 0.0
 	var rear_a := 0.0
 	var rear_n := 0
@@ -266,6 +270,7 @@ func _write_row(delta: float) -> void:
 		"%d" % _car.debug_want_up,
 		"%d" % _car.debug_want_down,
 		"%.3f" % _car.debug_tc_scale,
+		"%.3f" % _car.debug_fwd_lat_scale,
 		"%d" % _car.debug_rear_spin,
 		"%d" % int(_car.setup.rear_diff_type),
 		"%.2f" % _car.debug_body_slip_deg,
@@ -297,6 +302,8 @@ func _write_row(delta: float) -> void:
 			brk = wheel.brake_torque
 			if i < 2:
 				front_fy += fy
+				front_a += absf(a)
+				front_n += 1
 			else:
 				rear_fy += fy
 				rear_k += absf(k)
@@ -319,6 +326,7 @@ func _write_row(delta: float) -> void:
 			)
 		)
 
+	var front_a_avg := front_a / float(maxi(front_n, 1))
 	var rear_k_avg := rear_k / float(maxi(rear_n, 1))
 	var rear_a_avg := rear_a / float(maxi(rear_n, 1))
 	parts.append_array(
@@ -326,6 +334,7 @@ func _write_row(delta: float) -> void:
 			[
 				"%.1f" % front_fy,
 				"%.1f" % rear_fy,
+				"%.2f" % front_a_avg,
 				"%.4f" % rear_k_avg,
 				"%.2f" % rear_a_avg,
 				"%.2f" % rad_to_deg(_car.rotation.y),

@@ -16,6 +16,7 @@ var _options: Dictionary = {}
 
 
 func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	GraphicsConfig.load_from_disk()
 	GraphicsConfig.apply_all(get_tree())
 	_back_button.pressed.connect(_on_back)
@@ -250,4 +251,4 @@ func _on_reset() -> void:
 func _on_back() -> void:
 	GraphicsConfig.save_to_disk()
 	GraphicsConfig.apply_all(get_tree())
-	get_tree().change_scene_to_file("res://assets/scenes/ui/settings_hub.tscn")
+	SettingsNav.back(self, "res://assets/scenes/ui/settings_hub.tscn")

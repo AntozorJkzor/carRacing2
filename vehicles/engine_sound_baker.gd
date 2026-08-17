@@ -422,6 +422,8 @@ static func bake_user(
 			push_error("EngineBankBaker: failed to promote bake for %s" % String(car_id))
 			clear_dir(tmp_dir)
 			return {}
+		## Belt-and-suspenders: fingerprint must land in the final folder.
+		_append_fingerprint(out_dir, fingerprint)
 		print("EngineBankBaker: EngineSim bake %s → %d bands in %d ms @ %s" % [
 			String(car_id),
 			int(result.get("band_count", 0)),

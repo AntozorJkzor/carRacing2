@@ -39,8 +39,14 @@ static func evaluate(
 	if load < 1.0:
 		return Vector2.ZERO
 
-	var d_long: float = mu * load
-	var d_lat: float = mu * load
+	## Mild load sensitivity: peak force grows sub-linearly with Fz so weight
+	## transfer under throttle doesn't give an unrealistically sticky axle.
+	const FZ_REF := 3200.0
+	const LOAD_SENS := 0.18
+	var load_scale: float = 1.0 - LOAD_SENS * (load / FZ_REF - 1.0)
+	load_scale = clampf(load_scale, 0.72, 1.12)
+	var d_long: float = mu * load * load_scale
+	var d_lat: float = mu * load * load_scale
 
 	var fx_pure: float = magic_formula(kappa, b_long, c_long, d_long, e_long)
 	var fy_pure: float = -magic_formula(alpha, b_lat, c_lat, d_lat, e_lat)

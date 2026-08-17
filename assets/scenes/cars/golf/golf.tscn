@@ -125,3 +125,6 @@ transform = Transform3D(3.5, 0, 0, 0, 3.5, 0, 0, 0, 3.5, 0, -0.057293892, 0)
 
 [node name="PlayerDriver" type="Node" parent="." unique_id=2130136796]
 script = ExtResource("15_driver")
+
+[node name="Camera3D" type="Camera3D" parent="." unique_id=1247838218]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.27347875, 0.81899554, -0.78896433)

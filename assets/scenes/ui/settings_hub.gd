@@ -9,9 +9,11 @@ extends Control
 
 
 func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	GraphicsConfig.load_from_disk()
 	GraphicsConfig.apply_all(get_tree())
-	GameAudio.restart_music()
+	if not SettingsNav.is_overlay(self):
+		GameAudio.restart_music()
 	_car_button.pressed.connect(_on_car)
 	_sound_button.pressed.connect(_on_sound)
 	_graphics_button.pressed.connect(_on_graphics)
@@ -20,16 +22,16 @@ func _ready() -> void:
 
 
 func _on_car() -> void:
-	get_tree().change_scene_to_file("res://assets/scenes/ui/settings_menu.tscn")
+	SettingsNav.go(self, "res://assets/scenes/ui/settings_menu.tscn")
 
 
 func _on_sound() -> void:
-	get_tree().change_scene_to_file("res://assets/scenes/ui/sound_settings.tscn")
+	SettingsNav.go(self, "res://assets/scenes/ui/sound_settings.tscn")
 
 
 func _on_graphics() -> void:
-	get_tree().change_scene_to_file("res://assets/scenes/ui/graphics_settings.tscn")
+	SettingsNav.go(self, "res://assets/scenes/ui/graphics_settings.tscn")
 
 
 func _on_back() -> void:
-	get_tree().change_scene_to_file("res://assets/scenes/ui/main_menu.tscn")
+	SettingsNav.back(self, "res://assets/scenes/ui/main_menu.tscn")

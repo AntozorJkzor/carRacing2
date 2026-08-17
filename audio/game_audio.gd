@@ -18,6 +18,7 @@ var _music: AudioStreamPlayer
 var _terror: AudioStreamPlayer
 var _npc1_hit_streams: Array[AudioStream] = []
 var _npc2_hit_streams: Array[AudioStream] = []
+var _main_music_stream: AudioStream
 var _intro_music_stream: AudioStream
 var _lose_music_stream: AudioStream
 var _terror_music_stream: AudioStream
@@ -26,6 +27,7 @@ var _rng := RandomNumberGenerator.new()
 
 
 func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	_rng.randomize()
 	_music = AudioStreamPlayer.new()
 	_music.name = "MusicPlayer"
@@ -54,10 +56,13 @@ func _ready() -> void:
 		var stream := load(path) as AudioStream
 		if stream != null:
 			_npc2_hit_streams.append(stream)
+	_main_music_stream = load("res://assets/audio/music/main_sound.mp3") as AudioStream
 	_intro_music_stream = load("res://assets/audio/music/intro.mp3") as AudioStream
 	_lose_music_stream = load("res://assets/audio/music/lose.mp3") as AudioStream
 	_terror_music_stream = load("res://assets/audio/music/terror.mp3") as AudioStream
 
+	if _main_music_stream is AudioStreamMP3:
+		(_main_music_stream as AudioStreamMP3).loop = true
 	if _intro_music_stream is AudioStreamMP3:
 		(_intro_music_stream as AudioStreamMP3).loop = false
 	if _lose_music_stream is AudioStreamMP3:
@@ -150,9 +155,14 @@ func _stop_terror_player() -> void:
 ## Stop any looping bed / one-shot music (no game bed track).
 func restart_music() -> void:
 	_stop_terror_player()
-	if _music != null and _music.playing:
+	if _music == null or _main_music_stream == null:
+		return
+	_music.volume_db = get_effective_music_db()
+	if _music.stream != _main_music_stream:
 		_music.stop()
-	_music.stream = null
+		_music.stream = _main_music_stream
+	if not _music.playing:
+		_music.play(0.0)
 
 
 func play_intro_music() -> void:

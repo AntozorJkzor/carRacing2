@@ -3,7 +3,7 @@
 [ext_resource type="Script" uid="uid://cfaj5h28ainqg" path="res://vehicles/car_setup.gd" id="1_setup"]
 
 [sub_resource type="Curve" id="Curve_steer"]
-_data = [Vector2(0, 1), 0.0, 0.0, 0, 0, Vector2(0.2, 0.68), 0.0, 0.0, 0, 0, Vector2(0.36, 0.4), 0.0, 0.0, 0, 0, Vector2(0.5, 0.28), 0.0, 0.0, 0, 0, Vector2(0.75, 0.18), 0.0, 0.0, 0, 0, Vector2(1, 0.14), 0.0, 0.0, 0, 0]
+_data = [Vector2(0, 1), 0.0, 0.0, 0, 0, Vector2(0.18, 0.7), 0.0, 0.0, 0, 0, Vector2(0.32, 0.4), 0.0, 0.0, 0, 0, Vector2(0.48, 0.24), 0.0, 0.0, 0, 0, Vector2(0.72, 0.15), 0.0, 0.0, 0, 0, Vector2(1, 0.11), 0.0, 0.0, 0, 0]
 point_count = 6
 
 [sub_resource type="Curve" id="Curve_torque"]
@@ -13,7 +13,7 @@ point_count = 6
 [resource]
 script = ExtResource("1_setup")
 mass = 920.0
-center_of_mass_offset = Vector3(0, -0.28, -0.06)
+center_of_mass_offset = Vector3(0, -0.3, -0.1)
 max_power_hp = 75.0
 max_power_kw = 55.93
 idle_rpm = 850.0
@@ -77,8 +77,8 @@ travel = 0.15
 stiffness = 34000.0
 damping = 5200.0
 anti_roll = 3200.0
-tire_mu_front = 1.3
-tire_mu_rear = 1.24
+tire_mu_front = 1.38
+tire_mu_rear = 1.26
 pacejka_b_lat = 5.2
 pacejka_e_lat = 0.2
 rolling_resistance = 0.014
@@ -87,11 +87,24 @@ grip_lateral = 2.05
 brake_force = 11000.0
 handbrake_force = 16000.0
 handbrake_lat_grip = 0.1
-brake_bias_front = 0.72
+brake_bias_front = 0.7
 drag_coefficient = 0.34
 downforce_coefficient = 0.18
 frontal_area = 1.9
 max_steer_angle = 30.0
+steer_speed = 2.2
+steer_curve_max_kmh = 130.0
 steer_angle_curve = SubResource("Curve_steer")
+steer_high_speed_factor = 0.28
+steer_input_gamma = 1.4
+counter_steer_slip_deg = 8.0
+counter_steer_lock_max = 0.45
+counter_steer_rate_mult = 1.35
+counter_steer_recover_rate = 0.22
+steer_lock_smooth = 7.0
 throttle_rise_rate = 1.5
 throttle_fall_rate = 4.0
+drift_assist = 0.0
+fwd_lat_priority = 0.72
+fwd_counter_steer_scale = 0.5
+fwd_recover_bleed = 1.45

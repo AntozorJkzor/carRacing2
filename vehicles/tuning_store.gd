@@ -20,6 +20,7 @@ var SAVE_PATH: String:
 
 
 func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	catalog = load(CATALOG_PATH) as CarsCatalog
 	_reset_working_from_pack(active_car_id)
 	load_from_disk()
@@ -198,6 +199,24 @@ func save_to_disk_async() -> Dictionary:
 	return await rebake_engine_sounds_async()
 
 
+## Persist tuning without touching engine banks.
+func save_config_only() -> void:
+	if setup == null:
+		return
+	_write_config_to_disk()
+	_push_working_to_live_cars()
+
+
+## True when current engine-sound params differ from the last successful user bake.
+func engine_bake_is_stale() -> bool:
+	if setup == null or not EngineBankBaker.has_engine_sim():
+		return false
+	var fp := _engine_sound_fingerprint()
+	if fp.is_empty():
+		return false
+	return EngineBankBaker.user_fingerprint(active_car_id) != fp
+
+
 func _write_config_to_disk() -> void:
 	var cfg := ConfigFile.new()
 	cfg.set_value("visual", "clearance", clearance)
@@ -293,6 +312,10 @@ func _write_config_to_disk() -> void:
 	cfg.set_value("throttle", "throttle_rise_rate", setup.throttle_rise_rate)
 	cfg.set_value("throttle", "throttle_fall_rate", setup.throttle_fall_rate)
 	cfg.set_value("assist", "drift_assist", setup.drift_assist)
+	cfg.set_value("fwd", "fwd_lat_priority", setup.fwd_lat_priority)
+	cfg.set_value("fwd", "fwd_slip_angle_start_deg", setup.fwd_slip_angle_start_deg)
+	cfg.set_value("fwd", "fwd_counter_steer_scale", setup.fwd_counter_steer_scale)
+	cfg.set_value("fwd", "fwd_recover_bleed", setup.fwd_recover_bleed)
 	cfg.set_value("simulation", "physics_substeps", setup.physics_substeps)
 	cfg.set_value("simulation", "traction_control", setup.traction_control)
 	cfg.set_value("simulation", "tc_slip_ratio", setup.tc_slip_ratio)
@@ -307,14 +330,17 @@ func _write_config_to_disk() -> void:
 func rebake_engine_sounds(duration_sec: float = EngineBankBaker.DEFAULT_DURATION_SEC) -> Dictionary:
 	if setup == null:
 		return {}
+	var car_id := active_car_id
 	var fp := _engine_sound_fingerprint()
-	if EngineBankBaker.user_fingerprint(active_car_id) == fp:
-		var cached := EngineBankBaker.load_user(active_car_id)
+	if not fp.is_empty() and EngineBankBaker.user_fingerprint(car_id) == fp:
+		var cached := EngineBankBaker.load_user(car_id)
 		if not cached.is_empty():
 			_apply_engine_banks_to_live_cars(cached)
 			cached["skipped"] = true
 			return cached
-	var banks := EngineBankBaker.bake_user(setup, active_car_id, duration_sec, fp)
+		## Fingerprint matches but banks unreadable — fall through to rebake.
+	var bake_setup := setup.duplicate(true) as CarSetup
+	var banks := EngineBankBaker.bake_user(bake_setup, car_id, duration_sec, fp)
 	_apply_engine_banks_to_live_cars(banks)
 	banks["skipped"] = false
 	return banks
@@ -323,20 +349,30 @@ func rebake_engine_sounds(duration_sec: float = EngineBankBaker.DEFAULT_DURATION
 func rebake_engine_sounds_async(duration_sec: float = EngineBankBaker.DEFAULT_DURATION_SEC) -> Dictionary:
 	if setup == null:
 		return {}
-	## Fingerprint BEFORE any await — cars call TuningStore.bind_car_id() on ready/enter
-	## and would otherwise mutate setup mid-check, forcing a full rebake every launch.
+	## Fingerprint + setup snapshot BEFORE any await — cars call TuningStore.bind_car_id()
+	## on ready/enter and would otherwise mutate setup mid-check / mid-bake.
 	var car_id := active_car_id
 	var fp := _engine_sound_fingerprint()
-	engine_bake_progress.emit(0, 1, 0.0, "check")
-	await get_tree().process_frame
-	if EngineBankBaker.user_fingerprint(car_id) == fp:
+	var bake_setup := setup.duplicate(true) as CarSetup
+	if not fp.is_empty() and EngineBankBaker.user_fingerprint(car_id) == fp:
 		var cached := EngineBankBaker.load_user(car_id)
 		if not cached.is_empty():
-			engine_bake_progress.emit(1, 1, 0.0, "cached")
-			await get_tree().process_frame
 			_apply_engine_banks_to_live_cars(cached)
 			cached["skipped"] = true
 			return cached
+	engine_bake_progress.emit(0, 1, 0.0, "check")
+	await get_tree().process_frame
+	## Re-check after yield in case another path just finished baking.
+	if not fp.is_empty() and EngineBankBaker.user_fingerprint(car_id) == fp:
+		var cached2 := EngineBankBaker.load_user(car_id)
+		if not cached2.is_empty():
+			engine_bake_progress.emit(1, 1, 0.0, "cached")
+			await get_tree().process_frame
+			_apply_engine_banks_to_live_cars(cached2)
+			cached2["skipped"] = true
+			return cached2
+	setup = bake_setup
+	active_car_id = car_id
 	return await _bake_engine_sweep_async(duration_sec, fp)
 
 
@@ -427,8 +463,10 @@ func _engine_sound_fingerprint(setup_override: CarSetup = null) -> String:
 	if target == null:
 		return ""
 	# Bump BAKE_REV when native synth / mapping changes so caches rebuild.
-	const BAKE_REV := "enginesim6-limiter"
-	return "%s|%d|%.0f|%.0f|%.0f|%d|%.0f|%d|%.0f|%.0f|%.1f|%.2f|%.2f|%.2f|%.0f|%.0f|%.0f" % [
+	# Only fields that affect EngineSimBaker.params_from_setup belong here
+	# (max_power_hp does NOT — changing HP must not force a rebake).
+	const BAKE_REV := "enginesim7-limiter"
+	return "%s|%d|%.0f|%.0f|%.0f|%d|%.0f|%d|%.0f|%.0f|%.1f|%.2f|%.2f|%.2f|%.0f|%.0f" % [
 		BAKE_REV,
 		target.cylinders,
 		target.displacement_cc,
@@ -445,7 +483,6 @@ func _engine_sound_fingerprint(setup_override: CarSetup = null) -> String:
 		target.jitter,
 		target.idle_rpm,
 		target.max_rpm,
-		target.max_power_hp,
 	]
 
 
@@ -772,6 +809,14 @@ func _apply_physics_cfg(target: CarSetup, cfg: ConfigFile) -> void:
 	elif cfg.has_section_key("yaw", "yaw_stability_enabled"):
 		# Legacy multi-knob assist → single strength (off or default).
 		target.drift_assist = 1.0 if bool(cfg.get_value("yaw", "yaw_stability_enabled", true)) else 0.0
+	target.fwd_lat_priority = float(cfg.get_value("fwd", "fwd_lat_priority", target.fwd_lat_priority))
+	target.fwd_slip_angle_start_deg = float(
+		cfg.get_value("fwd", "fwd_slip_angle_start_deg", target.fwd_slip_angle_start_deg)
+	)
+	target.fwd_counter_steer_scale = float(
+		cfg.get_value("fwd", "fwd_counter_steer_scale", target.fwd_counter_steer_scale)
+	)
+	target.fwd_recover_bleed = float(cfg.get_value("fwd", "fwd_recover_bleed", target.fwd_recover_bleed))
 	target.physics_substeps = int(cfg.get_value("simulation", "physics_substeps", target.physics_substeps))
 	target.traction_control = bool(cfg.get_value("simulation", "traction_control", target.traction_control))
 	target.tc_slip_ratio = float(cfg.get_value("simulation", "tc_slip_ratio", target.tc_slip_ratio))

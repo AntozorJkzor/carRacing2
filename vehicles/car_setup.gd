@@ -213,8 +213,19 @@ enum EngineLayout { INLINE, V, BOXER }
 @export var throttle_fall_rate: float = 6.0
 
 @export_group("Assist")
-## Помощь дрифта: 0 = выкл (симулятор), 1 = норма, до 2 = сильнее держит угол / гасит спин.
+## Помощь дрифта (RWD): 0 = выкл, 1 = норма, до 2 = сильнее держит угол / гасит спин.
+## Для FWD обычно 0 — стабильность даёт fwd_lat_priority, не yaw-torque.
 @export_range(0.0, 2.0, 0.05) var drift_assist: float = 1.0
+
+@export_group("FWD stability")
+## 0 = off, 1 = сильно режет Fx/тягу на передней оси при большом угле увода (сохраняет Fy).
+@export_range(0.0, 1.0, 0.05) var fwd_lat_priority: float = 0.0
+## |slip_angle| (deg), с которого начинается FWD lat-priority.
+@export_range(2.0, 18.0, 0.5) var fwd_slip_angle_start_deg: float = 5.0
+## 0 = counter-steer как soft-lock, 1 = полные counter_steer_* (для FWD держать ~0.4–0.6).
+@export_range(0.15, 1.0, 0.05) var fwd_counter_steer_scale: float = 0.55
+## Множитель к bleed/unwind при закрытии слайда на FWD (>1 = быстрее отпускает руль).
+@export_range(0.8, 2.0, 0.05) var fwd_recover_bleed: float = 1.4
 
 @export_group("Simulation")
 @export_range(1, 8) var physics_substeps: int = 4

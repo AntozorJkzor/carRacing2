@@ -20,6 +20,8 @@ const _ExhaustFlameScript = preload("res://vehicles/exhaust_flame.gd")
 @export var clearance: float = 0.0
 ## When false, reverse gear is disabled (endless-road / arcade modes).
 @export var allow_reverse: bool = true
+## Optional in-car camera inside the vehicle scene. Falls back to child "Camera3D".
+@export var cockpit_camera_path: NodePath = NodePath("Camera3D")
 
 signal gear_shifted(from_gear: int, to_gear: int)
 
@@ -58,6 +60,7 @@ var debug_est_rpm_up: float = 0.0
 var debug_want_up: int = 0
 var debug_want_down: int = 0
 var debug_tc_scale: float = 1.0
+var debug_fwd_lat_scale: float = 1.0
 var debug_eff_throttle: float = 0.0
 var debug_rev_limiter_cut: bool = false
 var rev_limiter_active: bool = false
@@ -83,6 +86,7 @@ var occupant: Node = null
 var _model_base_y: float = 0.0
 var _collision_base_y: float = 0.0
 var _visual_bases_cached: bool = false
+var _cockpit_view: bool = false
 
 
 func _ready() -> void:
@@ -184,20 +188,47 @@ func set_occupied(value: bool, who: Node = null) -> void:
 	var driver := get_node_or_null("PlayerDriver")
 	if driver != null and "active" in driver:
 		driver.active = value
+	if not value:
+		_cockpit_view = false
 	if not is_inside_tree():
 		return
-	for cam in get_tree().get_nodes_in_group("car_follow_cameras"):
-		if value and cam.has_method("set_target"):
-			cam.call("set_target", self)
-		if cam.has_method("set_active"):
-			cam.call("set_active", value)
-		elif cam is Camera3D:
-			(cam as Camera3D).current = value
+	_apply_camera_mode()
 	if value:
 		for hud in get_tree().get_nodes_in_group("car_huds"):
 			if hud.has_method("bind_car"):
 				hud.call("bind_car", self)
 		TuningStore.bind_car_id(car_id)
+
+
+func toggle_camera_view() -> void:
+	if not occupied:
+		return
+	if _get_cockpit_camera() == null:
+		return
+	_cockpit_view = not _cockpit_view
+	_apply_camera_mode()
+
+
+func _apply_camera_mode() -> void:
+	var cockpit := _get_cockpit_camera()
+	for cam in get_tree().get_nodes_in_group("car_follow_cameras"):
+		if occupied and cam.has_method("set_target"):
+			cam.call("set_target", self)
+		var active := occupied and not _cockpit_view
+		if cam.has_method("set_active"):
+			cam.call("set_active", active)
+		elif cam is Camera3D:
+			(cam as Camera3D).current = active
+	if cockpit != null:
+		cockpit.current = occupied and _cockpit_view
+
+
+func _get_cockpit_camera() -> Camera3D:
+	if cockpit_camera_path != NodePath():
+		var explicit := get_node_or_null(cockpit_camera_path) as Camera3D
+		if explicit != null:
+			return explicit
+	return get_node_or_null("Camera3D") as Camera3D
 
 
 func reset_to_spawn() -> void:
@@ -618,12 +649,17 @@ func _update_throttle_response(delta: float) -> void:
 
 
 func _update_steering(delta: float) -> void:
-	## Soft-lock + rate damping, with asymmetric counter-steer:
-	## catch an opening slide quickly, but bleed authority as yaw recovers
-	## so FWD (and RWD) don't pendulum into the opposite slide.
+	## Soft-lock + rate damping, with asymmetric counter-steer.
+	## FWD uses milder catch / faster bleed so front bite doesn't pendulum.
 	var speed_ms := Vector3(linear_velocity.x, 0.0, linear_velocity.z).length()
 	var base_lock := setup.sample_steer_lock_factor(speed_ms)
 	var lock_desired := base_lock
+	var is_fwd := setup.drive_type == CarSetup.DriveType.FWD
+	var cs_scale := 1.0
+	var recover_bleed := 1.0
+	if is_fwd:
+		cs_scale = clampf(setup.fwd_counter_steer_scale, 0.15, 1.0)
+		recover_bleed = clampf(setup.fwd_recover_bleed, 0.8, 2.0)
 
 	var forward := -global_transform.basis.z
 	var right := global_transform.basis.x
@@ -648,14 +684,18 @@ func _update_steering(delta: float) -> void:
 		if closing:
 			# Bleed catch authority as soon as the car starts to recover.
 			var close_strength := clampf(absf(yaw_rate) / 1.35, 0.0, 1.0)
-			slip_t *= lerpf(0.85, 0.15, close_strength)
-		var boost_lock := clampf(setup.counter_steer_lock_max, base_lock, 1.0)
+			var bleed_lo := 0.85 / recover_bleed if is_fwd else 0.85
+			var bleed_hi := 0.15 / recover_bleed if is_fwd else 0.15
+			slip_t *= lerpf(bleed_lo, maxf(bleed_hi, 0.05), close_strength)
+		var lock_cap := lerpf(base_lock, setup.counter_steer_lock_max, cs_scale)
+		var boost_lock := clampf(lock_cap, base_lock, 1.0)
 		lock_desired = lerpf(base_lock, boost_lock, slip_t)
 
 	var lock_w := clampf(setup.steer_lock_smooth * delta, 0.0, 1.0)
 	# Rise slower than fall — easy to catch, quick to release.
+	var fall_mult := 1.8 * recover_bleed if is_fwd else 1.8
 	if lock_desired < _steer_lock_smooth:
-		lock_w = clampf(setup.steer_lock_smooth * 1.8 * delta, 0.0, 1.0)
+		lock_w = clampf(setup.steer_lock_smooth * fall_mult * delta, 0.0, 1.0)
 	_steer_lock_smooth = lerpf(_steer_lock_smooth, lock_desired, lock_w)
 	var lock_f := _steer_lock_smooth
 
@@ -669,14 +709,18 @@ func _update_steering(delta: float) -> void:
 	var rate_t := clampf(speed_ms / maxf(setup.steer_speed_ref, 1.0), 0.0, 1.0)
 	var rate_f := lerpf(1.0, setup.steer_high_speed_factor, rate_t)
 	var increasing := absf(target) > absf(_current_steer) + 0.002
+	var cs_rate := lerpf(1.0, setup.counter_steer_rate_mult, cs_scale)
+	var cs_recover := setup.counter_steer_recover_rate
+	if is_fwd:
+		cs_recover = clampf(cs_recover / recover_bleed, 0.1, 1.0)
 	if countering and opening:
-		rate_f = maxf(rate_f, setup.counter_steer_rate_mult)
+		rate_f = maxf(rate_f, cs_rate)
 	elif countering and closing and increasing:
 		# Still holding opposite lock while recovering — don't add more angle.
-		rate_f *= setup.counter_steer_recover_rate
+		rate_f *= cs_recover
 	elif countering and closing and not increasing:
 		# Unwind toward center / reduced target quickly.
-		rate_f = maxf(rate_f, setup.counter_steer_rate_mult * 1.15)
+		rate_f = maxf(rate_f, cs_rate * (1.35 if is_fwd else 1.15))
 	var rate := maxf(setup.steer_speed, 0.1) * rate_f
 
 	_current_steer = move_toward(_current_steer, target, rate * delta)
@@ -943,6 +987,7 @@ func _update_engine_clutch_diff(dt: float) -> void:
 
 	_assign_drive_torques(driveline)
 	_apply_traction_control()
+	_apply_fwd_lat_priority_torque()
 	_update_spin_debug()
 	if parked:
 		# Must run AFTER torque assign — old order re-applied welded ±24kNm
@@ -1052,6 +1097,51 @@ func _apply_traction_control() -> void:
 		debug_tc_scale = scale_sum / float(scale_n)
 
 
+func _apply_fwd_lat_priority_torque() -> void:
+	## FWD only: cut drive torque when front tires are at high slip angle so
+	## the next tire step can keep Fy (prevents throttle+steer snap / pendulum).
+	debug_fwd_lat_scale = 1.0
+	if setup == null or setup.drive_type != CarSetup.DriveType.FWD:
+		return
+	var priority := clampf(setup.fwd_lat_priority, 0.0, 1.0)
+	if priority <= 0.001:
+		return
+	var start_deg := maxf(setup.fwd_slip_angle_start_deg, 1.0)
+	var scale_sum := 0.0
+	var scale_n := 0
+	for i in mini(_wheels.size(), 4):
+		var wheel := _wheels[i]
+		if not wheel.is_driven or absf(wheel.drive_torque) < 0.01:
+			continue
+		# Front axle only (indices 0/1).
+		if i > 1:
+			continue
+		var alpha_deg := absf(rad_to_deg(wheel.slip_angle))
+		var a_t := clampf((alpha_deg - start_deg) / 12.0, 0.0, 1.0)
+		var k_t := clampf((absf(wheel.slip_ratio) - 0.12) / 0.45, 0.0, 1.0)
+		var cut := 1.0 - priority * lerpf(0.0, 0.88, a_t) * lerpf(0.55, 1.0, k_t)
+		cut = clampf(cut, 0.12, 1.0)
+		wheel.drive_torque *= cut
+		scale_sum += cut
+		scale_n += 1
+	if scale_n > 0:
+		debug_fwd_lat_scale = scale_sum / float(scale_n)
+
+
+func _fwd_lat_fx_scale(wheel: Wheel) -> float:
+	if setup == null or setup.drive_type != CarSetup.DriveType.FWD:
+		return 1.0
+	var priority := clampf(setup.fwd_lat_priority, 0.0, 1.0)
+	if priority <= 0.001 or not wheel.is_driven:
+		return 1.0
+	var start_deg := maxf(setup.fwd_slip_angle_start_deg, 1.0)
+	var alpha_deg := absf(rad_to_deg(wheel.slip_angle))
+	var a_t := clampf((alpha_deg - start_deg) / 12.0, 0.0, 1.0)
+	var k_t := clampf((absf(wheel.slip_ratio) - 0.12) / 0.45, 0.0, 1.0)
+	var fx_scale := 1.0 - priority * lerpf(0.0, 0.82, a_t) * lerpf(0.5, 1.0, k_t)
+	return clampf(fx_scale, 0.15, 1.0)
+
+
 func _apply_tire_and_wheel(dt: float, force_scale: float) -> void:
 	var wheel_i := maxf(setup.wheel_inertia, 0.15)
 	var static_wheel_load := setup.mass * 9.81 * 0.25
@@ -1095,6 +1185,9 @@ func _apply_tire_and_wheel(dt: float, force_scale: float) -> void:
 			setup.pacejka_c_lat,
 			setup.pacejka_e_lat
 		)
+		# Prefer lateral on FWD driven fronts under combined slip.
+		if i <= 1:
+			forces.x *= _fwd_lat_fx_scale(wheel)
 
 		var rr := -signf(long_speed) * setup.rolling_resistance * fz
 		if absf(long_speed) < 0.05:

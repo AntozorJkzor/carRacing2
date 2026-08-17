@@ -19,6 +19,7 @@ var _layout_option: OptionButton
 
 
 func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	_path_label.text = "Машина: %s  ·  %s" % [
 		String(TuningStore.active_car_id),
 		ProjectSettings.globalize_path(TuningStore.SAVE_PATH),
@@ -146,7 +147,32 @@ func _rebuild_ui() -> void:
 	_add_slider("steer_curve_max_kmh", "Мягкий лок: скорость полной урезки (км/ч)", 60.0, 260.0, 5.0, TuningStore.setup.steer_curve_max_kmh)
 	_add_slider("steer_high_speed_factor", "Отклик на скорости (меньше=спокойнее)", 0.15, 1.0, 0.05, TuningStore.setup.steer_high_speed_factor)
 	_add_slider("steer_input_gamma", "Точность у центра (gamma)", 1.0, 2.5, 0.05, TuningStore.setup.steer_input_gamma)
-	_add_slider("drift_assist", "Помощь дрифта (0=симулятор)", 0.0, 2.0, 0.05, TuningStore.setup.drift_assist)
+	_add_slider("drift_assist", "Помощь дрифта (RWD; 0=выкл)", 0.0, 2.0, 0.05, TuningStore.setup.drift_assist)
+	_add_slider("fwd_lat_priority", "FWD: приоритет бокового зацепа", 0.0, 1.0, 0.05, TuningStore.setup.fwd_lat_priority)
+	_add_slider(
+		"fwd_slip_angle_start_deg",
+		"FWD: старт реза тяги (угол увода °)",
+		2.0,
+		18.0,
+		0.5,
+		TuningStore.setup.fwd_slip_angle_start_deg
+	)
+	_add_slider(
+		"fwd_counter_steer_scale",
+		"FWD: сила контрруля (меньше=стабильнее)",
+		0.15,
+		1.0,
+		0.05,
+		TuningStore.setup.fwd_counter_steer_scale
+	)
+	_add_slider(
+		"fwd_recover_bleed",
+		"FWD: скорость отпускания руля из слайда",
+		0.8,
+		2.0,
+		0.05,
+		TuningStore.setup.fwd_recover_bleed
+	)
 
 
 func _add_section(title: String) -> void:
@@ -439,6 +465,14 @@ func _apply_key(key: String, value: float) -> void:
 			s.steer_input_gamma = value
 		"drift_assist":
 			s.drift_assist = value
+		"fwd_lat_priority":
+			s.fwd_lat_priority = value
+		"fwd_slip_angle_start_deg":
+			s.fwd_slip_angle_start_deg = value
+		"fwd_counter_steer_scale":
+			s.fwd_counter_steer_scale = value
+		"fwd_recover_bleed":
+			s.fwd_recover_bleed = value
 		_:
 			if key.begins_with("gear_"):
 				var idx := int(key.get_slice("_", 1)) - 1
@@ -447,7 +481,7 @@ func _apply_key(key: String, value: float) -> void:
 
 
 func _on_save() -> void:
-	await _run_save_with_progress()
+	await _save_with_optional_bake(true)
 
 
 func _run_save_with_progress() -> void:
@@ -466,6 +500,17 @@ func _run_save_with_progress() -> void:
 			String(TuningStore.active_car_id),
 			ProjectSettings.globalize_path(EngineBankBaker.user_bake_dir(TuningStore.active_car_id)),
 		]
+
+
+## Save tuning always. Bake only when engine-sound params changed (or force_bake_ui on Save).
+func _save_with_optional_bake(show_status_when_skipped: bool) -> void:
+	var stale := TuningStore.engine_bake_is_stale()
+	if stale:
+		await _run_save_with_progress()
+		return
+	TuningStore.save_config_only()
+	if show_status_when_skipped:
+		_path_label.text = "Сохранено (звук без изменений): %s" % String(TuningStore.active_car_id)
 
 
 func _begin_bake_ui() -> void:
@@ -525,5 +570,6 @@ func _on_reset() -> void:
 
 
 func _on_back() -> void:
-	await _run_save_with_progress()
-	get_tree().change_scene_to_file("res://assets/scenes/ui/settings_hub.tscn")
+	## Back must not flash bake UI / re-synth when sound params are unchanged.
+	await _save_with_optional_bake(false)
+	SettingsNav.back(self, "res://assets/scenes/ui/settings_hub.tscn")

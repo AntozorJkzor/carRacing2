@@ -17,6 +17,16 @@ var _exit_ready: bool = false
 func _ready() -> void:
 	# Run before parent CarController so pedals / want_reverse are ready this frame.
 	process_priority = 100
+	set_process_unhandled_input(true)
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if not active or car == null:
+		return
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_V:
+		if car.has_method("toggle_camera_view"):
+			car.toggle_camera_view()
+		get_viewport().set_input_as_handled()
 
 
 func _physics_process(_delta: float) -> void:
