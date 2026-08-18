@@ -14,6 +14,8 @@
 [ext_resource type="Script" uid="uid://dssl2hg60x7ru" path="res://vehicles/player_driver.gd" id="15_driver"]
 [ext_resource type="Script" uid="uid://y0fhjm4v186w" path="res://vehicles/car_lights.gd" id="16_lights"]
 [ext_resource type="Script" uid="uid://bnrlcsj4dtctx" path="res://vehicles/exhaust_flame.gd" id="17_exhaust"]
+[ext_resource type="Script" uid="uid://bq5ijnjjlhpvd" path="res://vehicles/skid_marks.gd" id="18_skid"]
+[ext_resource type="Script" uid="uid://dgk6oqjosvnkl" path="res://vehicles/tire_audio.gd" id="19_tire"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_body"]
 size = Vector3(1.1944551, 0.85127753, 2.632388)
@@ -45,6 +47,12 @@ script = ExtResource("10_telem")
 
 [node name="WheelSmoke" type="Node3D" parent="." unique_id=986858496]
 script = ExtResource("11_smoke")
+
+[node name="SkidMarks" type="Node3D" parent="."]
+script = ExtResource("18_skid")
+
+[node name="TireAudio" type="Node3D" parent="."]
+script = ExtResource("19_tire")
 
 [node name="CarLights" type="Node3D" parent="." unique_id=1078358120]
 script = ExtResource("16_lights")
@@ -127,4 +135,4 @@ transform = Transform3D(3.5, 0, 0, 0, 3.5, 0, 0, 0, 3.5, 0, -0.057293892, 0)
 script = ExtResource("15_driver")
 
 [node name="Camera3D" type="Camera3D" parent="." unique_id=1247838218]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.27347875, 0.81899554, -0.78896433)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.39019275, 0.81899554, -0.78896433)

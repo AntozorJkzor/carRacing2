@@ -139,6 +139,8 @@ func _apply_pack_assets() -> void:
 				if not user_banks.is_empty() and engine_audio.has_method("apply_banks"):
 					engine_audio.call("apply_banks", user_banks)
 	_ensure_wheel_smoke()
+	_ensure_skid_marks()
+	_ensure_tire_audio()
 	_ensure_player_driver()
 	_ensure_car_lights()
 	_ensure_exhaust_flame()
@@ -152,6 +154,24 @@ func _ensure_wheel_smoke() -> void:
 	smoke.name = "WheelSmoke"
 	smoke.set_script(_WheelSmokeScript)
 	add_child(smoke)
+
+
+func _ensure_skid_marks() -> void:
+	if get_node_or_null("SkidMarks") != null:
+		return
+	var marks := Node3D.new()
+	marks.name = "SkidMarks"
+	marks.set_script(load("res://vehicles/skid_marks.gd"))
+	add_child(marks)
+
+
+func _ensure_tire_audio() -> void:
+	if get_node_or_null("TireAudio") != null:
+		return
+	var audio := Node3D.new()
+	audio.name = "TireAudio"
+	audio.set_script(load("res://vehicles/tire_audio.gd"))
+	add_child(audio)
 
 
 func _ensure_player_driver() -> void:

@@ -29,6 +29,7 @@ static var use_aces_tonemap: bool = true
 static var shadow_quality: int = ShadowQuality.HIGH
 static var fullscreen: bool = false
 static var vsync: bool = true
+static var night: bool = true
 
 
 static func load_from_disk() -> void:
@@ -58,6 +59,7 @@ static func load_from_disk() -> void:
 	shadow_quality = int(cfg.get_value("graphics", "shadow_quality", shadow_quality))
 	fullscreen = bool(cfg.get_value("graphics", "fullscreen", fullscreen))
 	vsync = bool(cfg.get_value("graphics", "vsync", vsync))
+	night = bool(cfg.get_value("graphics", "night", night))
 	_sanitize_unsafe_settings()
 
 
@@ -82,6 +84,7 @@ static func save_to_disk() -> void:
 	cfg.set_value("graphics", "shadow_quality", shadow_quality)
 	cfg.set_value("graphics", "fullscreen", fullscreen)
 	cfg.set_value("graphics", "vsync", vsync)
+	cfg.set_value("graphics", "night", night)
 	cfg.save(SAVE_PATH)
 
 
@@ -248,6 +251,12 @@ static func _apply_world(root: Node) -> void:
 	if root == null:
 		return
 	_apply_node_recursive(root)
+	var tree := root.get_tree()
+	if tree == null:
+		return
+	for node: Node in tree.get_nodes_in_group("day_cycle"):
+		if node.has_method("apply"):
+			node.apply()
 
 
 static func _apply_node_recursive(node: Node) -> void:
@@ -274,14 +283,19 @@ static func apply_environment(env: Environment) -> void:
 	env.fog_enabled = fog_enabled
 	env.volumetric_fog_enabled = volumetric_fog_enabled
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	env.ambient_light_energy = maxf(env.ambient_light_energy, 0.75)
+	if night:
+		env.ambient_light_energy = minf(env.ambient_light_energy, 0.16)
+		env.tonemap_exposure = minf(env.tonemap_exposure, 0.65)
+		env.glow_intensity = minf(glow_intensity, 0.10)
+	else:
+		env.ambient_light_energy = maxf(env.ambient_light_energy, 0.75)
 	if use_aces_tonemap:
 		env.tonemap_mode = Environment.TONE_MAPPER_ACES
 	else:
 		env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	if volumetric_fog_enabled and env.volumetric_fog_density < 0.0001:
 		env.volumetric_fog_density = 0.02
-	if fog_enabled:
+	if fog_enabled and not night:
 		env.fog_light_energy = maxf(env.fog_light_energy, 0.8)
 	if ssao_enabled:
 		env.ssao_radius = maxf(env.ssao_radius, 1.0)
@@ -292,7 +306,8 @@ static func apply_directional_light(light: DirectionalLight3D) -> void:
 	if light == null:
 		return
 	light.shadow_enabled = true
-	light.light_energy = maxf(light.light_energy, 1.15)
+	if not night:
+		light.light_energy = maxf(light.light_energy, 1.15)
 	light.shadow_bias = maxf(light.shadow_bias, 0.04)
 	light.shadow_normal_bias = maxf(light.shadow_normal_bias, 2.0)
 	match shadow_quality:

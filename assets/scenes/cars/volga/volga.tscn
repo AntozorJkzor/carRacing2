@@ -11,9 +11,12 @@
 [ext_resource type="Script" uid="uid://b73twtbj3ukdg" path="res://vehicles/visual_wheels.gd" id="12_vwheels"]
 [ext_resource type="PackedScene" uid="uid://rjx0p8njgfvk" path="res://assets/scenes/cars/volga/volga_wheel.tscn" id="13_wheelmesh"]
 [ext_resource type="Script" uid="uid://drl7cok4dg5uw" path="res://vehicles/wheel_layout_editor.gd" id="14_wlayout"]
+[ext_resource type="Script" uid="uid://b76v1wghlf18s" path="res://vehicles/visual_steering_wheel.gd" id="15_7vrvv"]
 [ext_resource type="Script" uid="uid://dssl2hg60x7ru" path="res://vehicles/player_driver.gd" id="15_driver"]
 [ext_resource type="Script" uid="uid://y0fhjm4v186w" path="res://vehicles/car_lights.gd" id="16_lights"]
 [ext_resource type="Script" uid="uid://bnrlcsj4dtctx" path="res://vehicles/exhaust_flame.gd" id="17_exhaust"]
+[ext_resource type="Script" uid="uid://bq5ijnjjlhpvd" path="res://vehicles/skid_marks.gd" id="18_skid"]
+[ext_resource type="Script" uid="uid://dgk6oqjosvnkl" path="res://vehicles/tire_audio.gd" id="19_tire"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_body"]
 size = Vector3(1.9499092, 1.2712295, 4.449256)
@@ -49,6 +52,12 @@ script = ExtResource("10_telem")
 
 [node name="WheelSmoke" type="Node3D" parent="." unique_id=1280859701]
 script = ExtResource("11_smoke")
+
+[node name="SkidMarks" type="Node3D" parent="." unique_id=1488705075]
+script = ExtResource("18_skid")
+
+[node name="TireAudio" type="Node3D" parent="."]
+script = ExtResource("19_tire")
 
 [node name="CarLights" type="Node3D" parent="." unique_id=948124728]
 script = ExtResource("16_lights")
@@ -122,4 +131,8 @@ gizmo_extents = 0.45
 script = ExtResource("15_driver")
 
 [node name="Camera3D" type="Camera3D" parent="." unique_id=870669535]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.270293, 1.0273662, -0.4004954)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.4846152, 1.0273662, -0.30433333)
+current = true
+
+[node name="VisualSteeringWheel" type="Node3D" parent="." unique_id=987680473]
+script = ExtResource("15_7vrvv")

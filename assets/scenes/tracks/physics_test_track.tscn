@@ -1,7 +1,8 @@
 [gd_scene format=3 uid="uid://dxjqvbkvoxl8c"]
 
 [ext_resource type="Script" uid="uid://1ru6riksi846" path="res://assets/scenes/tracks/physics_test_track.gd" id="1_track"]
-[ext_resource type="PackedScene" uid="uid://bw1cmhh50f80v" path="res://assets/models/track/mountainRoad.glb" id="2_0sk6r"]
+[ext_resource type="Texture2D" uid="uid://dgkuntfjgajw7" path="res://assets/env/sky/malagas_ferry_road_4k.exr" id="2_0sk6r"]
+[ext_resource type="Texture2D" uid="uid://p6fh2xu5twcs" path="res://assets/models/track/mountainRoad_asphalt.jpg" id="2_ymt46"]
 [ext_resource type="PackedScene" uid="uid://rjds4u2jgfvk" path="res://assets/scenes/cars/volga/volga.tscn" id="3_car"]
 [ext_resource type="Script" uid="uid://b6kalqnamm3fi" path="res://vehicles/follow_camera.gd" id="5_cam"]
 [ext_resource type="Script" uid="uid://dkgl45y64oxb1" path="res://assets/scenes/tracks/hud.gd" id="6_hud"]
@@ -10,25 +11,39 @@
 [ext_resource type="Script" uid="uid://dqjvsw6cml4bd" path="res://assets/scenes/tracks/minimap.gd" id="9_minimap"]
 [ext_resource type="Script" uid="uid://bhgb7mbvcyyk7" path="res://assets/scenes/tracks/minimap_camera.gd" id="10_minimap_cam"]
 [ext_resource type="Script" uid="uid://dfoj1vbwvwfkh" path="res://assets/scenes/tracks/minimap_marker.gd" id="11_minimap_marker"]
+[ext_resource type="Script" uid="uid://ds3s6465ms82l" path="res://rendering/day_cycle.gd" id="12_2rbhu"]
 
-[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_sky"]
-sky_top_color = Color(0.4, 0.62, 0.9, 1)
-sky_horizon_color = Color(0.75, 0.82, 0.9, 1)
-ground_bottom_color = Color(0.15, 0.15, 0.16, 1)
-ground_horizon_color = Color(0.4, 0.42, 0.45, 1)
+[sub_resource type="PanoramaSkyMaterial" id="PanoramaSkyMaterial_2rbhu"]
+panorama = ExtResource("2_0sk6r")
 
-[sub_resource type="Sky" id="Sky_main"]
-sky_material = SubResource("ProceduralSkyMaterial_sky")
+[sub_resource type="Sky" id="Sky_vxnly"]
+sky_material = SubResource("PanoramaSkyMaterial_2rbhu")
+process_mode = 2
 
 [sub_resource type="Environment" id="Environment_main"]
 background_mode = 2
-sky = SubResource("Sky_main")
-ambient_light_source = 2
+sky = SubResource("Sky_vxnly")
+ambient_light_source = 3
 ambient_light_color = Color(0.7, 0.75, 0.85, 1)
-ambient_light_energy = 0.6
+reflected_light_source = 2
 tonemap_mode = 2
 glow_enabled = true
 glow_intensity = 0.25
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_qaki3"]
+size = Vector2(2000, 2000)
+subdivide_width = 31
+subdivide_depth = 31
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_0sk6r"]
+albedo_color = Color(0.28, 0.29, 0.3, 1)
+albedo_texture = ExtResource("2_ymt46")
+roughness = 0.85
+uv1_scale = Vector3(250, 250, 250)
+texture_filter = 5
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_ymt46"]
+size = Vector3(2000, 2, 2000)
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_minimap"]
 bg_color = Color(0.05, 0.06, 0.08, 0.75)
@@ -66,23 +81,30 @@ script = ExtResource("1_track")
 environment = SubResource("Environment_main")
 
 [node name="Sun" type="DirectionalLight3D" parent="." unique_id=402990280]
-transform = Transform3D(0.8, -0.4, 0.45, 0, 0.75, 0.66, -0.6, -0.53, 0.6, 40, 60, 20)
+transform = Transform3D(-0.81000763, 0.26325893, -0.52400607, 0, 0.89356893, 0.44892612, 0.5864193, 0.36363357, -0.7237977, -41.920486, 35.91409, -57.903816)
+light_color = Color(1, 0.96, 0.88, 1)
+light_energy = 1.35
 shadow_enabled = true
 shadow_bias = 0.2
 shadow_normal_bias = 4.0
 directional_shadow_max_distance = 400.0
 
 [node name="Ground" type="StaticBody3D" parent="." unique_id=928915321]
-transform = Transform3D(3, 0, 0, 0, 3, 0, 0, 0, 3, 0, -1.6119938, 0)
 
-[node name="mountainRoad" parent="Ground" unique_id=93226819 instance=ExtResource("2_0sk6r")]
-transform = Transform3D(0.8, 0, 0, 0, 0.8, 0, 0, 0, 0.8, 0, 0.5373313, 0)
+[node name="Plane" type="MeshInstance3D" parent="Ground" unique_id=2129992518]
+cast_shadow = 0
+mesh = SubResource("PlaneMesh_qaki3")
+surface_material_override/0 = SubResource("StandardMaterial3D_0sk6r")
+
+[node name="CollisionShape" type="CollisionShape3D" parent="Ground" unique_id=1971071300]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1, 0)
+shape = SubResource("BoxShape3D_ymt46")
 
 [node name="Car" parent="." unique_id=422780937 instance=ExtResource("3_car")]
-transform = Transform3D(0.9950862, 0, -0.099012405, 0, 1, 0, 0.099012405, 0, 0.9950862, 168.21469, 3.1440315, -90.31508)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
 
 [node name="Player" parent="." unique_id=1255242294 instance=ExtResource("7_player")]
-transform = Transform3D(0.9950862, 0, -0.099012405, 0, 1, 0, 0.099012405, 0, 0.9950862, 170.38829, 3.3597317, -89.831345)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.5, 1.2, 2)
 
 [node name="FollowCamera" type="Camera3D" parent="." unique_id=502018337]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5, 12)
@@ -202,7 +224,10 @@ theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
 layout_mode = 2
 theme_override_colors/font_color = Color(0.9, 0.92, 0.95, 1)
 theme_override_font_sizes/font_size = 14
-text = "WASD ходьба  Shift бег  Space прыжок  E сесть/выйти  в машине: P T  карта +/-  F3  Esc меню"
+text = "WASD ходьба  Shift бег  Space прыжок  E сесть/выйти  в машине: P T  L фары  N ночь  карта +/-  F3  Esc меню"
 
 [node name="Car2" parent="." unique_id=2002535293 instance=ExtResource("8_nc687")]
-transform = Transform3D(0.9950862, 0, -0.099012405, 0, 1, 0, 0.099012405, 0, 0.9950862, 168.57053, 2.5314045, -78.347565)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 1.2, 6)
+
+[node name="DayCycle" type="Node" parent="." unique_id=187875458]
+script = ExtResource("12_2rbhu")

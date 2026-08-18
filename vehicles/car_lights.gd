@@ -48,6 +48,7 @@ var _reverse_on: bool = false
 
 func _ready() -> void:
 	_car = get_parent() as CarController
+	add_to_group("car_lights")
 	_ensure_groups_and_markers()
 	_rebuild_all()
 	_apply_headlights()
@@ -223,6 +224,10 @@ func _apply_headlights() -> void:
 		spot.light_energy = head_energy if lights_on else 0.0
 		spot.spot_range = head_range
 		spot.spot_angle = head_spot_angle
+		spot.light_volumetric_fog_energy = 0.0
+		spot.distance_fade_enabled = true
+		spot.distance_fade_begin = 20.0
+		spot.distance_fade_length = 16.0
 		spot.visible = lights_on
 	for fill in _head_fills:
 		if not is_instance_valid(fill):
@@ -230,6 +235,7 @@ func _apply_headlights() -> void:
 		fill.light_color = head_color
 		fill.light_energy = head_fill_energy if lights_on else 0.0
 		fill.omni_range = head_fill_range
+		fill.light_volumetric_fog_energy = 0.0
 		fill.visible = lights_on
 
 

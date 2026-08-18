@@ -11,6 +11,8 @@
 [ext_resource type="PackedScene" uid="uid://defaultwheel001" path="res://assets/scenes/cars/default_wheel.tscn" id="13_wheelmesh"]
 [ext_resource type="Script" uid="uid://drl7cok4dg5uw" path="res://vehicles/wheel_layout_editor.gd" id="14_wlayout"]
 [ext_resource type="Script" uid="uid://dssl2hg60x7ru" path="res://vehicles/player_driver.gd" id="15_driver"]
+[ext_resource type="Script" uid="uid://bq5ijnjjlhpvd" path="res://vehicles/skid_marks.gd" id="18_skid"]
+[ext_resource type="Script" uid="uid://dgk6oqjosvnkl" path="res://vehicles/tire_audio.gd" id="19_tire"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_body"]
 size = Vector3(1.6, 0.8, 3.2)
@@ -50,6 +52,12 @@ script = ExtResource("10_telem")
 
 [node name="WheelSmoke" type="Node3D" parent="."]
 script = ExtResource("11_smoke")
+
+[node name="SkidMarks" type="Node3D" parent="."]
+script = ExtResource("18_skid")
+
+[node name="TireAudio" type="Node3D" parent="."]
+script = ExtResource("19_tire")
 
 [node name="VisualWheels" type="Node3D" parent="."]
 script = ExtResource("12_vwheels")

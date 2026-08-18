@@ -74,6 +74,9 @@ func _rebuild_ui() -> void:
 		["Ультра", GraphicsConfig.ShadowQuality.ULTRA],
 	], GraphicsConfig.shadow_quality)
 
+	_add_section("Мир")
+	_add_check("night", "Ночь", GraphicsConfig.night)
+
 	_add_section("Экран")
 	_add_check("fullscreen", "Полный экран", GraphicsConfig.fullscreen)
 	_add_check("vsync", "VSync", GraphicsConfig.vsync)
@@ -201,6 +204,10 @@ func _on_check(key: String, on: bool) -> void:
 			GraphicsConfig.fullscreen = on
 		"vsync":
 			GraphicsConfig.vsync = on
+		"night":
+			GraphicsConfig.night = on
+			GraphicsConfig.apply_all(get_tree())
+			return
 	GraphicsConfig.mark_custom()
 	_sync_preset_option()
 	GraphicsConfig.apply_all(get_tree())
@@ -231,7 +238,6 @@ func _on_option(key: String, id: int) -> void:
 	GraphicsConfig.mark_custom()
 	_sync_preset_option()
 	GraphicsConfig.apply_all(get_tree())
-
 
 func _on_save() -> void:
 	GraphicsConfig.save_to_disk()

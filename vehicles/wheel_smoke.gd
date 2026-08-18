@@ -1,15 +1,17 @@
 extends Node3D
 
+const _TireFx = preload("res://vehicles/tire_fx.gd")
+
 ## Per-wheel tire smoke when spinning (κ) or sliding hard (α).
 ## Soft billboards + light turbulence. Tune via exports on the car's WheelSmoke node.
 ## Particles are built at runtime — do not place GPUParticles on track scenes.
 
 @export_group("Trigger")
-@export_range(0.05, 0.6, 0.01) var spin_kappa: float = 0.16
-@export_range(5.0, 40.0, 0.5) var slide_angle_deg: float = 12.0
+@export_range(0.05, 0.6, 0.01) var spin_kappa: float = 0.12
+@export_range(5.0, 40.0, 0.5) var slide_angle_deg: float = 10.0
 
 @export_group("Amount / life")
-@export_range(24, 256, 8) var amount: int = 128
+@export_range(24, 256, 8) var amount: int = 80
 @export_range(0.6, 4.0, 0.1) var lifetime: float = 2.2
 @export_range(0.0, 0.3, 0.01) var explosiveness: float = 0.0
 @export_range(0.0, 1.0, 0.05) var randomness: float = 0.55
@@ -28,13 +30,15 @@ extends Node3D
 @export_range(0.3, 3.0, 0.05) var puff_size: float = 1.15
 @export_range(0.2, 2.0, 0.05) var scale_min: float = 0.45
 @export_range(0.4, 3.0, 0.05) var scale_max: float = 1.6
-@export var smoke_color_hot: Color = Color(0.22, 0.22, 0.22, 0.7)
-@export var smoke_color_cool: Color = Color(0.55, 0.55, 0.55, 0.0)
+@export var smoke_color_hot: Color = Color(0.14, 0.14, 0.145, 0.72)
+@export var smoke_color_cool: Color = Color(0.28, 0.28, 0.3, 0.0)
 @export_range(0.0, 1.0, 0.05) var soft_edge: float = 0.75
+## If on, smoke takes sun / moon / headlights instead of glowing the same day and night.
+@export var receive_light: bool = true
 
 @export_group("Turbulence")
 @export var turbulence_enabled: bool = true
-@export_range(0.0, 4.0, 0.05) var turbulence_strength: float = 0.55
+@export_range(0.0, 4.0, 0.05) var turbulence_strength: float = 0.35
 @export_range(0.5, 20.0, 0.5) var turbulence_scale: float = 3.5
 @export_range(0.0, 2.0, 0.05) var turbulence_speed: float = 0.35
 
@@ -75,9 +79,7 @@ func _physics_process(_delta: float) -> void:
 			# Slightly behind the patch along travel; smoke then inherits velocity.
 			emitter.global_position -= vel / speed * 0.08
 
-		var intensity := _smoke_intensity(wheel)
-		if _car.throttle < 0.05 and _car.get_speed_ms() < 2.0 and _car.handbrake < 0.1:
-			intensity = 0.0
+		var intensity: float = _TireFx.intensity(_car, wheel, spin_kappa, slide_angle_deg)
 		emitter.emitting = intensity > 0.04
 		emitter.amount_ratio = clampf(lerpf(0.35, 1.0, intensity), 0.0, 1.0)
 
@@ -106,19 +108,6 @@ func _rebuild_emitters() -> void:
 	for i in count:
 		_emitters.append(_make_emitter("TireSmoke_%d" % i))
 
-
-func _smoke_intensity(wheel: Wheel) -> float:
-	var spin_i := 0.0
-	var k := absf(wheel.slip_ratio)
-	if k >= spin_kappa:
-		spin_i = clampf((k - spin_kappa) / 0.55, 0.0, 1.0)
-
-	var slide_i := 0.0
-	var a_deg := absf(rad_to_deg(wheel.slip_angle))
-	if a_deg >= slide_angle_deg:
-		slide_i = clampf((a_deg - slide_angle_deg) / 28.0, 0.0, 1.0)
-
-	return maxf(spin_i, slide_i)
 
 
 func _make_soft_puff_texture() -> Texture2D:
@@ -150,8 +139,9 @@ func _make_emitter(node_name: String) -> GPUParticles3D:
 	p.explosiveness = explosiveness
 	p.randomness = randomness
 	p.local_coords = false
-	p.visibility_aabb = AABB(Vector3(-12, -2, -12), Vector3(24, 16, 24))
+	p.visibility_aabb = AABB(Vector3(-20, -4, -20), Vector3(40, 24, 40))
 	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	p.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
 	p.draw_order = GPUParticles3D.DRAW_ORDER_VIEW_DEPTH
 
 	var proc := ParticleProcessMaterial.new()
@@ -179,19 +169,22 @@ func _make_emitter(node_name: String) -> GPUParticles3D:
 			proc.turbulence_influence_min = 0.08
 			proc.turbulence_influence_max = 0.35
 
-	# Dark near tire → pale / transparent as it ages.
+	# Dark rubber near the patch → thinner grey as it ages. Lit by sun / moon / headlights.
+	var mid := Color(
+		lerpf(smoke_color_hot.r, 0.32, 0.45),
+		lerpf(smoke_color_hot.g, 0.32, 0.45),
+		lerpf(smoke_color_hot.b, 0.33, 0.45),
+		smoke_color_hot.a * 0.82
+	)
+	var aged := Color(0.34, 0.34, 0.36, 0.32)
+	var thin := Color(0.3, 0.3, 0.32, 0.12)
 	var grad := Gradient.new()
 	grad.offsets = PackedFloat32Array([0.0, 0.12, 0.45, 0.78, 1.0])
 	grad.colors = PackedColorArray([
 		Color(smoke_color_hot.r, smoke_color_hot.g, smoke_color_hot.b, smoke_color_hot.a),
-		Color(
-			lerpf(smoke_color_hot.r, 0.45, 0.35),
-			lerpf(smoke_color_hot.g, 0.45, 0.35),
-			lerpf(smoke_color_hot.b, 0.45, 0.35),
-			smoke_color_hot.a * 0.85
-		),
-		Color(0.5, 0.5, 0.5, 0.4),
-		Color(0.62, 0.62, 0.62, 0.18),
+		mid,
+		aged,
+		thin,
 		smoke_color_cool,
 	])
 	var grad_tex := GradientTexture1D.new()
@@ -212,12 +205,22 @@ func _make_emitter(node_name: String) -> GPUParticles3D:
 	var mesh := QuadMesh.new()
 	mesh.size = Vector2(puff_size, puff_size)
 	var draw_mat := StandardMaterial3D.new()
-	draw_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	if receive_light:
+		draw_mat.shading_mode = BaseMaterial3D.SHADING_MODE_PER_PIXEL
+	else:
+		draw_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	draw_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	draw_mat.blend_mode = BaseMaterial3D.BLEND_MODE_MIX
-	draw_mat.albedo_color = Color(1.0, 1.0, 1.0, 1.0)
+	draw_mat.albedo_color = Color(0.85, 0.85, 0.86, 1.0)
 	draw_mat.albedo_texture = _soft_texture
 	draw_mat.vertex_color_use_as_albedo = true
+	draw_mat.roughness = 1.0
+	draw_mat.metallic = 0.0
+	draw_mat.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
+	draw_mat.diffuse_mode = BaseMaterial3D.DIFFUSE_LAMBERT_WRAP
+	draw_mat.emission_enabled = false
+	draw_mat.disable_receive_shadows = true
+	draw_mat.disable_ambient_light = false
 	draw_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	draw_mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
 	draw_mat.billboard_keep_scale = true
