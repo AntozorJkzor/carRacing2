@@ -1,7 +1,6 @@
 [gd_scene format=3 uid="uid://dxjqvbkvoxl8c"]
 
 [ext_resource type="Script" uid="uid://1ru6riksi846" path="res://assets/scenes/tracks/physics_test_track.gd" id="1_track"]
-[ext_resource type="Texture2D" uid="uid://dgkuntfjgajw7" path="res://assets/env/sky/malagas_ferry_road_4k.exr" id="2_0sk6r"]
 [ext_resource type="Texture2D" uid="uid://p6fh2xu5twcs" path="res://assets/models/track/mountainRoad_asphalt.jpg" id="2_ymt46"]
 [ext_resource type="PackedScene" uid="uid://rjds4u2jgfvk" path="res://assets/scenes/cars/volga/volga.tscn" id="3_car"]
 [ext_resource type="Script" uid="uid://b6kalqnamm3fi" path="res://vehicles/follow_camera.gd" id="5_cam"]
@@ -13,11 +12,16 @@
 [ext_resource type="Script" uid="uid://dfoj1vbwvwfkh" path="res://assets/scenes/tracks/minimap_marker.gd" id="11_minimap_marker"]
 [ext_resource type="Script" uid="uid://ds3s6465ms82l" path="res://rendering/day_cycle.gd" id="12_2rbhu"]
 
-[sub_resource type="PanoramaSkyMaterial" id="PanoramaSkyMaterial_2rbhu"]
-panorama = ExtResource("2_0sk6r")
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_2rbhu"]
+sky_top_color = Color(0.24, 0.5, 0.95, 1)
+sky_horizon_color = Color(0.72, 0.84, 1, 1)
+ground_bottom_color = Color(0.18, 0.18, 0.2, 1)
+ground_horizon_color = Color(0.66, 0.72, 0.8, 1)
+sun_angle_max = 18.0
+sun_curve = 0.12
 
 [sub_resource type="Sky" id="Sky_vxnly"]
-sky_material = SubResource("PanoramaSkyMaterial_2rbhu")
+sky_material = SubResource("ProceduralSkyMaterial_2rbhu")
 process_mode = 2
 
 [sub_resource type="Environment" id="Environment_main"]

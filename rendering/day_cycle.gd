@@ -1,11 +1,8 @@
 class_name DayCycle
 extends Node
 
-## Day / night HDRI switch for the test track.
+## Day / night default sky switch for the test track.
 ## Attach to node DayCycle on res://assets/scenes/tracks/physics_test_track.tscn.
-
-const DAY_SKY := preload("res://assets/env/sky/malagas_ferry_road_4k.exr")
-const NIGHT_SKY := preload("res://assets/env/sky/qwantani_moon_noon_puresky_4k.exr")
 
 @export var world_environment_path: NodePath = NodePath("../WorldEnvironment")
 @export var sun_path: NodePath = NodePath("../Sun")
@@ -57,19 +54,16 @@ func apply() -> void:
 	var is_night := GraphicsConfig.night
 	var sky := _sky_night if is_night else _sky_day
 	if sky == null:
-		sky = _make_sky(
-			NIGHT_SKY if is_night else DAY_SKY,
-			night_sky_energy if is_night else day_sky_energy
-		)
+		sky = _make_default_sky(is_night)
 		if is_night:
 			_sky_night = sky
 		else:
 			_sky_day = sky
 	else:
-		var pano := sky.sky_material as PanoramaSkyMaterial
+		var procedural := sky.sky_material as ProceduralSkyMaterial
 		var energy := night_sky_energy if is_night else day_sky_energy
-		if pano != null and not is_equal_approx(pano.energy_multiplier, energy):
-			pano.energy_multiplier = energy
+		if procedural != null and not is_equal_approx(procedural.energy_multiplier, energy):
+			procedural.energy_multiplier = energy
 	if env.sky != sky:
 		env.sky = sky
 	env.background_mode = Environment.BG_SKY
@@ -114,15 +108,26 @@ func apply() -> void:
 		_apply_headlights(is_night)
 
 
-func _make_sky(tex: Texture2D, energy: float) -> Sky:
-	var pano := PanoramaSkyMaterial.new()
-	pano.panorama = tex
-	pano.energy_multiplier = energy
-	pano.filter = true
+func _make_default_sky(is_night: bool) -> Sky:
+	var energy := night_sky_energy if is_night else day_sky_energy
+	var sky_mat := ProceduralSkyMaterial.new()
+	sky_mat.energy_multiplier = energy
+	sky_mat.sun_angle_max = 18.0
+	sky_mat.sun_curve = 0.12
+	if is_night:
+		sky_mat.sky_top_color = Color(0.015, 0.03, 0.07)
+		sky_mat.sky_horizon_color = Color(0.05, 0.08, 0.13)
+		sky_mat.ground_bottom_color = Color(0.01, 0.01, 0.02)
+		sky_mat.ground_horizon_color = Color(0.03, 0.035, 0.05)
+	else:
+		sky_mat.sky_top_color = Color(0.24, 0.5, 0.95)
+		sky_mat.sky_horizon_color = Color(0.72, 0.84, 1.0)
+		sky_mat.ground_bottom_color = Color(0.18, 0.18, 0.2)
+		sky_mat.ground_horizon_color = Color(0.66, 0.72, 0.8)
 	var sky := Sky.new()
 	sky.process_mode = Sky.PROCESS_MODE_INCREMENTAL
 	sky.radiance_size = Sky.RADIANCE_SIZE_128
-	sky.sky_material = pano
+	sky.sky_material = sky_mat
 	return sky
 
 
