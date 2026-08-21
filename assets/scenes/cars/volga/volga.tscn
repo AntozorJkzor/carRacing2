@@ -53,8 +53,13 @@ script = ExtResource("10_telem")
 [node name="WheelSmoke" type="Node3D" parent="." unique_id=1280859701]
 script = ExtResource("11_smoke")
 lifetime = 3.0
+randomness = 0.6
+scale_max = 1.4
 anim_speed_min = 0.95
 anim_speed_max = 1.55
+turbulence_strength = 0.55
+turbulence_scale = 4.0
+turbulence_speed = 0.45
 
 [node name="SkidMarks" type="Node3D" parent="." unique_id=1488705075]
 script = ExtResource("18_skid")
@@ -107,14 +112,12 @@ gizmo_extents = 0.15
 
 [node name="VisualWheels" type="Node3D" parent="." unique_id=525364526]
 script = ExtResource("12_vwheels")
-mesh_euler_degrees = Vector3(0, 180, 0)
 mesh_scale = 4.5
 front_mesh_scale = 4.5
 rear_mesh_scale = 4.5
 
 [node name="WheelLayout" type="Node3D" parent="." unique_id=239850445]
 script = ExtResource("14_wlayout")
-mesh_euler_degrees = Vector3(0, 180, 0)
 front_track_mm = 1700.0
 front_track = 1.7
 front_wheel_radius = 0.32130000000000003

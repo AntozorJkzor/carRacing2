@@ -594,8 +594,10 @@ func _apply_preview_scales() -> void:
 			continue
 		var i: int = int(child.get_meta("_wheel_index", 0))
 		var mount := _mount_for_index(_get_setup(), i)
+		# Runtime VisualWheels flips local_x < 0. Preview here is in raw car space and
+		# ends up 180° off that look if we flip the same side — so mirror the other side.
 		var yaw_flip := 0.0
-		if mirror_right and mount.x < 0.0:
+		if mirror_right and mount.x > 0.0:
 			yaw_flip = 180.0
 		var scale_v := _scale_for_index(i)
 		var mesh_root := child.get_node_or_null("Mesh") as Node3D

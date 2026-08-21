@@ -76,6 +76,7 @@ func _rebuild_ui() -> void:
 
 	_add_section("Мир")
 	_add_check("night", "Ночь", GraphicsConfig.night)
+	_add_check("tire_smoke_enabled", "Дым шин", GraphicsConfig.tire_smoke_enabled)
 
 	_add_section("Экран")
 	_add_check("fullscreen", "Полный экран", GraphicsConfig.fullscreen)
@@ -208,6 +209,8 @@ func _on_check(key: String, on: bool) -> void:
 			GraphicsConfig.night = on
 			GraphicsConfig.apply_all(get_tree())
 			return
+		"tire_smoke_enabled":
+			GraphicsConfig.tire_smoke_enabled = on
 	GraphicsConfig.mark_custom()
 	_sync_preset_option()
 	GraphicsConfig.apply_all(get_tree())

@@ -11,6 +11,7 @@
 [ext_resource type="Script" uid="uid://bhgb7mbvcyyk7" path="res://assets/scenes/tracks/minimap_camera.gd" id="10_minimap_cam"]
 [ext_resource type="Script" uid="uid://dfoj1vbwvwfkh" path="res://assets/scenes/tracks/minimap_marker.gd" id="11_minimap_marker"]
 [ext_resource type="Script" uid="uid://ds3s6465ms82l" path="res://rendering/day_cycle.gd" id="12_2rbhu"]
+[ext_resource type="Script" path="res://rendering/skid_mark_baker.gd" id="13_skidbake"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_2rbhu"]
 sky_top_color = Color(0.24, 0.5, 0.95, 1)
@@ -103,6 +104,12 @@ surface_material_override/0 = SubResource("StandardMaterial3D_0sk6r")
 [node name="CollisionShape" type="CollisionShape3D" parent="Ground" unique_id=1971071300]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1, 0)
 shape = SubResource("BoxShape3D_ymt46")
+
+[node name="SkidMarkBaker" type="Node" parent="."]
+script = ExtResource("13_skidbake")
+ground_mesh_path = NodePath("../Ground/Plane")
+world_size = 512.0
+resolution = 4096
 
 [node name="Car" parent="." unique_id=422780937 instance=ExtResource("3_car")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)

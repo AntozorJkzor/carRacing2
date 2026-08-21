@@ -99,14 +99,12 @@ gizmo_extents = 0.15
 
 [node name="VisualWheels" type="Node3D" parent="." unique_id=1838873478]
 script = ExtResource("12_vwheels")
-mesh_euler_degrees = Vector3(0, 180, 0)
 mesh_scale = 4.1
 front_mesh_scale = 4.1
 rear_mesh_scale = 4.1
 
 [node name="WheelLayout" type="Node3D" parent="." unique_id=1782289919]
 script = ExtResource("14_wlayout")
-mesh_euler_degrees = Vector3(0, 180, 0)
 front_track_mm = 1350.0
 front_track = 1.35
 front_rim_inches = 13.0

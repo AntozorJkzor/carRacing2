@@ -30,6 +30,7 @@ static var shadow_quality: int = ShadowQuality.HIGH
 static var fullscreen: bool = false
 static var vsync: bool = true
 static var night: bool = true
+static var tire_smoke_enabled: bool = true
 
 
 static func load_from_disk() -> void:
@@ -60,6 +61,7 @@ static func load_from_disk() -> void:
 	fullscreen = bool(cfg.get_value("graphics", "fullscreen", fullscreen))
 	vsync = bool(cfg.get_value("graphics", "vsync", vsync))
 	night = bool(cfg.get_value("graphics", "night", night))
+	tire_smoke_enabled = bool(cfg.get_value("graphics", "tire_smoke_enabled", tire_smoke_enabled))
 	_sanitize_unsafe_settings()
 
 
@@ -85,6 +87,7 @@ static func save_to_disk() -> void:
 	cfg.set_value("graphics", "fullscreen", fullscreen)
 	cfg.set_value("graphics", "vsync", vsync)
 	cfg.set_value("graphics", "night", night)
+	cfg.set_value("graphics", "tire_smoke_enabled", tire_smoke_enabled)
 	cfg.save(SAVE_PATH)
 
 
@@ -108,6 +111,7 @@ static func apply_preset(p: int) -> void:
 			volumetric_fog_enabled = false
 			use_aces_tonemap = true
 			shadow_quality = ShadowQuality.LOW
+			tire_smoke_enabled = false
 		Preset.MEDIUM:
 			render_scale = 0.85
 			upscale_mode = UpscaleMode.FSR2
@@ -125,6 +129,7 @@ static func apply_preset(p: int) -> void:
 			volumetric_fog_enabled = false
 			use_aces_tonemap = true
 			shadow_quality = ShadowQuality.MEDIUM
+			tire_smoke_enabled = true
 		Preset.HIGH:
 			render_scale = 1.0
 			upscale_mode = UpscaleMode.BILINEAR
@@ -142,6 +147,7 @@ static func apply_preset(p: int) -> void:
 			volumetric_fog_enabled = true
 			use_aces_tonemap = true
 			shadow_quality = ShadowQuality.HIGH
+			tire_smoke_enabled = true
 		Preset.ULTRA:
 			render_scale = 1.0
 			upscale_mode = UpscaleMode.BILINEAR
@@ -159,6 +165,7 @@ static func apply_preset(p: int) -> void:
 			volumetric_fog_enabled = true
 			use_aces_tonemap = true
 			shadow_quality = ShadowQuality.ULTRA
+			tire_smoke_enabled = true
 		_:
 			pass
 	_sanitize_unsafe_settings()

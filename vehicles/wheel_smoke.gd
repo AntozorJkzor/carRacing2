@@ -82,6 +82,7 @@ func _physics_process(_delta: float) -> void:
 		_car = get_parent() as CarController
 	if _car == null or _car.setup == null:
 		return
+	var smoke_on := GraphicsConfig.tire_smoke_enabled
 	var wheels := _car.get_wheels()
 	var needed := maxi(wheels.size(), _car.setup.wheel_positions.size())
 	if needed > 0 and (_base_emitters.size() != needed or _plume_emitters.size() != needed):
@@ -89,7 +90,7 @@ func _physics_process(_delta: float) -> void:
 	for i in needed:
 		var base_emitter := _base_emitters[i]
 		var plume_emitter := _plume_emitters[i]
-		if i >= wheels.size():
+		if not smoke_on or i >= wheels.size():
 			base_emitter.emitting = false
 			plume_emitter.emitting = false
 			continue
