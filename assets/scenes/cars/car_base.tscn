@@ -1,0 +1,83 @@
+[gd_scene format=3 uid="uid://carbase00000001"]
+
+[ext_resource type="Script" uid="uid://cs73rwj1sm2gy" path="res://vehicles/car_controller.gd" id="1_ctrl"]
+[ext_resource type="Resource" path="res://vehicles/default_car_setup.tres" id="2_setup"]
+[ext_resource type="Script" uid="uid://daklkp5n374mx" path="res://vehicles/car_debug_draw.gd" id="4_debug"]
+[ext_resource type="Script" uid="uid://dfll73ax5bfkt" path="res://vehicles/engine_audio.gd" id="5_engine"]
+[ext_resource type="Resource" uid="uid://defaultaudio01" path="res://assets/scenes/cars/default_audio.tres" id="6_audio"]
+[ext_resource type="Script" uid="uid://biqh2g0jnh6h0" path="res://vehicles/car_telemetry.gd" id="10_telem"]
+[ext_resource type="Script" uid="uid://cfv00pv8coynh" path="res://vehicles/wheel_smoke.gd" id="11_smoke"]
+[ext_resource type="Script" uid="uid://b73twtbj3ukdg" path="res://vehicles/visual_wheels.gd" id="12_vwheels"]
+[ext_resource type="PackedScene" uid="uid://defaultwheel001" path="res://assets/scenes/cars/default_wheel.tscn" id="13_wheelmesh"]
+[ext_resource type="Script" uid="uid://drl7cok4dg5uw" path="res://vehicles/wheel_layout_editor.gd" id="14_wlayout"]
+[ext_resource type="Script" uid="uid://dssl2hg60x7ru" path="res://vehicles/player_driver.gd" id="15_driver"]
+[ext_resource type="Script" uid="uid://bq5ijnjjlhpvd" path="res://vehicles/skid_marks.gd" id="18_skid"]
+[ext_resource type="Script" uid="uid://dgk6oqjosvnkl" path="res://vehicles/tire_audio.gd" id="19_tire"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_body"]
+size = Vector3(1.6, 0.8, 3.2)
+
+[sub_resource type="BoxMesh" id="BoxMesh_placeholder"]
+size = Vector3(1.6, 0.8, 3.2)
+
+[node name="Car" type="RigidBody3D"]
+collision_mask = 5
+mass = 1200.0
+can_sleep = false
+continuous_cd = true
+angular_damp = 0.08
+script = ExtResource("1_ctrl")
+car_id = &"base"
+setup = ExtResource("2_setup")
+wheel_scene = ExtResource("13_wheelmesh")
+audio_profile = ExtResource("6_audio")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.4, 0)
+shape = SubResource("BoxShape3D_body")
+
+[node name="Model" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.4, 0)
+mesh = SubResource("BoxMesh_placeholder")
+
+[node name="EngineAudio" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.4, 0.6)
+script = ExtResource("5_engine")
+
+[node name="DebugDraw" type="Node3D" parent="."]
+script = ExtResource("4_debug")
+
+[node name="Telemetry" type="Node" parent="."]
+script = ExtResource("10_telem")
+
+[node name="WheelSmoke" type="Node3D" parent="."]
+script = ExtResource("11_smoke")
+
+[node name="SkidMarks" type="Node3D" parent="."]
+script = ExtResource("18_skid")
+
+[node name="TireAudio" type="Node3D" parent="."]
+script = ExtResource("19_tire")
+
+[node name="VisualWheels" type="Node3D" parent="."]
+script = ExtResource("12_vwheels")
+
+[node name="WheelLayout" type="Node3D" parent="."]
+script = ExtResource("14_wlayout")
+front_track = 1.5
+front_wheel_radius = 0.22
+front_mesh_scale = 1.0
+rear_track = 1.5
+rear_wheel_radius = 0.22
+rear_mesh_scale = 1.0
+
+[node name="Front" type="Marker3D" parent="WheelLayout"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.4, -1.25)
+gizmo_extents = 0.45
+
+[node name="Rear" type="Marker3D" parent="WheelLayout"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.4, 1.25)
+gizmo_extents = 0.45
+
+[node name="PlayerDriver" type="Node" parent="."]
+script = ExtResource("15_driver")

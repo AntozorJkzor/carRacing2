@@ -2,7 +2,7 @@ class_name CarTelemetry
 extends Node
 
 ## Physics telemetry CSV for handling + drivetrain analysis.
-## F4 start/stop. Writes to res://logs/car_telemetry_latest.csv (and a timestamped copy).
+## F4 start/stop on the occupied car only. Writes car_telemetry_latest.csv + stamped copy.
 
 const LOG_DIR := "res://logs"
 const LATEST_NAME := "car_telemetry_latest.csv"
@@ -34,7 +34,7 @@ func _ready() -> void:
 	_hud.add_theme_color_override("font_color", Color(1.0, 0.35, 0.25))
 	_hud.visible = false
 	layer.add_child(_hud)
-	if auto_start:
+	if auto_start and _is_car_occupied():
 		start_recording()
 
 
@@ -47,13 +47,19 @@ func _unhandled_input(event: InputEvent) -> void:
 		if event.keycode == KEY_F4:
 			if recording:
 				stop_recording()
-			else:
+				get_viewport().set_input_as_handled()
+			elif _is_car_occupied():
 				start_recording()
-			get_viewport().set_input_as_handled()
+				get_viewport().set_input_as_handled()
+			# Unoccupied cars ignore F4 so the occupied car's Telemetry can catch it.
 
 
 func _physics_process(delta: float) -> void:
 	if not recording or _car == null:
+		return
+	# Drop the session if the player left this car mid-record.
+	if not _car.occupied:
+		stop_recording()
 		return
 	_t += delta
 	_frame += 1
@@ -64,6 +70,12 @@ func _physics_process(delta: float) -> void:
 		_hud.text = "REC telemetry %d rows\n%s" % [_rows, _path_latest]
 
 
+func _is_car_occupied() -> bool:
+	if _car == null:
+		_car = get_parent() as CarController
+	return _car != null and _car.occupied
+
+
 func start_recording() -> void:
 	if recording:
 		return
@@ -72,11 +84,19 @@ func start_recording() -> void:
 	if _car == null:
 		push_warning("CarTelemetry: parent is not CarController")
 		return
+	if not _car.occupied:
+		push_warning("CarTelemetry: start ignored — car is not occupied")
+		return
 
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(LOG_DIR))
 	_path_latest = ProjectSettings.globalize_path("%s/%s" % [LOG_DIR, LATEST_NAME])
 	var stamp := Time.get_datetime_string_from_system().replace(":", "-").replace("T", "_")
-	_path_stamp = ProjectSettings.globalize_path("%s/car_telemetry_%s.csv" % [LOG_DIR, stamp])
+	var car_tag := String(_car.car_id)
+	if car_tag.is_empty():
+		car_tag = "car"
+	_path_stamp = ProjectSettings.globalize_path(
+		"%s/car_telemetry_%s_%s.csv" % [LOG_DIR, car_tag, stamp]
+	)
 
 	_file = FileAccess.open(_path_latest, FileAccess.WRITE)
 	if _file == null:
@@ -91,8 +111,8 @@ func start_recording() -> void:
 	recording = true
 	if _hud:
 		_hud.visible = true
-		_hud.text = "REC telemetry\n%s" % _path_latest
-	print("CarTelemetry START -> ", _path_latest)
+		_hud.text = "REC telemetry (%s)\n%s" % [car_tag, _path_latest]
+	print("CarTelemetry START car=", car_tag, " -> ", _path_latest)
 
 
 func stop_recording() -> void:
@@ -154,8 +174,11 @@ func _header() -> String:
 		"want_up",
 		"want_down",
 		"tc_scale",
+		"fwd_lat_scale",
 		"rear_spin",
 		"rear_diff",
+		"body_slip_deg",
+		"yaw_assist_nm",
 	]
 	for i in 4:
 		cols.append_array(
@@ -179,6 +202,7 @@ func _header() -> String:
 			[
 				"front_fy_sum",
 				"rear_fy_sum",
+				"front_a_avg_deg",
 				"rear_k_avg",
 				"rear_a_avg_deg",
 				"yaw",
@@ -205,6 +229,8 @@ func _write_row(delta: float) -> void:
 	var wheels := _car.get_wheels()
 	var front_fy := 0.0
 	var rear_fy := 0.0
+	var front_a := 0.0
+	var front_n := 0
 	var rear_k := 0.0
 	var rear_a := 0.0
 	var rear_n := 0
@@ -244,8 +270,11 @@ func _write_row(delta: float) -> void:
 		"%d" % _car.debug_want_up,
 		"%d" % _car.debug_want_down,
 		"%.3f" % _car.debug_tc_scale,
+		"%.3f" % _car.debug_fwd_lat_scale,
 		"%d" % _car.debug_rear_spin,
 		"%d" % int(_car.setup.rear_diff_type),
+		"%.2f" % _car.debug_body_slip_deg,
+		"%.1f" % _car.debug_yaw_assist_nm,
 	]
 
 	for i in 4:
@@ -273,6 +302,8 @@ func _write_row(delta: float) -> void:
 			brk = wheel.brake_torque
 			if i < 2:
 				front_fy += fy
+				front_a += absf(a)
+				front_n += 1
 			else:
 				rear_fy += fy
 				rear_k += absf(k)
@@ -295,6 +326,7 @@ func _write_row(delta: float) -> void:
 			)
 		)
 
+	var front_a_avg := front_a / float(maxi(front_n, 1))
 	var rear_k_avg := rear_k / float(maxi(rear_n, 1))
 	var rear_a_avg := rear_a / float(maxi(rear_n, 1))
 	parts.append_array(
@@ -302,6 +334,7 @@ func _write_row(delta: float) -> void:
 			[
 				"%.1f" % front_fy,
 				"%.1f" % rear_fy,
+				"%.2f" % front_a_avg,
 				"%.4f" % rear_k_avg,
 				"%.2f" % rear_a_avg,
 				"%.2f" % rad_to_deg(_car.rotation.y),

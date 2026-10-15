@@ -191,6 +191,7 @@ func set_on_foot(enabled: bool) -> void:
 		_camera.current = true
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 		_current_car = null
+		_rebind_minimap()
 		if _anim and _anim_idle != "":
 			_anim.play(_anim_idle, anim_blend)
 		elif _anim and _anim_run != "":
@@ -258,13 +259,64 @@ func exit_car() -> void:
 	if _current_car == null:
 		return
 	var car := _current_car
-	var exit_pos := car.to_global(exit_offset)
-	exit_pos.y = 0.05
+	var exit_pos := _find_exit_position(car)
 	car.set_occupied(false, null)
 	_current_car = null
 	global_position = exit_pos
+	velocity = Vector3.ZERO
 	var away := global_position - car.global_position
 	away.y = 0.0
 	if away.length_squared() > 0.01:
 		look_at(global_position + away.normalized(), Vector3.UP)
 	set_on_foot(true)
+
+
+func _find_exit_position(car: CarController) -> Vector3:
+	## Prefer right side, then left — snap Y to ground under the mountain road.
+	var candidates: Array[Vector3] = [
+		exit_offset,
+		Vector3(-exit_offset.x, exit_offset.y, exit_offset.z),
+	]
+	for local_off: Vector3 in candidates:
+		var probe := car.to_global(local_off)
+		var snapped := _snap_to_ground(probe, car)
+		if snapped != Vector3.INF:
+			return snapped
+	## Last resort: keep lateral offset, use car height (never force Y=0).
+	var fallback := car.to_global(exit_offset)
+	fallback.y = car.global_position.y + 0.2
+	return fallback
+
+
+func _snap_to_ground(around: Vector3, exclude: Node3D) -> Vector3:
+	var space := get_world_3d().direct_space_state
+	if space == null:
+		return Vector3.INF
+	var from_y := maxf(around.y + 3.0, exclude.global_position.y + 2.5)
+	var from := Vector3(around.x, from_y, around.z)
+	var to := from + Vector3.DOWN * 40.0
+	var query := PhysicsRayQueryParameters3D.create(from, to)
+	query.collide_with_areas = false
+	query.collide_with_bodies = true
+	var exclude_rids: Array[RID] = [get_rid()]
+	if exclude is CollisionObject3D:
+		exclude_rids.append((exclude as CollisionObject3D).get_rid())
+	for node in get_tree().get_nodes_in_group("player_cars"):
+		if node is CollisionObject3D:
+			exclude_rids.append((node as CollisionObject3D).get_rid())
+	query.exclude = exclude_rids
+	var hit := space.intersect_ray(query)
+	if hit.is_empty():
+		return Vector3.INF
+	var pos: Vector3 = hit.position
+	pos.y += 0.1
+	return pos
+
+
+func _rebind_minimap() -> void:
+	if not is_inside_tree():
+		return
+	for hud in get_tree().get_nodes_in_group("car_huds"):
+		var minimap := hud.get_node_or_null("Minimap")
+		if minimap != null and minimap.has_method("bind_target"):
+			minimap.bind_target(self)

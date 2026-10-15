@@ -1,0 +1,88 @@
+[gd_resource type="Resource" script_class="CarSetup" format=3 uid="uid://byqnvr1ij0hka"]
+
+[ext_resource type="Script" uid="uid://cfaj5h28ainqg" path="res://vehicles/car_setup.gd" id="1_setup"]
+
+[sub_resource type="Curve" id="Curve_steer"]
+_data = [Vector2(0, 1), 0.0, 0.0, 0, 0, Vector2(0.2, 0.68), 0.0, 0.0, 0, 0, Vector2(0.36, 0.4), 0.0, 0.0, 0, 0, Vector2(0.5, 0.28), 0.0, 0.0, 0, 0, Vector2(0.75, 0.18), 0.0, 0.0, 0, 0, Vector2(1, 0.14), 0.0, 0.0, 0, 0]
+point_count = 6
+
+[sub_resource type="Curve" id="Curve_torque"]
+_data = [Vector2(0, 0.55), 0.0, 0.0, 0, 0, Vector2(0.22, 0.88), 0.0, 0.0, 0, 0, Vector2(0.52, 1), 0.0, 0.0, 0, 0, Vector2(0.72, 0.94), 0.0, 0.0, 0, 0, Vector2(0.9, 0.78), 0.0, 0.0, 0, 0, Vector2(1, 0.52), 0.0, 0.0, 0, 0]
+point_count = 6
+
+[resource]
+script = ExtResource("1_setup")
+mass = 1400.0
+center_of_mass_offset = Vector3(0, -0.3, 0.08)
+max_power_hp = 100.0
+max_power_kw = 74.57
+idle_rpm = 700.0
+max_rpm = 4800.0
+engine_inertia = 0.4
+engine_coast_friction_scale = 1.85
+torque_curve = SubResource("Curve_torque")
+displacement_cc = 2445.0
+bore_mm = 92.0
+stroke_mm = 92.0
+bank_angle_deg = 0.0
+exhaust_length_mm = 620.0
+cam_duration_deg = 210.0
+cam_lift_mm = 9.0
+jitter = 0.45
+engine_sound_volume_db = 2.0
+gear_ratios = Array[float]([3.5, 2.26, 1.45, 1.0])
+reverse_ratio = 4.1
+shift_time = 0.28
+clutch_max_torque = 350.0
+clutch_engage_time = 0.22
+rear_diff_type = 0
+diff_preload = 40.0
+diff_power_lock = 0.2
+diff_coast_lock = 0.1
+wheel_radius = 0.32130000000000003
+wheel_width = 0.205
+wheel_inertia = 1.05
+wheel_positions = Array[Vector3]([Vector3(-0.85, 0.42, -1.4690645), Vector3(0.85, 0.42, -1.4690645), Vector3(-0.85, 0.42, 1.1024489), Vector3(0.85, 0.42, 1.1024489)])
+front_axle_z = -1.4690645
+front_mount_y = 0.42
+front_track = 1.7
+front_wheel_radius = 0.32130000000000003
+front_mesh_scale = 4.5
+rear_axle_z = 1.1024489
+rear_mount_y = 0.42
+rear_track = 1.7
+rear_wheel_radius = 0.32130000000000003
+rear_mesh_scale = 4.5
+front_rest_length = 0.58
+front_travel = 0.18
+front_stiffness = 38000.0
+front_damping_compression = 4800.0
+front_anti_roll = 3200.0
+rear_rest_length = 0.58
+rear_travel = 0.18
+rear_stiffness = 36000.0
+rear_damping_compression = 4600.0
+rear_damping_rebound = 4000.0
+rest_length = 0.58
+travel = 0.18
+stiffness = 38000.0
+damping = 4800.0
+anti_roll = 3000.0
+tire_mu_front = 1.22
+tire_mu_rear = 1.12
+pacejka_b_lat = 5.0
+pacejka_e_lat = 0.22
+rolling_resistance = 0.016
+grip_longitudinal = 2.0
+grip_lateral = 1.95
+brake_force = 9000.0
+handbrake_force = 18000.0
+handbrake_lat_grip = 0.12
+brake_bias_front = 0.56
+drag_coefficient = 0.48
+downforce_coefficient = 0.12
+frontal_area = 2.35
+steer_speed = 2.0
+steer_angle_curve = SubResource("Curve_steer")
+throttle_rise_rate = 1.4
+throttle_fall_rate = 3.5

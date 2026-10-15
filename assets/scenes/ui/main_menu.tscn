@@ -1,6 +1,6 @@
-[gd_scene load_steps=3 format=3 uid="uid://dn1ki43pixwyl"]
+[gd_scene format=3 uid="uid://dn1ki43pixwyl"]
 
-[ext_resource type="Script" path="res://assets/scenes/ui/main_menu.gd" id="1_menu"]
+[ext_resource type="Script" uid="uid://dwk8wnui7dg4w" path="res://assets/scenes/ui/main_menu.gd" id="1_menu"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
 content_margin_left = 28.0
@@ -13,7 +13,7 @@ corner_radius_top_right = 12
 corner_radius_bottom_right = 12
 corner_radius_bottom_left = 12
 
-[node name="MainMenu" type="Control"]
+[node name="MainMenu" type="Control" unique_id=1023384516]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -22,7 +22,7 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_menu")
 
-[node name="Background" type="ColorRect" parent="."]
+[node name="Background" type="ColorRect" parent="." unique_id=1873398794]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -31,7 +31,7 @@ grow_horizontal = 2
 grow_vertical = 2
 color = Color(0.12, 0.14, 0.18, 1)
 
-[node name="Vignette" type="ColorRect" parent="."]
+[node name="Vignette" type="ColorRect" parent="." unique_id=890003498]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -41,7 +41,7 @@ grow_vertical = 2
 mouse_filter = 2
 color = Color(0.05, 0.06, 0.08, 0.35)
 
-[node name="Center" type="CenterContainer" parent="."]
+[node name="Center" type="CenterContainer" parent="." unique_id=892255440]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -49,126 +49,62 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="Panel" type="PanelContainer" parent="Center"]
+[node name="Panel" type="PanelContainer" parent="Center" unique_id=1176818804]
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
 
-[node name="Margin" type="MarginContainer" parent="Center/Panel"]
+[node name="Margin" type="MarginContainer" parent="Center/Panel" unique_id=1911559728]
 layout_mode = 2
 theme_override_constants/margin_left = 8
 theme_override_constants/margin_top = 8
 theme_override_constants/margin_right = 8
 theme_override_constants/margin_bottom = 8
 
-[node name="VBox" type="VBoxContainer" parent="Center/Panel/Margin"]
+[node name="VBox" type="VBoxContainer" parent="Center/Panel/Margin" unique_id=1611299965]
 layout_mode = 2
 theme_override_constants/separation = 16
 
-[node name="Title" type="Label" parent="Center/Panel/Margin/VBox"]
+[node name="Title" type="Label" parent="Center/Panel/Margin/VBox" unique_id=2125040182]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.95, 0.96, 0.98, 1)
 theme_override_font_sizes/font_size = 42
 text = "CAR RACING"
 horizontal_alignment = 1
 
-[node name="Subtitle" type="Label" parent="Center/Panel/Margin/VBox"]
+[node name="Subtitle" type="Label" parent="Center/Panel/Margin/VBox" unique_id=1606801975]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.65, 0.7, 0.78, 1)
 theme_override_font_sizes/font_size = 16
-text = "Основной режим"
+text = "Main mode"
 horizontal_alignment = 1
 
-[node name="Spacer" type="Control" parent="Center/Panel/Margin/VBox"]
+[node name="Spacer" type="Control" parent="Center/Panel/Margin/VBox" unique_id=1858717392]
 custom_minimum_size = Vector2(0, 12)
 layout_mode = 2
 
-[node name="MainBox" type="VBoxContainer" parent="Center/Panel/Margin/VBox"]
+[node name="MainBox" type="VBoxContainer" parent="Center/Panel/Margin/VBox" unique_id=1472872114]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 12
 
-[node name="NewGameButton" type="Button" parent="Center/Panel/Margin/VBox/MainBox"]
+[node name="NewGameButton" type="Button" parent="Center/Panel/Margin/VBox/MainBox" unique_id=452104769]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(260, 44)
 layout_mode = 2
 theme_override_font_sizes/font_size = 20
-text = "Новая игра"
+text = "New game"
 
-[node name="FunButton" type="Button" parent="Center/Panel/Margin/VBox/MainBox"]
+[node name="SettingsButton" type="Button" parent="Center/Panel/Margin/VBox/MainBox" unique_id=392539484]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(260, 44)
 layout_mode = 2
 theme_override_font_sizes/font_size = 20
-text = "Развлечения"
+text = "Settings"
 
-[node name="LeadersButton" type="Button" parent="Center/Panel/Margin/VBox/MainBox"]
+[node name="ExitButton" type="Button" parent="Center/Panel/Margin/VBox/MainBox" unique_id=1812565690]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(260, 44)
 layout_mode = 2
 theme_override_font_sizes/font_size = 20
-text = "Таблица лидеров"
-
-[node name="SettingsButton" type="Button" parent="Center/Panel/Margin/VBox/MainBox"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(260, 44)
-layout_mode = 2
-theme_override_font_sizes/font_size = 20
-text = "Настройки"
-
-[node name="ExitButton" type="Button" parent="Center/Panel/Margin/VBox/MainBox"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(260, 44)
-layout_mode = 2
-theme_override_font_sizes/font_size = 20
-text = "Выход"
-
-[node name="FunBox" type="VBoxContainer" parent="Center/Panel/Margin/VBox"]
-unique_name_in_owner = true
-visible = false
-layout_mode = 2
-theme_override_constants/separation = 12
-
-[node name="CityButton" type="Button" parent="Center/Panel/Margin/VBox/FunBox"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(260, 44)
-layout_mode = 2
-theme_override_font_sizes/font_size = 20
-text = "Город"
-
-[node name="RunwayButton" type="Button" parent="Center/Panel/Margin/VBox/FunBox"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(260, 44)
-layout_mode = 2
-theme_override_font_sizes/font_size = 20
-text = "ВПП / Трамплины"
-
-[node name="FunBackButton" type="Button" parent="Center/Panel/Margin/VBox/FunBox"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(260, 44)
-layout_mode = 2
-theme_override_font_sizes/font_size = 20
-text = "Назад"
-
-[node name="BoardBox" type="VBoxContainer" parent="Center/Panel/Margin/VBox"]
-unique_name_in_owner = true
-visible = false
-layout_mode = 2
-theme_override_constants/separation = 12
-
-[node name="BoardLabel" type="Label" parent="Center/Panel/Margin/VBox/BoardBox"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(360, 0)
-layout_mode = 2
-theme_override_colors/font_color = Color(0.9, 0.92, 0.96, 1)
-theme_override_font_sizes/font_size = 15
-text = "ТАБЛИЦА ЛИДЕРОВ"
-horizontal_alignment = 1
-autowrap_mode = 3
-
-[node name="BoardBackButton" type="Button" parent="Center/Panel/Margin/VBox/BoardBox"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(260, 44)
-layout_mode = 2
-theme_override_font_sizes/font_size = 20
-text = "Назад"
+text = "Quit"

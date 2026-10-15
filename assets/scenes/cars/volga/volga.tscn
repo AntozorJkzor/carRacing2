@@ -1,0 +1,146 @@
+[gd_scene format=3 uid="uid://rjds4u2jgfvk"]
+
+[ext_resource type="Script" uid="uid://cs73rwj1sm2gy" path="res://vehicles/car_controller.gd" id="1_ctrl"]
+[ext_resource type="Resource" uid="uid://byqnvr1ij0hka" path="res://assets/scenes/cars/volga/volga_setup.tres" id="2_setup"]
+[ext_resource type="PackedScene" uid="uid://dm5lyy8bcgrrj" path="res://assets/models/cars/volga/volga.glb" id="3_model"]
+[ext_resource type="Script" uid="uid://daklkp5n374mx" path="res://vehicles/car_debug_draw.gd" id="4_debug"]
+[ext_resource type="Script" uid="uid://dfll73ax5bfkt" path="res://vehicles/engine_audio.gd" id="5_engine"]
+[ext_resource type="Resource" uid="uid://byqnd8j5i0hka" path="res://assets/scenes/cars/volga/volga_audio.tres" id="6_audio"]
+[ext_resource type="Script" uid="uid://biqh2g0jnh6h0" path="res://vehicles/car_telemetry.gd" id="10_telem"]
+[ext_resource type="Script" uid="uid://cfv00pv8coynh" path="res://vehicles/wheel_smoke.gd" id="11_smoke"]
+[ext_resource type="Script" uid="uid://b73twtbj3ukdg" path="res://vehicles/visual_wheels.gd" id="12_vwheels"]
+[ext_resource type="PackedScene" uid="uid://rjx0p8njgfvk" path="res://assets/scenes/cars/volga/volga_wheel.tscn" id="13_wheelmesh"]
+[ext_resource type="Script" uid="uid://drl7cok4dg5uw" path="res://vehicles/wheel_layout_editor.gd" id="14_wlayout"]
+[ext_resource type="Script" uid="uid://b76v1wghlf18s" path="res://vehicles/visual_steering_wheel.gd" id="15_7vrvv"]
+[ext_resource type="Script" uid="uid://dssl2hg60x7ru" path="res://vehicles/player_driver.gd" id="15_driver"]
+[ext_resource type="Script" uid="uid://y0fhjm4v186w" path="res://vehicles/car_lights.gd" id="16_lights"]
+[ext_resource type="Script" uid="uid://bnrlcsj4dtctx" path="res://vehicles/exhaust_flame.gd" id="17_exhaust"]
+[ext_resource type="Script" uid="uid://bq5ijnjjlhpvd" path="res://vehicles/skid_marks.gd" id="18_skid"]
+[ext_resource type="Script" uid="uid://dgk6oqjosvnkl" path="res://vehicles/tire_audio.gd" id="19_tire"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_body"]
+size = Vector3(1.9499092, 1.2712295, 4.449256)
+
+[node name="Car" type="RigidBody3D" unique_id=1895402657]
+collision_mask = 5
+mass = 1400.0
+can_sleep = false
+continuous_cd = true
+angular_damp = 0.08
+script = ExtResource("1_ctrl")
+setup = ExtResource("2_setup")
+car_id = &"volga"
+wheel_scene = ExtResource("13_wheelmesh")
+audio_profile = ExtResource("6_audio")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1595122183]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.010225296, 0.8582309, -0.008579433)
+shape = SubResource("BoxShape3D_body")
+
+[node name="Model" parent="." unique_id=1120378103 instance=ExtResource("3_model")]
+transform = Transform3D(4.5, 0, 0, 0, 4.5, 0, 0, 0, 4.5, 0.00033056736, 0.06979111, -0.006801367)
+
+[node name="EngineAudio" type="Node3D" parent="." unique_id=530712626]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.4, 0.6)
+script = ExtResource("5_engine")
+
+[node name="DebugDraw" type="Node3D" parent="." unique_id=1747687008]
+script = ExtResource("4_debug")
+
+[node name="Telemetry" type="Node" parent="." unique_id=870327930]
+script = ExtResource("10_telem")
+
+[node name="WheelSmoke" type="Node3D" parent="." unique_id=1280859701]
+script = ExtResource("11_smoke")
+lifetime = 3.0
+randomness = 0.6
+scale_max = 1.4
+anim_speed_min = 0.95
+anim_speed_max = 1.55
+turbulence_strength = 0.55
+turbulence_scale = 4.0
+turbulence_speed = 0.45
+
+[node name="SkidMarks" type="Node3D" parent="." unique_id=1488705075]
+script = ExtResource("18_skid")
+
+[node name="TireAudio" type="Node3D" parent="." unique_id=1786964075]
+script = ExtResource("19_tire")
+
+[node name="CarLights" type="Node3D" parent="." unique_id=948124728]
+script = ExtResource("16_lights")
+
+[node name="Headlights" type="Node3D" parent="CarLights" unique_id=1863552027]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.17149138)
+
+[node name="Left" type="Marker3D" parent="CarLights/Headlights" unique_id=2036266134]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.72, 0.62, -1.85)
+gizmo_extents = 0.2
+
+[node name="Right" type="Marker3D" parent="CarLights/Headlights" unique_id=442753411]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.72, 0.62, -1.85)
+gizmo_extents = 0.2
+
+[node name="BrakeLights" type="Node3D" parent="CarLights" unique_id=187071954]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.15146983, 0.15722299)
+
+[node name="Left" type="Marker3D" parent="CarLights/BrakeLights" unique_id=2108590211]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.7, 0.72, 1.95)
+gizmo_extents = 0.18
+
+[node name="Right" type="Marker3D" parent="CarLights/BrakeLights" unique_id=294328269]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.7, 0.72, 1.95)
+gizmo_extents = 0.18
+
+[node name="ReverseLights" type="Node3D" parent="CarLights" unique_id=880891956]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5441903, 0.11108136, 0.13012391)
+
+[node name="Center" type="Marker3D" parent="CarLights/ReverseLights" unique_id=108054237]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.48, 2)
+gizmo_extents = 0.15
+
+[node name="ExhaustFlame" type="Node3D" parent="." unique_id=899497703]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.04326594, -0.10608858, 0.29998875)
+script = ExtResource("17_exhaust")
+burst_duration = 0.11
+min_throttle = 0.15
+puff_size = 0.09
+
+[node name="Tip" type="Marker3D" parent="ExhaustFlame" unique_id=210958933]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.45, 0.28, 1.85)
+gizmo_extents = 0.15
+
+[node name="VisualWheels" type="Node3D" parent="." unique_id=525364526]
+script = ExtResource("12_vwheels")
+mesh_scale = 4.5
+front_mesh_scale = 4.5
+rear_mesh_scale = 4.5
+
+[node name="WheelLayout" type="Node3D" parent="." unique_id=239850445]
+script = ExtResource("14_wlayout")
+front_track_mm = 1700.0
+front_track = 1.7
+front_wheel_radius = 0.32130000000000003
+front_mesh_scale = 4.5
+rear_track_mm = 1700.0
+rear_track = 1.7
+rear_wheel_radius = 0.32130000000000003
+rear_mesh_scale = 4.5
+
+[node name="Front" type="Marker3D" parent="WheelLayout" unique_id=301163753]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.42, -1.4690645)
+gizmo_extents = 0.45
+
+[node name="Rear" type="Marker3D" parent="WheelLayout" unique_id=51949914]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.42, 1.1024489)
+gizmo_extents = 0.45
+
+[node name="PlayerDriver" type="Node" parent="." unique_id=1863789487]
+script = ExtResource("15_driver")
+
+[node name="Camera3D" type="Camera3D" parent="." unique_id=870669535]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.4846152, 1.0273662, -0.30433333)
+current = true
+
+[node name="VisualSteeringWheel" type="Node3D" parent="." unique_id=987680473]
+script = ExtResource("15_7vrvv")

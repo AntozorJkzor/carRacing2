@@ -25,6 +25,7 @@ static func split_lsd(
 	if not is_power:
 		lock_ratio = coast_lock
 	var delta_w: float = omega_left - omega_right
+	# Faster wheel gets less torque (transfer toward the slower wheel).
 	var t_lock: float = (preload_torque + absf(total_torque) * lock_ratio) * signf(delta_w)
 	var max_transfer: float = absf(half) + preload_torque
 	t_lock = clampf(t_lock, -max_transfer, max_transfer)
@@ -33,16 +34,14 @@ static func split_lsd(
 
 static func split_welded(
 	total_torque: float,
-	omega_left: float,
-	omega_right: float,
-	stiffness: float
+	_omega_left: float,
+	_omega_right: float,
+	_stiffness: float
 ) -> Vector2:
-	var half: float = total_torque * 0.5
-	var delta_w: float = omega_left - omega_right
-	var k: float = maxf(stiffness, 50.0)
-	var max_eq: float = absf(total_torque) + k * 40.0
-	var t_eq: float = clampf(delta_w * k, -max_eq, max_eq)
-	return Vector2(half - t_eq * 0.5, half + t_eq * 0.5)
+	## Spool / welded: equal torque only. Wheel speeds are hard-synced in
+	## CarController after tire integration. The old stiff viscous couple
+	## (±k·Δω clamped huge) made a limit cycle — one wheel +κ, other −κ.
+	return split_open(total_torque)
 
 
 static func split_rear(

@@ -1,0 +1,138 @@
+[gd_scene format=3 uid="uid://cp2b6m7dnrk2s"]
+
+[ext_resource type="Script" uid="uid://cs73rwj1sm2gy" path="res://vehicles/car_controller.gd" id="1_ctrl"]
+[ext_resource type="Resource" uid="uid://cqjf8hwdnrk2s" path="res://assets/scenes/cars/golf/golf_setup.tres" id="2_cogsn"]
+[ext_resource type="PackedScene" uid="uid://cqnir0sdnrk2s" path="res://assets/scenes/cars/golf/golf_wheel.tscn" id="3_ceu1c"]
+[ext_resource type="Resource" uid="uid://cp0vq4vdnrk2s" path="res://assets/scenes/cars/golf/golf_audio.tres" id="4_844td"]
+[ext_resource type="Script" uid="uid://daklkp5n374mx" path="res://vehicles/car_debug_draw.gd" id="4_debug"]
+[ext_resource type="Script" uid="uid://dfll73ax5bfkt" path="res://vehicles/engine_audio.gd" id="5_engine"]
+[ext_resource type="Script" uid="uid://biqh2g0jnh6h0" path="res://vehicles/car_telemetry.gd" id="10_telem"]
+[ext_resource type="PackedScene" uid="uid://n03d0kikm8gr" path="res://assets/models/cars/golf/golf.glb" id="11_cogsn"]
+[ext_resource type="Script" uid="uid://cfv00pv8coynh" path="res://vehicles/wheel_smoke.gd" id="11_smoke"]
+[ext_resource type="Script" uid="uid://b73twtbj3ukdg" path="res://vehicles/visual_wheels.gd" id="12_vwheels"]
+[ext_resource type="Script" uid="uid://drl7cok4dg5uw" path="res://vehicles/wheel_layout_editor.gd" id="14_wlayout"]
+[ext_resource type="Script" uid="uid://dssl2hg60x7ru" path="res://vehicles/player_driver.gd" id="15_driver"]
+[ext_resource type="Script" uid="uid://y0fhjm4v186w" path="res://vehicles/car_lights.gd" id="16_lights"]
+[ext_resource type="Script" uid="uid://bnrlcsj4dtctx" path="res://vehicles/exhaust_flame.gd" id="17_exhaust"]
+[ext_resource type="Script" uid="uid://bq5ijnjjlhpvd" path="res://vehicles/skid_marks.gd" id="18_skid"]
+[ext_resource type="Script" uid="uid://dgk6oqjosvnkl" path="res://vehicles/tire_audio.gd" id="19_tire"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_body"]
+size = Vector3(1.1944551, 0.85127753, 2.632388)
+
+[node name="Car" type="RigidBody3D" unique_id=2002535293]
+collision_mask = 5
+mass = 920.0
+can_sleep = false
+continuous_cd = true
+angular_damp = 0.08
+script = ExtResource("1_ctrl")
+setup = ExtResource("2_cogsn")
+wheel_scene = ExtResource("3_ceu1c")
+audio_profile = ExtResource("4_844td")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1547655641]
+transform = Transform3D(1.3, 0, 0, 0, 1.3, 0, 0, 0, 1.3, -0.001213599, 0.7314062, 0.0028934851)
+shape = SubResource("BoxShape3D_body")
+
+[node name="EngineAudio" type="Node3D" parent="." unique_id=2007196269]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.4, 0.6)
+script = ExtResource("5_engine")
+
+[node name="DebugDraw" type="Node3D" parent="." unique_id=1793218216]
+script = ExtResource("4_debug")
+
+[node name="Telemetry" type="Node" parent="." unique_id=1373322679]
+script = ExtResource("10_telem")
+
+[node name="WheelSmoke" type="Node3D" parent="." unique_id=986858496]
+script = ExtResource("11_smoke")
+
+[node name="SkidMarks" type="Node3D" parent="."]
+script = ExtResource("18_skid")
+
+[node name="TireAudio" type="Node3D" parent="."]
+script = ExtResource("19_tire")
+
+[node name="CarLights" type="Node3D" parent="." unique_id=1078358120]
+script = ExtResource("16_lights")
+
+[node name="Headlights" type="Node3D" parent="CarLights" unique_id=1758933301]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.047273815, -0.5021994)
+
+[node name="Left" type="Marker3D" parent="CarLights/Headlights" unique_id=286225906]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.55, 0.55, -1.15)
+gizmo_extents = 0.2
+
+[node name="Right" type="Marker3D" parent="CarLights/Headlights" unique_id=23308926]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.55, 0.55, -1.15)
+gizmo_extents = 0.2
+
+[node name="BrakeLights" type="Node3D" parent="CarLights" unique_id=1257915580]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.037884116, 0.42287922)
+
+[node name="Left" type="Marker3D" parent="CarLights/BrakeLights" unique_id=2056936298]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.55, 0.6, 1.25)
+gizmo_extents = 0.18
+
+[node name="Right" type="Marker3D" parent="CarLights/BrakeLights" unique_id=1205360704]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.55, 0.6, 1.25)
+gizmo_extents = 0.18
+
+[node name="ReverseLights" type="Node3D" parent="CarLights" unique_id=1642395442]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.5057497, 0.31669062, 0.41201484)
+
+[node name="Center" type="Marker3D" parent="CarLights/ReverseLights" unique_id=790014319]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.4, 1.28)
+gizmo_extents = 0.15
+
+[node name="ExhaustFlame" type="Node3D" parent="." unique_id=1090009321]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.040968, 0.01819402, 0.47048998)
+script = ExtResource("17_exhaust")
+burst_duration = 0.13
+min_throttle = 0.15
+puff_size = 0.04
+
+[node name="Tip" type="Marker3D" parent="ExhaustFlame" unique_id=1204741581]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.4, 0.22, 1.2)
+gizmo_extents = 0.15
+
+[node name="VisualWheels" type="Node3D" parent="." unique_id=1838873478]
+script = ExtResource("12_vwheels")
+mesh_scale = 4.1
+front_mesh_scale = 4.1
+rear_mesh_scale = 4.1
+
+[node name="WheelLayout" type="Node3D" parent="." unique_id=1782289919]
+script = ExtResource("14_wlayout")
+front_track_mm = 1350.0
+front_track = 1.35
+front_rim_inches = 13.0
+front_tire_width_mm = 175.0
+front_wheel_radius = 0.2876
+front_wheel_width = 0.17500000000000002
+front_mesh_scale = 4.1
+rear_track_mm = 1350.0
+rear_track = 1.35
+rear_rim_inches = 13.0
+rear_tire_width_mm = 175.0
+rear_wheel_radius = 0.2876
+rear_wheel_width = 0.17500000000000002
+rear_mesh_scale = 4.1
+
+[node name="Front" type="Marker3D" parent="WheelLayout" unique_id=2076279340]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.42, -1.0804107)
+gizmo_extents = 0.45
+
+[node name="Rear" type="Marker3D" parent="WheelLayout" unique_id=1327717582]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.42, 1.1076102)
+gizmo_extents = 0.45
+
+[node name="Model" parent="." unique_id=1574217104 instance=ExtResource("11_cogsn")]
+transform = Transform3D(3.5, 0, 0, 0, 3.5, 0, 0, 0, 3.5, 0, -0.057293892, 0)
+
+[node name="PlayerDriver" type="Node" parent="." unique_id=2130136796]
+script = ExtResource("15_driver")
+
+[node name="Camera3D" type="Camera3D" parent="." unique_id=1247838218]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.39019275, 0.81899554, -0.78896433)

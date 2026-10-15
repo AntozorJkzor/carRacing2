@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="CarAudioProfile" format=3 uid="uid://demoaudio00001"]
+
+[ext_resource type="Script" path="res://vehicles/car_audio_profile.gd" id="1_script"]
+[ext_resource type="AudioStream" uid="uid://cxb0bqy8sik7c" path="res://assets/audio/cars/idling.mp3" id="2_idle"]
+[ext_resource type="AudioStream" uid="uid://dtkf3ykeiijmu" path="res://assets/audio/cars/low.mp3" id="3_low"]
+[ext_resource type="AudioStream" uid="uid://b3efm2hjm3lwq" path="res://assets/audio/cars/mid.mp3" id="4_mid"]
+[ext_resource type="AudioStream" uid="uid://dq315w6you5fq" path="res://assets/audio/cars/max.mp3" id="5_max"]
+
+[resource]
+script = ExtResource("1_script")
+idle_stream = ExtResource("2_idle")
+low_stream = ExtResource("3_low")
+mid_stream = ExtResource("4_mid")
+max_stream = ExtResource("5_max")
+master_volume_db = -2.0
+max_distance = 80.0
+unit_size = 12.0

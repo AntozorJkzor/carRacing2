@@ -45,10 +45,16 @@ func _ready() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode == KEY_F3:
-			enabled = not enabled
-			_apply_visibility()
-			get_viewport().set_input_as_handled()
+		if event.keycode != KEY_F3:
+			return
+		if _car == null:
+			_car = get_parent() as CarController
+		# Only the car you're driving — otherwise another pack in the scene steals F3.
+		if _car == null or not _car.occupied:
+			return
+		enabled = not enabled
+		_apply_visibility()
+		get_viewport().set_input_as_handled()
 
 
 func _physics_process(_delta: float) -> void:
@@ -102,7 +108,7 @@ func _build_meshes() -> void:
 	if wheel_count == 0:
 		wheel_count = _car.setup.wheel_positions.size()
 
-	for _i in wheel_count:
+	for i in wheel_count:
 		var mount := MeshInstance3D.new()
 		var sphere := SphereMesh.new()
 		sphere.radius = 0.08
@@ -133,8 +139,16 @@ func _build_meshes() -> void:
 
 		var disc := MeshInstance3D.new()
 		var d_mesh := CylinderMesh.new()
-		d_mesh.top_radius = _car.setup.wheel_radius
-		d_mesh.bottom_radius = _car.setup.wheel_radius
+		var r0 := 0.22
+		if _car.setup != null:
+			if i < 2:
+				r0 = float(_car.setup.get("front_wheel_radius"))
+			else:
+				r0 = float(_car.setup.get("rear_wheel_radius"))
+			if r0 <= 0.01:
+				r0 = float(_car.setup.get("wheel_radius"))
+		d_mesh.top_radius = r0
+		d_mesh.bottom_radius = r0
 		d_mesh.height = 0.08
 		disc.mesh = d_mesh
 		disc.material_override = _mat_wheel
@@ -204,7 +218,7 @@ func _update_meshes() -> void:
 			_mat_contact_ok if wheel.on_ground else _mat_contact_air
 		)
 
-		var radius := _car.setup.wheel_radius
+		var radius := _car.setup.get_wheel_radius(i)
 		if wheel.on_ground:
 			var center_world := wheel.hit_point + wheel.up * radius
 			var axle := wheel.right

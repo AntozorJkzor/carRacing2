@@ -6,11 +6,14 @@ extends Node3D
 ## that follow contact points, steer yaw, and spin from ω.
 ## In the editor, WheelLayout owns the previews — this node stays idle.
 
+## Optional override. If empty, uses CarController.wheel_scene from the car pack.
 @export var wheel_scene: PackedScene
 @export var mirror_right: bool = true
 ## Extra mesh rotation if the GLB axle is not along +X (degrees).
 @export var mesh_euler_degrees: Vector3 = Vector3.ZERO
 @export var mesh_scale: float = 2.875
+@export var front_mesh_scale: float = 2.875
+@export var rear_mesh_scale: float = 2.875
 
 @onready var _car: CarController = get_parent() as CarController
 
@@ -24,9 +27,15 @@ var _spin_sign: Array[float] = []
 func _ready() -> void:
 	if Engine.is_editor_hint():
 		return
-	if wheel_scene == null:
-		wheel_scene = load("res://assets/models/cars/wheel.glb") as PackedScene
 	_rebuild()
+
+
+func resolve_wheel_scene() -> PackedScene:
+	if wheel_scene != null:
+		return wheel_scene
+	if _car != null and _car.wheel_scene != null:
+		return _car.wheel_scene
+	return null
 
 
 func _physics_process(delta: float) -> void:
@@ -41,11 +50,12 @@ func _physics_process(delta: float) -> void:
 	if wheels.is_empty():
 		return
 
-	var radius := maxf(_car.setup.wheel_radius, 0.05)
+	var radius := maxf(_car.setup.get_wheel_radius(0), 0.05)
 	for i in wheels.size():
 		var wheel: Wheel = wheels[i]
 		var hub := _hubs[i]
 		var spinner := _spinners[i]
+		radius = maxf(_car.setup.get_wheel_radius(i), 0.05)
 
 		var center_world: Vector3
 		var up: Vector3
@@ -86,7 +96,10 @@ func _rebuild() -> void:
 	_spin_angle.clear()
 	_spin_sign.clear()
 
-	if _car == null or _car.setup == null or wheel_scene == null:
+	var scene := resolve_wheel_scene()
+	if _car == null or _car.setup == null or scene == null:
+		if scene == null and _car != null:
+			push_warning("VisualWheels: no wheel_scene on pack '%s' or override" % String(_car.car_id))
 		return
 
 	var count := _car.setup.wheel_positions.size()
@@ -99,7 +112,7 @@ func _rebuild() -> void:
 		spinner.name = "Spinner"
 		hub.add_child(spinner)
 
-		var mesh_root := wheel_scene.instantiate() as Node3D
+		var mesh_root := scene.instantiate() as Node3D
 		mesh_root.name = "Mesh"
 		var local_x := _car.setup.wheel_positions[i].x
 		# Flip outward face with 180° yaw (not scale.x — negative scale reverses spin).
@@ -107,7 +120,12 @@ func _rebuild() -> void:
 		if mirror_right and local_x < 0.0:
 			yaw_flip = 180.0
 		mesh_root.rotation_degrees = mesh_euler_degrees + Vector3(0.0, yaw_flip, 0.0)
-		mesh_root.scale = Vector3(mesh_scale, mesh_scale, mesh_scale)
+		var scale_v := _car.setup.get_mesh_scale(i)
+		if scale_v <= 0.01:
+			scale_v = front_mesh_scale if i < 2 else rear_mesh_scale
+		if scale_v <= 0.01:
+			scale_v = mesh_scale
+		mesh_root.scale = Vector3(scale_v, scale_v, scale_v)
 		spinner.add_child(mesh_root)
 
 		_hubs.append(hub)
