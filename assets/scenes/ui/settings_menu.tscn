@@ -54,7 +54,7 @@ layout_mode = 2
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 28
-text = "Настройки машины"
+text = "Car settings"
 
 [node name="PathLabel" type="Label" parent="Margin/VBox/Header"]
 unique_name_in_owner = true
@@ -91,7 +91,7 @@ unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.75, 0.82, 0.95, 1)
 theme_override_font_sizes/font_size = 13
-text = "Генерация звука двигателя…"
+text = "Generating engine sound…"
 
 [node name="BakeProgressBar" type="ProgressBar" parent="Margin/VBox/BakeRow"]
 unique_name_in_owner = true
@@ -109,16 +109,16 @@ alignment = 1
 unique_name_in_owner = true
 custom_minimum_size = Vector2(160, 40)
 layout_mode = 2
-text = "Назад"
+text = "Back"
 
 [node name="SaveButton" type="Button" parent="Margin/VBox/Buttons"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(160, 40)
 layout_mode = 2
-text = "Сохранить"
+text = "Save"
 
 [node name="ResetButton" type="Button" parent="Margin/VBox/Buttons"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(200, 40)
 layout_mode = 2
-text = "Сбросить дефолт"
+text = "Reset to default"

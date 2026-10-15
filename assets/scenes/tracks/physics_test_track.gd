@@ -81,13 +81,13 @@ func _show_bootstrap_ui() -> void:
 
 	var title := Label.new()
 	title.name = "Title"
-	title.text = "Подготовка звуков двигателя…"
+	title.text = "Preparing engine sounds…"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(title)
 
 	var status := Label.new()
 	status.name = "Status"
-	status.text = "Проверка…"
+	status.text = "Checking…"
 	status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	status.add_theme_font_size_override("font_size", 14)
 	status.add_theme_color_override("font_color", Color(0.78, 0.82, 0.88))
@@ -126,33 +126,33 @@ func _on_engine_bake_progress(current: int, total: int, rpm: float, phase: Strin
 		var step := parts[2] if parts.size() > 2 else "start"
 		match step:
 			"start":
-				status.text = "Машина %s — проверка…" % car_name
+				status.text = "Car %s — checking…" % car_name
 			"sweep":
-				status.text = "Машина %s — синтез sweep…" % car_name
+				status.text = "Car %s — synthesizing sweep…" % car_name
 			"promote":
-				status.text = "Машина %s — сохранение…" % car_name
+				status.text = "Car %s — saving…" % car_name
 			"apply":
-				status.text = "Машина %s — подключение…" % car_name
+				status.text = "Car %s — applying…" % car_name
 			_:
-				status.text = "Машина %s…" % car_name
+				status.text = "Car %s…" % car_name
 		return
 	match phase:
 		"check":
-			status.text = "Проверка кэша звука…"
+			status.text = "Checking sound cache…"
 		"cached":
-			status.text = "Звук уже есть — пропуск"
+			status.text = "Sound already exists — skipping"
 		"start":
-			status.text = "Подготовка sweep-бейка…"
+			status.text = "Preparing sweep bake…"
 		"sweep":
-			status.text = "Синтез sweep до %.0f об/мин…" % rpm
+			status.text = "Synthesizing sweep up to %.0f rpm…" % rpm
 		"promote":
-			status.text = "Сохранение банков…"
+			status.text = "Saving banks…"
 		"apply":
-			status.text = "Подключение к машинам…"
+			status.text = "Applying to cars…"
 		"error":
-			status.text = "Ошибка генерации звука"
+			status.text = "Sound generation error"
 		"done":
-			status.text = "Готово"
+			status.text = "Done"
 		_:
 			status.text = phase
 

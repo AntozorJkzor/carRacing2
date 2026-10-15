@@ -50,7 +50,7 @@ theme_override_constants/separation = 16
 [node name="Title" type="Label" parent="Margin/VBox"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 28
-text = "Звук"
+text = "Sound"
 
 [node name="Panel" type="PanelContainer" parent="Margin/VBox"]
 layout_mode = 2
@@ -72,7 +72,7 @@ layout_mode = 2
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 18
-text = "Общий звук"
+text = "Master volume"
 
 [node name="MasterValue" type="Label" parent="Margin/VBox/Panel/List/MasterRow/MasterHeader"]
 unique_name_in_owner = true
@@ -99,7 +99,7 @@ layout_mode = 2
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 18
-text = "Машина"
+text = "Car"
 
 [node name="CarValue" type="Label" parent="Margin/VBox/Panel/List/CarRow/CarHeader"]
 unique_name_in_owner = true
@@ -126,7 +126,7 @@ layout_mode = 2
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 18
-text = "Музыка"
+text = "Music"
 
 [node name="MusicValue" type="Label" parent="Margin/VBox/Panel/List/MusicRow/MusicHeader"]
 unique_name_in_owner = true
@@ -151,10 +151,10 @@ alignment = 1
 unique_name_in_owner = true
 custom_minimum_size = Vector2(160, 40)
 layout_mode = 2
-text = "Назад"
+text = "Back"
 
 [node name="SaveButton" type="Button" parent="Margin/VBox/Buttons"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(160, 40)
 layout_mode = 2
-text = "Сохранить"
+text = "Save"

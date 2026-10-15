@@ -52,8 +52,8 @@ func _process(delta: float) -> void:
 		_update_fps(false)
 	if _car == null:
 		return
-	_speed_label.text = "%d км/ч" % int(round(_car.get_speed_kmh()))
-	_rpm_label.text = "%d об/мин  ·  %d л.с." % [
+	_speed_label.text = "%d km/h" % int(round(_car.get_speed_kmh()))
+	_rpm_label.text = "%d rpm  ·  %d hp" % [
 		int(round(_car.engine_rpm)),
 		int(round(_car.get_power_hp())),
 	]
@@ -75,7 +75,7 @@ func _update_fps(_force: bool) -> void:
 
 func _on_score_changed(score: int) -> void:
 	if _score_label:
-		_score_label.text = "Очки: %d" % score
+		_score_label.text = "Score: %d" % score
 
 
 func _on_xp_changed(xp: float, max_xp: float) -> void:

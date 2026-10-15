@@ -20,7 +20,7 @@ var _layout_option: OptionButton
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	_path_label.text = "Машина: %s  ·  %s" % [
+	_path_label.text = "Car: %s  ·  %s" % [
 		String(TuningStore.active_car_id),
 		ProjectSettings.globalize_path(TuningStore.SAVE_PATH),
 	]
@@ -39,119 +39,119 @@ func _rebuild_ui() -> void:
 	_rear_diff_option = null
 	_layout_option = null
 
-	_add_section("Визуал / высота")
-	_add_slider("clearance", "Клиренс (модель + коллизия)", -0.3, 0.5, 0.01, TuningStore.clearance)
+	_add_section("Visual / ride height")
+	_add_slider("clearance", "Ground clearance (model + collision)", -0.3, 0.5, 0.01, TuningStore.clearance)
 
-	_add_section("Кузов")
-	_add_slider("mass", "Масса, кг", 600.0, 2500.0, 10.0, TuningStore.setup.mass)
-	_add_slider("com_x", "Центр масс X", -0.5, 0.5, 0.01, TuningStore.setup.center_of_mass_offset.x)
-	_add_slider("com_y", "Центр масс Y", -0.8, 0.3, 0.01, TuningStore.setup.center_of_mass_offset.y)
-	_add_slider("com_z", "Центр масс Z", -0.5, 0.5, 0.01, TuningStore.setup.center_of_mass_offset.z)
+	_add_section("Body")
+	_add_slider("mass", "Mass, kg", 600.0, 2500.0, 10.0, TuningStore.setup.mass)
+	_add_slider("com_x", "Center of mass X", -0.5, 0.5, 0.01, TuningStore.setup.center_of_mass_offset.x)
+	_add_slider("com_y", "Center of mass Y", -0.8, 0.3, 0.01, TuningStore.setup.center_of_mass_offset.y)
+	_add_slider("com_z", "Center of mass Z", -0.5, 0.5, 0.01, TuningStore.setup.center_of_mass_offset.z)
 
-	_add_section("Двигатель")
-	_add_slider("max_power_hp", "Мощность, л.с.", 50.0, 550.0, 1.0, TuningStore.setup.max_power_hp)
-	_add_slider("idle_rpm", "Холостые, об/мин", 600.0, 1500.0, 10.0, TuningStore.setup.idle_rpm)
-	_add_slider("max_rpm", "Макс. обороты", 4000.0, 10000.0, 50.0, TuningStore.setup.max_rpm)
+	_add_section("Engine")
+	_add_slider("max_power_hp", "Power, hp", 50.0, 550.0, 1.0, TuningStore.setup.max_power_hp)
+	_add_slider("idle_rpm", "Idle, rpm", 600.0, 1500.0, 10.0, TuningStore.setup.idle_rpm)
+	_add_slider("max_rpm", "Max rpm", 4000.0, 10000.0, 50.0, TuningStore.setup.max_rpm)
 
-	_add_section("Звук двигателя (EngineSim)")
-	_add_slider("cylinders", "Цилиндры", 2.0, 12.0, 1.0, float(TuningStore.setup.cylinders))
-	_add_slider("displacement_cc", "Объём, cc", 500.0, 10000.0, 50.0, TuningStore.setup.displacement_cc)
-	_add_slider("bore_mm", "Диаметр цилиндра, мм (0=авто)", 0.0, 120.0, 1.0, TuningStore.setup.bore_mm)
-	_add_slider("stroke_mm", "Ход поршня, мм", 50.0, 120.0, 1.0, TuningStore.setup.stroke_mm)
+	_add_section("Engine sound (EngineSim)")
+	_add_slider("cylinders", "Cylinders", 2.0, 12.0, 1.0, float(TuningStore.setup.cylinders))
+	_add_slider("displacement_cc", "Displacement, cc", 500.0, 10000.0, 50.0, TuningStore.setup.displacement_cc)
+	_add_slider("bore_mm", "Bore, mm (0=auto)", 0.0, 120.0, 1.0, TuningStore.setup.bore_mm)
+	_add_slider("stroke_mm", "Stroke, mm", 50.0, 120.0, 1.0, TuningStore.setup.stroke_mm)
 	_add_engine_layout()
-	_add_slider("bank_angle_deg", "Угол развала, °", 0.0, 180.0, 1.0, TuningStore.setup.bank_angle_deg)
-	_add_slider("valves_per_cylinder", "Клапанов на цилиндр", 2.0, 4.0, 2.0, float(TuningStore.setup.valves_per_cylinder))
-	_add_slider("exhaust_length_mm", "Длина выхлопа, мм", 300.0, 900.0, 10.0, TuningStore.setup.exhaust_length_mm)
-	_add_slider("cam_duration_deg", "Длительность кулачка, °", 180.0, 280.0, 1.0, TuningStore.setup.cam_duration_deg)
-	_add_slider("cam_lift_mm", "Подъём кулачка, мм", 6.0, 14.0, 0.1, TuningStore.setup.cam_lift_mm)
+	_add_slider("bank_angle_deg", "Bank angle, °", 0.0, 180.0, 1.0, TuningStore.setup.bank_angle_deg)
+	_add_slider("valves_per_cylinder", "Valves per cylinder", 2.0, 4.0, 2.0, float(TuningStore.setup.valves_per_cylinder))
+	_add_slider("exhaust_length_mm", "Exhaust length, mm", 300.0, 900.0, 10.0, TuningStore.setup.exhaust_length_mm)
+	_add_slider("cam_duration_deg", "Cam duration, °", 180.0, 280.0, 1.0, TuningStore.setup.cam_duration_deg)
+	_add_slider("cam_lift_mm", "Cam lift, mm", 6.0, 14.0, 0.1, TuningStore.setup.cam_lift_mm)
 	_add_slider("hf_gain", "HF gain", 0.0, 1.0, 0.01, TuningStore.setup.hf_gain)
 	_add_slider("noise", "Noise", 0.0, 2.0, 0.01, TuningStore.setup.noise)
 	_add_slider("jitter", "Jitter", 0.0, 1.0, 0.01, TuningStore.setup.jitter)
 	_add_slider(
 		"engine_sound_volume_db",
-		"Громкость в игре, дБ",
+		"In-game volume, dB",
 		-24.0,
 		12.0,
 		0.5,
 		TuningStore.setup.engine_sound_volume_db
 	)
 
-	_add_section("КПП / привод")
+	_add_section("Gearbox / drivetrain")
 	_add_drive_type()
-	_add_slider("final_drive", "Главная пара", 2.0, 6.0, 0.05, TuningStore.setup.final_drive)
-	_add_slider("reverse_ratio", "Задняя передача", 1.5, 5.0, 0.05, TuningStore.setup.reverse_ratio)
-	_add_slider("shift_time", "Время переключения, с", 0.05, 0.5, 0.01, TuningStore.setup.shift_time)
+	_add_slider("final_drive", "Final drive", 2.0, 6.0, 0.05, TuningStore.setup.final_drive)
+	_add_slider("reverse_ratio", "Reverse gear", 1.5, 5.0, 0.05, TuningStore.setup.reverse_ratio)
+	_add_slider("shift_time", "Shift time, s", 0.05, 0.5, 0.01, TuningStore.setup.shift_time)
 	for i in TuningStore.setup.gear_ratios.size():
 		_add_slider(
 			"gear_%d" % (i + 1),
-			"Передача %d" % (i + 1),
+			"Gear %d" % (i + 1),
 			0.5,
 			5.0,
 			0.05,
 			TuningStore.setup.gear_ratios[i]
 		)
 
-	_add_section("Задний дифференциал")
+	_add_section("Rear differential")
 	_add_rear_diff_type()
 	_add_slider("diff_preload", "LSD preload", 0.0, 400.0, 5.0, TuningStore.setup.diff_preload)
 	_add_slider("diff_power_lock", "LSD power lock", 0.0, 1.0, 0.05, TuningStore.setup.diff_power_lock)
 	_add_slider("diff_coast_lock", "LSD coast lock", 0.0, 1.0, 0.05, TuningStore.setup.diff_coast_lock)
-	_add_slider("locked_diff_stiffness", "Жёсткость заварки", 100.0, 2000.0, 25.0, TuningStore.setup.locked_diff_stiffness)
-	_add_slider("awd_front_bias", "AWD bias перед", 0.0, 1.0, 0.05, TuningStore.setup.awd_front_bias)
+	_add_slider("locked_diff_stiffness", "Welded diff stiffness", 100.0, 2000.0, 25.0, TuningStore.setup.locked_diff_stiffness)
+	_add_slider("awd_front_bias", "AWD front bias", 0.0, 1.0, 0.05, TuningStore.setup.awd_front_bias)
 
-	_add_section("Колёса (физика)")
-	_add_slider("wheel_inertia", "Инерция колеса", 0.3, 3.0, 0.05, TuningStore.setup.wheel_inertia)
+	_add_section("Wheels (physics)")
+	_add_slider("wheel_inertia", "Wheel inertia", 0.3, 3.0, 0.05, TuningStore.setup.wheel_inertia)
 
-	_add_section("Подвеска перед")
-	_add_slider("front_rest_length", "Перед rest", 0.3, 1.0, 0.01, TuningStore.setup.front_rest_length)
-	_add_slider("front_travel", "Перед ход", 0.05, 0.4, 0.01, TuningStore.setup.front_travel)
-	_add_slider("front_stiffness", "Перед жёсткость", 10000.0, 100000.0, 500.0, TuningStore.setup.front_stiffness)
-	_add_slider("front_damping_compression", "Перед сжатие", 1000.0, 15000.0, 100.0, TuningStore.setup.front_damping_compression)
-	_add_slider("front_damping_rebound", "Перед отбой", 1000.0, 15000.0, 100.0, TuningStore.setup.front_damping_rebound)
-	_add_slider("front_anti_roll", "Перед стабилизатор", 0.0, 15000.0, 100.0, TuningStore.setup.front_anti_roll)
+	_add_section("Front suspension")
+	_add_slider("front_rest_length", "Front rest length", 0.3, 1.0, 0.01, TuningStore.setup.front_rest_length)
+	_add_slider("front_travel", "Front travel", 0.05, 0.4, 0.01, TuningStore.setup.front_travel)
+	_add_slider("front_stiffness", "Front stiffness", 10000.0, 100000.0, 500.0, TuningStore.setup.front_stiffness)
+	_add_slider("front_damping_compression", "Front compression damping", 1000.0, 15000.0, 100.0, TuningStore.setup.front_damping_compression)
+	_add_slider("front_damping_rebound", "Front rebound damping", 1000.0, 15000.0, 100.0, TuningStore.setup.front_damping_rebound)
+	_add_slider("front_anti_roll", "Front anti-roll bar", 0.0, 15000.0, 100.0, TuningStore.setup.front_anti_roll)
 
-	_add_section("Подвеска зад")
-	_add_slider("rear_rest_length", "Зад rest", 0.3, 1.0, 0.01, TuningStore.setup.rear_rest_length)
-	_add_slider("rear_travel", "Зад ход", 0.05, 0.4, 0.01, TuningStore.setup.rear_travel)
-	_add_slider("rear_stiffness", "Зад жёсткость", 10000.0, 100000.0, 500.0, TuningStore.setup.rear_stiffness)
-	_add_slider("rear_damping_compression", "Зад сжатие", 1000.0, 15000.0, 100.0, TuningStore.setup.rear_damping_compression)
-	_add_slider("rear_damping_rebound", "Зад отбой", 1000.0, 15000.0, 100.0, TuningStore.setup.rear_damping_rebound)
-	_add_slider("rear_anti_roll", "Зад стабилизатор", 0.0, 15000.0, 100.0, TuningStore.setup.rear_anti_roll)
+	_add_section("Rear suspension")
+	_add_slider("rear_rest_length", "Rear rest length", 0.3, 1.0, 0.01, TuningStore.setup.rear_rest_length)
+	_add_slider("rear_travel", "Rear travel", 0.05, 0.4, 0.01, TuningStore.setup.rear_travel)
+	_add_slider("rear_stiffness", "Rear stiffness", 10000.0, 100000.0, 500.0, TuningStore.setup.rear_stiffness)
+	_add_slider("rear_damping_compression", "Rear compression damping", 1000.0, 15000.0, 100.0, TuningStore.setup.rear_damping_compression)
+	_add_slider("rear_damping_rebound", "Rear rebound damping", 1000.0, 15000.0, 100.0, TuningStore.setup.rear_damping_rebound)
+	_add_slider("rear_anti_roll", "Rear anti-roll bar", 0.0, 15000.0, 100.0, TuningStore.setup.rear_anti_roll)
 
-	_add_section("Шины / тормоза")
-	_add_slider("tire_mu_front", "µ перед", 0.6, 2.5, 0.05, TuningStore.setup.tire_mu_front)
-	_add_slider("tire_mu_rear", "µ зад", 0.6, 2.5, 0.05, TuningStore.setup.tire_mu_rear)
-	_add_slider("rolling_resistance", "Сопр. качению", 0.0, 0.05, 0.001, TuningStore.setup.rolling_resistance)
-	_add_slider("brake_force", "Сила тормоза", 2000.0, 30000.0, 100.0, TuningStore.setup.brake_force)
-	_add_slider("handbrake_force", "Сила ручника", 5000.0, 40000.0, 100.0, TuningStore.setup.handbrake_force)
-	_add_slider("handbrake_lat_grip", "Ручник: боковой зацеп зада", 0.0, 1.0, 0.01, TuningStore.setup.handbrake_lat_grip)
-	_add_slider("brake_bias_front", "Brake bias перед", 0.3, 0.85, 0.01, TuningStore.setup.brake_bias_front)
+	_add_section("Tires / brakes")
+	_add_slider("tire_mu_front", "Front µ", 0.6, 2.5, 0.05, TuningStore.setup.tire_mu_front)
+	_add_slider("tire_mu_rear", "Rear µ", 0.6, 2.5, 0.05, TuningStore.setup.tire_mu_rear)
+	_add_slider("rolling_resistance", "Rolling resistance", 0.0, 0.05, 0.001, TuningStore.setup.rolling_resistance)
+	_add_slider("brake_force", "Brake force", 2000.0, 30000.0, 100.0, TuningStore.setup.brake_force)
+	_add_slider("handbrake_force", "Handbrake force", 5000.0, 40000.0, 100.0, TuningStore.setup.handbrake_force)
+	_add_slider("handbrake_lat_grip", "Handbrake: rear lateral grip", 0.0, 1.0, 0.01, TuningStore.setup.handbrake_lat_grip)
+	_add_slider("brake_bias_front", "Front brake bias", 0.3, 0.85, 0.01, TuningStore.setup.brake_bias_front)
 
-	_add_section("Сцепление / инерция")
-	_add_slider("clutch_max_torque", "Момент сцепления", 200.0, 1500.0, 10.0, TuningStore.setup.clutch_max_torque)
-	_add_slider("clutch_engage_time", "Время сцепления, с", 0.05, 0.8, 0.01, TuningStore.setup.clutch_engage_time)
-	_add_slider("engine_inertia", "Инерция двигателя", 0.08, 0.8, 0.01, TuningStore.setup.engine_inertia)
+	_add_section("Clutch / inertia")
+	_add_slider("clutch_max_torque", "Clutch torque", 200.0, 1500.0, 10.0, TuningStore.setup.clutch_max_torque)
+	_add_slider("clutch_engage_time", "Clutch engage time, s", 0.05, 0.8, 0.01, TuningStore.setup.clutch_engage_time)
+	_add_slider("engine_inertia", "Engine inertia", 0.08, 0.8, 0.01, TuningStore.setup.engine_inertia)
 
-	_add_section("Аэро / симуляция")
+	_add_section("Aero / simulation")
 	_add_slider("drag_coefficient", "Cd", 0.15, 0.8, 0.01, TuningStore.setup.drag_coefficient)
 	_add_slider("downforce_coefficient", "Cl downforce", 0.0, 2.0, 0.05, TuningStore.setup.downforce_coefficient)
-	_add_slider("frontal_area", "Лобовая площадь", 1.2, 3.0, 0.05, TuningStore.setup.frontal_area)
+	_add_slider("frontal_area", "Frontal area", 1.2, 3.0, 0.05, TuningStore.setup.frontal_area)
 	_add_slider("physics_substeps", "Physics substeps", 1.0, 8.0, 1.0, float(TuningStore.setup.physics_substeps))
-	_add_slider("tc_slip_ratio", "TC целевой κ", 0.05, 0.45, 0.01, TuningStore.setup.tc_slip_ratio)
-	_add_slider("tc_gain", "TC жёсткость", 0.5, 12.0, 0.1, TuningStore.setup.tc_gain)
-	_add_slider("tc_min_scale", "TC мин. тяга", 0.0, 1.0, 0.05, TuningStore.setup.tc_min_scale)
+	_add_slider("tc_slip_ratio", "TC target κ", 0.05, 0.45, 0.01, TuningStore.setup.tc_slip_ratio)
+	_add_slider("tc_gain", "TC gain", 0.5, 12.0, 0.1, TuningStore.setup.tc_gain)
+	_add_slider("tc_min_scale", "TC min traction", 0.0, 1.0, 0.05, TuningStore.setup.tc_min_scale)
 
-	_add_section("Руль")
-	_add_slider("max_steer_angle", "Макс. угол руля (стойка)", 10.0, 45.0, 0.5, TuningStore.setup.max_steer_angle)
-	_add_slider("steer_speed", "Скорость отклика руля", 0.3, 6.0, 0.05, TuningStore.setup.steer_speed)
-	_add_slider("steer_curve_max_kmh", "Мягкий лок: скорость полной урезки (км/ч)", 60.0, 260.0, 5.0, TuningStore.setup.steer_curve_max_kmh)
-	_add_slider("steer_high_speed_factor", "Отклик на скорости (меньше=спокойнее)", 0.15, 1.0, 0.05, TuningStore.setup.steer_high_speed_factor)
-	_add_slider("steer_input_gamma", "Точность у центра (gamma)", 1.0, 2.5, 0.05, TuningStore.setup.steer_input_gamma)
-	_add_slider("drift_assist", "Помощь дрифта (RWD; 0=выкл)", 0.0, 2.0, 0.05, TuningStore.setup.drift_assist)
-	_add_slider("fwd_lat_priority", "FWD: приоритет бокового зацепа", 0.0, 1.0, 0.05, TuningStore.setup.fwd_lat_priority)
+	_add_section("Steering")
+	_add_slider("max_steer_angle", "Max steering angle (lock)", 10.0, 45.0, 0.5, TuningStore.setup.max_steer_angle)
+	_add_slider("steer_speed", "Steering response speed", 0.3, 6.0, 0.05, TuningStore.setup.steer_speed)
+	_add_slider("steer_curve_max_kmh", "Soft lock: full reduction speed (km/h)", 60.0, 260.0, 5.0, TuningStore.setup.steer_curve_max_kmh)
+	_add_slider("steer_high_speed_factor", "High-speed response (lower = calmer)", 0.15, 1.0, 0.05, TuningStore.setup.steer_high_speed_factor)
+	_add_slider("steer_input_gamma", "Center precision (gamma)", 1.0, 2.5, 0.05, TuningStore.setup.steer_input_gamma)
+	_add_slider("drift_assist", "Drift assist (RWD; 0 = off)", 0.0, 2.0, 0.05, TuningStore.setup.drift_assist)
+	_add_slider("fwd_lat_priority", "FWD: lateral grip priority", 0.0, 1.0, 0.05, TuningStore.setup.fwd_lat_priority)
 	_add_slider(
 		"fwd_slip_angle_start_deg",
-		"FWD: старт реза тяги (угол увода °)",
+		"FWD: traction cut start (slip angle °)",
 		2.0,
 		18.0,
 		0.5,
@@ -159,7 +159,7 @@ func _rebuild_ui() -> void:
 	)
 	_add_slider(
 		"fwd_counter_steer_scale",
-		"FWD: сила контрруля (меньше=стабильнее)",
+		"FWD: counter-steer strength (lower = more stable)",
 		0.15,
 		1.0,
 		0.05,
@@ -167,7 +167,7 @@ func _rebuild_ui() -> void:
 	)
 	_add_slider(
 		"fwd_recover_bleed",
-		"FWD: скорость отпускания руля из слайда",
+		"FWD: steering release speed after slide",
 		0.8,
 		2.0,
 		0.05,
@@ -189,7 +189,7 @@ func _add_engine_layout() -> void:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 12)
 	var name_l := Label.new()
-	name_l.text = "Компоновка"
+	name_l.text = "Layout"
 	name_l.custom_minimum_size = Vector2(240, 0)
 	row.add_child(name_l)
 	_layout_option = OptionButton.new()
@@ -206,7 +206,7 @@ func _add_drive_type() -> void:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 12)
 	var name_l := Label.new()
-	name_l.text = "Тип привода"
+	name_l.text = "Drive type"
 	name_l.custom_minimum_size = Vector2(240, 0)
 	row.add_child(name_l)
 	_drive_option = OptionButton.new()
@@ -223,13 +223,13 @@ func _add_rear_diff_type() -> void:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 12)
 	var name_l := Label.new()
-	name_l.text = "Задний дифференциал"
+	name_l.text = "Rear differential"
 	name_l.custom_minimum_size = Vector2(240, 0)
 	row.add_child(name_l)
 	_rear_diff_option = OptionButton.new()
-	_rear_diff_option.add_item("Свободный", CarSetup.RearDiffType.OPEN)
-	_rear_diff_option.add_item("Самоблок (LSD)", CarSetup.RearDiffType.LSD)
-	_rear_diff_option.add_item("Заварка", CarSetup.RearDiffType.WELDED)
+	_rear_diff_option.add_item("Open", CarSetup.RearDiffType.OPEN)
+	_rear_diff_option.add_item("Limited slip (LSD)", CarSetup.RearDiffType.LSD)
+	_rear_diff_option.add_item("Welded", CarSetup.RearDiffType.WELDED)
 	_rear_diff_option.select(int(TuningStore.setup.rear_diff_type))
 	_rear_diff_option.item_selected.connect(_on_rear_diff_selected)
 	row.add_child(_rear_diff_option)
@@ -489,14 +489,14 @@ func _run_save_with_progress() -> void:
 	var banks: Dictionary = await TuningStore.save_to_disk_async()
 	_end_bake_ui()
 	if banks.is_empty():
-		_path_label.text = "Ошибка сохранения / генерации звука"
+		_path_label.text = "Save / sound generation error"
 		return
 	if bool(banks.get("live", false)):
-		_path_label.text = "Сохранено (live-synth, без bake): %s" % String(TuningStore.active_car_id)
+		_path_label.text = "Saved (live synth, no bake): %s" % String(TuningStore.active_car_id)
 	elif bool(banks.get("skipped", false)):
-		_path_label.text = "Сохранено (звук уже актуален): %s" % String(TuningStore.active_car_id)
+		_path_label.text = "Saved (sound already up to date): %s" % String(TuningStore.active_car_id)
 	else:
-		_path_label.text = "Сохранено + новый звук: %s → %s" % [
+		_path_label.text = "Saved + new sound: %s → %s" % [
 			String(TuningStore.active_car_id),
 			ProjectSettings.globalize_path(EngineBankBaker.user_bake_dir(TuningStore.active_car_id)),
 		]
@@ -510,7 +510,7 @@ func _save_with_optional_bake(show_status_when_skipped: bool) -> void:
 		return
 	TuningStore.save_config_only()
 	if show_status_when_skipped:
-		_path_label.text = "Сохранено (звук без изменений): %s" % String(TuningStore.active_car_id)
+		_path_label.text = "Saved (sound unchanged): %s" % String(TuningStore.active_car_id)
 
 
 func _begin_bake_ui() -> void:
@@ -519,7 +519,7 @@ func _begin_bake_ui() -> void:
 	_back_button.disabled = true
 	_bake_row.visible = true
 	_bake_progress.value = 0
-	_bake_status.text = "Подготовка…"
+	_bake_status.text = "Preparing…"
 	if not TuningStore.engine_bake_progress.is_connected(_on_engine_bake_progress):
 		TuningStore.engine_bake_progress.connect(_on_engine_bake_progress)
 
@@ -537,28 +537,28 @@ func _on_engine_bake_progress(current: int, total: int, rpm: float, phase: Strin
 	_bake_progress.max_value = maxf(float(maxi(total, 1)), 1.0)
 	match phase:
 		"check":
-			_bake_status.text = "Проверка кэша звука…"
+			_bake_status.text = "Checking sound cache…"
 			_bake_progress.value = 0.0
 		"cached":
-			_bake_status.text = "Звук уже актуален — перегенерация не нужна"
+			_bake_status.text = "Sound is up to date — no regeneration needed"
 			_bake_progress.value = _bake_progress.max_value
 		"start":
-			_bake_status.text = "Подготовка sweep-бейка (шаг %.0f об/мин)…" % EngineBankBaker.RPM_STEP
+			_bake_status.text = "Preparing sweep bake (step %.0f rpm)…" % EngineBankBaker.RPM_STEP
 			_bake_progress.value = float(current)
 		"sweep":
-			_bake_status.text = "Синтез sweep idle→%.0f об/мин (один прогон)…" % rpm
+			_bake_status.text = "Synthesizing sweep idle→%.0f rpm (single pass)…" % rpm
 			_bake_progress.value = float(current)
 		"rpm":
-			_bake_status.text = "Синтез %d / %d  ·  %.0f об/мин" % [current, total, rpm]
+			_bake_status.text = "Synthesizing %d / %d  ·  %.0f rpm" % [current, total, rpm]
 			_bake_progress.value = float(current)
 		"promote":
-			_bake_status.text = "Сохранение банков на диск…"
+			_bake_status.text = "Saving banks to disk…"
 			_bake_progress.value = float(current)
 		"apply":
-			_bake_status.text = "Подключение звука к машине…"
+			_bake_status.text = "Applying sound to car…"
 			_bake_progress.value = _bake_progress.max_value
 		"error":
-			_bake_status.text = "Ошибка генерации звука"
+			_bake_status.text = "Sound generation error"
 		_:
 			_bake_status.text = phase
 
@@ -566,7 +566,7 @@ func _on_engine_bake_progress(current: int, total: int, rpm: float, phase: Strin
 func _on_reset() -> void:
 	TuningStore.reset_to_defaults()
 	_rebuild_ui()
-	_path_label.text = "Сброшено к пакету (%s), user-bake удалён" % String(TuningStore.active_car_id)
+	_path_label.text = "Reset to bundled (%s), user bake removed" % String(TuningStore.active_car_id)
 
 
 func _on_back() -> void:

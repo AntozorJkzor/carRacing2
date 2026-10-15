@@ -192,7 +192,7 @@ unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.95, 0.96, 0.98, 1)
 theme_override_font_sizes/font_size = 28
-text = "0 км/ч"
+text = "0 km/h"
 horizontal_alignment = 2
 
 [node name="RpmLabel" type="Label" parent="HUD/Telemetry/VBox" unique_id=25249878]
@@ -200,7 +200,7 @@ unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.75, 0.8, 0.88, 1)
 theme_override_font_sizes/font_size = 18
-text = "800 об/мин"
+text = "800 rpm"
 horizontal_alignment = 2
 
 [node name="GearRow" type="HBoxContainer" parent="HUD/Telemetry/VBox" unique_id=449496972]
@@ -211,7 +211,7 @@ alignment = 2
 layout_mode = 2
 theme_override_colors/font_color = Color(0.65, 0.7, 0.78, 1)
 theme_override_font_sizes/font_size = 16
-text = "Передача"
+text = "Gear"
 
 [node name="GearLabel" type="Label" parent="HUD/Telemetry/VBox/GearRow" unique_id=482865353]
 unique_name_in_owner = true
@@ -235,7 +235,7 @@ theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
 layout_mode = 2
 theme_override_colors/font_color = Color(0.9, 0.92, 0.95, 1)
 theme_override_font_sizes/font_size = 14
-text = "WASD ходьба  Shift бег  Space прыжок  E сесть/выйти  в машине: P T  L фары  N ночь  карта +/-  F3  Esc меню"
+text = "WASD walk  Shift run  Space jump  E enter/exit  in car: P T  L lights  N night  map +/-  F3  Esc menu"
 
 [node name="Car2" parent="." unique_id=2002535293 instance=ExtResource("8_nc687")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 1.2, 6)

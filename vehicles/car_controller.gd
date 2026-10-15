@@ -419,7 +419,7 @@ func toggle_transmission() -> void:
 
 
 func get_transmission_label() -> String:
-	return "АВТО" if automatic else "МЕХ"
+	return "AUTO" if automatic else "MANUAL"
 
 
 func _estimate_transmission_rpm(gear: int) -> float:

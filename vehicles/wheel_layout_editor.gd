@@ -661,7 +661,7 @@ func _update_one_track_ghost(
 
 	var label := root.get_node_or_null("TrackLabel") as Label3D
 	if label:
-		label.text = "колея %.0f мм" % track_mm
+		label.text = "track %.0f mm" % track_mm
 		label.position = Vector3(0.0, radius + 0.14, 0.0)
 
 

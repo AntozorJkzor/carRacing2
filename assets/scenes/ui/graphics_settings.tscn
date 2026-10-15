@@ -54,12 +54,12 @@ layout_mode = 2
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 28
-text = "Графика"
+text = "Graphics"
 
 [node name="PresetLabel" type="Label" parent="Margin/VBox/Header"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.7, 0.75, 0.82, 1)
-text = "Пресет"
+text = "Preset"
 
 [node name="PresetOption" type="OptionButton" parent="Margin/VBox/Header"]
 unique_name_in_owner = true
@@ -98,16 +98,16 @@ alignment = 1
 unique_name_in_owner = true
 custom_minimum_size = Vector2(160, 40)
 layout_mode = 2
-text = "Назад"
+text = "Back"
 
 [node name="SaveButton" type="Button" parent="Margin/VBox/Buttons"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(160, 40)
 layout_mode = 2
-text = "Сохранить"
+text = "Save"
 
 [node name="ResetButton" type="Button" parent="Margin/VBox/Buttons"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(160, 40)
 layout_mode = 2
-text = "Сбросить"
+text = "Reset"

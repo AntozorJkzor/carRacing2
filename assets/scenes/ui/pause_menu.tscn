@@ -63,14 +63,14 @@ theme_override_constants/separation = 16
 layout_mode = 2
 theme_override_colors/font_color = Color(0.95, 0.96, 0.98, 1)
 theme_override_font_sizes/font_size = 36
-text = "Пауза"
+text = "Paused"
 horizontal_alignment = 1
 
 [node name="Subtitle" type="Label" parent="Root/Center/Panel/Margin/VBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.65, 0.7, 0.78, 1)
 theme_override_font_sizes/font_size = 15
-text = "Игра на паузе"
+text = "Game paused"
 horizontal_alignment = 1
 
 [node name="Spacer" type="Control" parent="Root/Center/Panel/Margin/VBox"]
@@ -82,25 +82,25 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(260, 44)
 layout_mode = 2
 theme_override_font_sizes/font_size = 20
-text = "Продолжить"
+text = "Resume"
 
 [node name="SettingsButton" type="Button" parent="Root/Center/Panel/Margin/VBox"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(260, 44)
 layout_mode = 2
 theme_override_font_sizes/font_size = 20
-text = "Настройки"
+text = "Settings"
 
 [node name="MenuButton" type="Button" parent="Root/Center/Panel/Margin/VBox"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(260, 44)
 layout_mode = 2
 theme_override_font_sizes/font_size = 20
-text = "В главное меню"
+text = "Main menu"
 
 [node name="ExitButton" type="Button" parent="Root/Center/Panel/Margin/VBox"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(260, 44)
 layout_mode = 2
 theme_override_font_sizes/font_size = 20
-text = "Выход"
+text = "Quit"

@@ -23,15 +23,15 @@ func _ready() -> void:
 	_save_button.pressed.connect(_on_save)
 	_reset_button.pressed.connect(_on_reset)
 	_preset_option.clear()
-	_preset_option.add_item("Свой", GraphicsConfig.Preset.CUSTOM)
-	_preset_option.add_item("Низко", GraphicsConfig.Preset.LOW)
-	_preset_option.add_item("Средне", GraphicsConfig.Preset.MEDIUM)
-	_preset_option.add_item("Высоко", GraphicsConfig.Preset.HIGH)
-	_preset_option.add_item("Ультра", GraphicsConfig.Preset.ULTRA)
+	_preset_option.add_item("Custom", GraphicsConfig.Preset.CUSTOM)
+	_preset_option.add_item("Low", GraphicsConfig.Preset.LOW)
+	_preset_option.add_item("Medium", GraphicsConfig.Preset.MEDIUM)
+	_preset_option.add_item("High", GraphicsConfig.Preset.HIGH)
+	_preset_option.add_item("Ultra", GraphicsConfig.Preset.ULTRA)
 	_preset_option.item_selected.connect(_on_preset_selected)
 	_rebuild_ui()
 	_sync_preset_option()
-	_status.text = "MSAA выше 2x и SDFGI отключены как нестабильные"
+	_status.text = "MSAA above 2x and SDFGI are disabled as unstable"
 	_back_button.grab_focus()
 
 
@@ -42,44 +42,44 @@ func _rebuild_ui() -> void:
 	_sliders.clear()
 	_options.clear()
 
-	_add_section("Масштаб и сглаживание")
-	_add_slider("render_scale", "Масштаб 3D", 0.5, 1.0, 0.05, GraphicsConfig.render_scale)
-	_add_option("upscale_mode", "Апскейл", [
+	_add_section("Scaling & anti-aliasing")
+	_add_slider("render_scale", "3D scale", 0.5, 1.0, 0.05, GraphicsConfig.render_scale)
+	_add_option("upscale_mode", "Upscaling", [
 		["Bilinear", GraphicsConfig.UpscaleMode.BILINEAR],
 		["FSR 1.0", GraphicsConfig.UpscaleMode.FSR1],
 		["FSR 2.2", GraphicsConfig.UpscaleMode.FSR2],
 	], GraphicsConfig.upscale_mode)
-	_add_slider("fsr_sharpness", "FSR резкость", 0.0, 2.0, 0.05, GraphicsConfig.fsr_sharpness)
+	_add_slider("fsr_sharpness", "FSR sharpness", 0.0, 2.0, 0.05, GraphicsConfig.fsr_sharpness)
 	_add_option("msaa", "MSAA", [
-		["Выкл", GraphicsConfig.MsaaMode.OFF],
+		["Off", GraphicsConfig.MsaaMode.OFF],
 		["2x", GraphicsConfig.MsaaMode.X2],
 	], GraphicsConfig.msaa)
 	_add_check("use_taa", "TAA", GraphicsConfig.use_taa)
 	_add_check("use_fxaa", "FXAA", GraphicsConfig.use_fxaa)
 
-	_add_section("Освещение и эффекты")
+	_add_section("Lighting & effects")
 	_add_check("glow_enabled", "Glow / Bloom", GraphicsConfig.glow_enabled)
-	_add_slider("glow_intensity", "Интенсивность glow", 0.05, 1.5, 0.05, GraphicsConfig.glow_intensity)
+	_add_slider("glow_intensity", "Glow intensity", 0.05, 1.5, 0.05, GraphicsConfig.glow_intensity)
 	_add_check("ssao_enabled", "SSAO", GraphicsConfig.ssao_enabled)
 	_add_check("ssil_enabled", "SSIL", GraphicsConfig.ssil_enabled)
-	_add_check("ssr_enabled", "SSR (отражения)", GraphicsConfig.ssr_enabled)
-	_add_check("sdfgi_enabled", "SDFGI (временно отключено)", false)
-	_add_check("fog_enabled", "Туман", GraphicsConfig.fog_enabled)
-	_add_check("volumetric_fog_enabled", "Объёмный туман", GraphicsConfig.volumetric_fog_enabled)
+	_add_check("ssr_enabled", "SSR (reflections)", GraphicsConfig.ssr_enabled)
+	_add_check("sdfgi_enabled", "SDFGI (temporarily disabled)", false)
+	_add_check("fog_enabled", "Fog", GraphicsConfig.fog_enabled)
+	_add_check("volumetric_fog_enabled", "Volumetric fog", GraphicsConfig.volumetric_fog_enabled)
 	_add_check("use_aces_tonemap", "Tonemap ACES", GraphicsConfig.use_aces_tonemap)
-	_add_option("shadow_quality", "Качество теней", [
-		["Низко", GraphicsConfig.ShadowQuality.LOW],
-		["Средне", GraphicsConfig.ShadowQuality.MEDIUM],
-		["Высоко", GraphicsConfig.ShadowQuality.HIGH],
-		["Ультра", GraphicsConfig.ShadowQuality.ULTRA],
+	_add_option("shadow_quality", "Shadow quality", [
+		["Low", GraphicsConfig.ShadowQuality.LOW],
+		["Medium", GraphicsConfig.ShadowQuality.MEDIUM],
+		["High", GraphicsConfig.ShadowQuality.HIGH],
+		["Ultra", GraphicsConfig.ShadowQuality.ULTRA],
 	], GraphicsConfig.shadow_quality)
 
-	_add_section("Мир")
-	_add_check("night", "Ночь", GraphicsConfig.night)
-	_add_check("tire_smoke_enabled", "Дым шин", GraphicsConfig.tire_smoke_enabled)
+	_add_section("World")
+	_add_check("night", "Night", GraphicsConfig.night)
+	_add_check("tire_smoke_enabled", "Tire smoke", GraphicsConfig.tire_smoke_enabled)
 
-	_add_section("Экран")
-	_add_check("fullscreen", "Полный экран", GraphicsConfig.fullscreen)
+	_add_section("Display")
+	_add_check("fullscreen", "Fullscreen", GraphicsConfig.fullscreen)
 	_add_check("vsync", "VSync", GraphicsConfig.vsync)
 
 
@@ -176,7 +176,7 @@ func _on_preset_selected(index: int) -> void:
 	GraphicsConfig.apply_preset(id)
 	GraphicsConfig.apply_all(get_tree())
 	_rebuild_ui()
-	_status.text = "Пресет применён"
+	_status.text = "Preset applied"
 
 
 func _on_check(key: String, on: bool) -> void:
@@ -245,7 +245,7 @@ func _on_option(key: String, id: int) -> void:
 func _on_save() -> void:
 	GraphicsConfig.save_to_disk()
 	GraphicsConfig.apply_all(get_tree())
-	_status.text = "Сохранено"
+	_status.text = "Saved"
 
 
 func _on_reset() -> void:
@@ -254,7 +254,7 @@ func _on_reset() -> void:
 	GraphicsConfig.apply_all(get_tree())
 	_rebuild_ui()
 	_sync_preset_option()
-	_status.text = "Сброшено к стандартным"
+	_status.text = "Reset to defaults"
 
 
 func _on_back() -> void:

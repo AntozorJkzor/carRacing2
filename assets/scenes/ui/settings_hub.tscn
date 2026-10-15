@@ -50,7 +50,7 @@ theme_override_constants/separation = 14
 [node name="Title" type="Label" parent="Center/Panel/VBox"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 32
-text = "Настройки"
+text = "Settings"
 horizontal_alignment = 1
 
 [node name="Spacer" type="Control" parent="Center/Panel/VBox"]
@@ -62,25 +62,25 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(280, 44)
 layout_mode = 2
 theme_override_font_sizes/font_size = 20
-text = "Автомобиль"
+text = "Car"
 
 [node name="SoundButton" type="Button" parent="Center/Panel/VBox"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(280, 44)
 layout_mode = 2
 theme_override_font_sizes/font_size = 20
-text = "Звук"
+text = "Sound"
 
 [node name="GraphicsButton" type="Button" parent="Center/Panel/VBox"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(280, 44)
 layout_mode = 2
 theme_override_font_sizes/font_size = 20
-text = "Графика"
+text = "Graphics"
 
 [node name="BackButton" type="Button" parent="Center/Panel/VBox"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(280, 44)
 layout_mode = 2
 theme_override_font_sizes/font_size = 20
-text = "Назад"
+text = "Back"

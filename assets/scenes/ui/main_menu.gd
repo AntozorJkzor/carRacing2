@@ -16,7 +16,7 @@ func _ready() -> void:
 	_new_game_button.pressed.connect(_on_new_game_pressed)
 	_settings_button.pressed.connect(_on_settings_pressed)
 	_exit_button.pressed.connect(_on_exit_pressed)
-	_subtitle.text = "Тест физики"
+	_subtitle.text = "Physics test"
 	_main_box.visible = true
 	_new_game_button.grab_focus()
 
