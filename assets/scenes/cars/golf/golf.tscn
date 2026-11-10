@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://cp2b6m7dnrk2s"]
 
-[ext_resource type="Script" uid="uid://cs73rwj1sm2gy" path="res://vehicles/car_controller.gd" id="1_ctrl"]
+[ext_resource type="Script" path="res://vehicles/CarController.cs" id="1_ctrl"]
 [ext_resource type="Resource" uid="uid://cqjf8hwdnrk2s" path="res://assets/scenes/cars/golf/golf_setup.tres" id="2_cogsn"]
 [ext_resource type="PackedScene" uid="uid://cqnir0sdnrk2s" path="res://assets/scenes/cars/golf/golf_wheel.tscn" id="3_ceu1c"]
 [ext_resource type="Resource" uid="uid://cp0vq4vdnrk2s" path="res://assets/scenes/cars/golf/golf_audio.tres" id="4_844td"]

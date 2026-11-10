@@ -10,6 +10,8 @@ enum UpscaleMode { BILINEAR = 0, FSR1 = 1, FSR2 = 2 }
 enum MsaaMode { OFF = 0, X2 = 1, X4 = 2, X8 = 3 }
 enum ShadowQuality { LOW = 0, MEDIUM = 1, HIGH = 2, ULTRA = 3 }
 
+const LIGHTING_REV := 3
+
 static var preset: int = Preset.HIGH
 static var render_scale: float = 1.0
 static var upscale_mode: int = UpscaleMode.BILINEAR
@@ -18,8 +20,8 @@ static var msaa: int = MsaaMode.X2
 static var use_taa: bool = false
 static var use_fxaa: bool = true
 static var glow_enabled: bool = true
-static var glow_intensity: float = 0.35
-static var ssao_enabled: bool = true
+static var glow_intensity: float = 0.28
+static var ssao_enabled: bool = false
 static var ssil_enabled: bool = false
 static var ssr_enabled: bool = false
 static var sdfgi_enabled: bool = false
@@ -34,11 +36,8 @@ static var tire_smoke_enabled: bool = true
 
 
 static func load_from_disk() -> void:
-	if not FileAccess.file_exists(SAVE_PATH):
-		apply_preset(Preset.HIGH)
-		return
-	var cfg := ConfigFile.new()
-	if cfg.load(SAVE_PATH) != OK:
+	var cfg := ConfigStore.open(SAVE_PATH)
+	if cfg == null:
 		apply_preset(Preset.HIGH)
 		return
 	preset = int(cfg.get_value("graphics", "preset", preset))
@@ -62,6 +61,22 @@ static func load_from_disk() -> void:
 	vsync = bool(cfg.get_value("graphics", "vsync", vsync))
 	night = bool(cfg.get_value("graphics", "night", night))
 	tire_smoke_enabled = bool(cfg.get_value("graphics", "tire_smoke_enabled", tire_smoke_enabled))
+	var rev := int(cfg.get_value("graphics", "lighting_rev", 0))
+	if rev < LIGHTING_REV:
+		# Older saves turned on screen-space effects, 4-cascade shadows, FSR2/TAA.
+		ssao_enabled = false
+		ssil_enabled = false
+		ssr_enabled = false
+		sdfgi_enabled = false
+		volumetric_fog_enabled = false
+		use_taa = false
+		if upscale_mode == UpscaleMode.FSR2:
+			upscale_mode = UpscaleMode.BILINEAR
+			render_scale = 1.0
+		glow_intensity = minf(glow_intensity, 0.35)
+		if shadow_quality > ShadowQuality.HIGH:
+			shadow_quality = ShadowQuality.HIGH
+		save_to_disk()
 	_sanitize_unsafe_settings()
 
 
@@ -88,6 +103,7 @@ static func save_to_disk() -> void:
 	cfg.set_value("graphics", "vsync", vsync)
 	cfg.set_value("graphics", "night", night)
 	cfg.set_value("graphics", "tire_smoke_enabled", tire_smoke_enabled)
+	cfg.set_value("graphics", "lighting_rev", LIGHTING_REV)
 	cfg.save(SAVE_PATH)
 
 
@@ -95,8 +111,8 @@ static func apply_preset(p: int) -> void:
 	preset = p
 	match p:
 		Preset.LOW:
-			render_scale = 0.7
-			upscale_mode = UpscaleMode.FSR2
+			render_scale = 0.75
+			upscale_mode = UpscaleMode.BILINEAR
 			fsr_sharpness = 0.3
 			msaa = MsaaMode.OFF
 			use_taa = false
@@ -114,14 +130,14 @@ static func apply_preset(p: int) -> void:
 			tire_smoke_enabled = false
 		Preset.MEDIUM:
 			render_scale = 0.85
-			upscale_mode = UpscaleMode.FSR2
+			upscale_mode = UpscaleMode.BILINEAR
 			fsr_sharpness = 0.25
-			msaa = MsaaMode.X2
+			msaa = MsaaMode.OFF
 			use_taa = false
 			use_fxaa = true
 			glow_enabled = true
-			glow_intensity = 0.28
-			ssao_enabled = true
+			glow_intensity = 0.22
+			ssao_enabled = false
 			ssil_enabled = false
 			ssr_enabled = false
 			sdfgi_enabled = false
@@ -135,16 +151,16 @@ static func apply_preset(p: int) -> void:
 			upscale_mode = UpscaleMode.BILINEAR
 			fsr_sharpness = 0.2
 			msaa = MsaaMode.X2
-			use_taa = true
-			use_fxaa = false
+			use_taa = false
+			use_fxaa = true
 			glow_enabled = true
-			glow_intensity = 0.35
-			ssao_enabled = true
+			glow_intensity = 0.28
+			ssao_enabled = false
 			ssil_enabled = false
-			ssr_enabled = true
+			ssr_enabled = false
 			sdfgi_enabled = false
 			fog_enabled = true
-			volumetric_fog_enabled = true
+			volumetric_fog_enabled = false
 			use_aces_tonemap = true
 			shadow_quality = ShadowQuality.HIGH
 			tire_smoke_enabled = true
@@ -153,16 +169,16 @@ static func apply_preset(p: int) -> void:
 			upscale_mode = UpscaleMode.BILINEAR
 			fsr_sharpness = 0.2
 			msaa = MsaaMode.X2
-			use_taa = true
-			use_fxaa = false
+			use_taa = false
+			use_fxaa = true
 			glow_enabled = true
-			glow_intensity = 0.45
-			ssao_enabled = true
-			ssil_enabled = true
-			ssr_enabled = true
+			glow_intensity = 0.35
+			ssao_enabled = false
+			ssil_enabled = false
+			ssr_enabled = false
 			sdfgi_enabled = false
 			fog_enabled = true
-			volumetric_fog_enabled = true
+			volumetric_fog_enabled = false
 			use_aces_tonemap = true
 			shadow_quality = ShadowQuality.ULTRA
 			tire_smoke_enabled = true
@@ -235,23 +251,24 @@ static func _apply_viewport(root: Window) -> void:
 
 static func _apply_project_shadows() -> void:
 	var size := 2048
-	var soft := 1
+	var soft := 0
 	match shadow_quality:
 		ShadowQuality.LOW:
 			size = 1024
 			soft = 0
 		ShadowQuality.MEDIUM:
 			size = 2048
-			soft = 1
+			soft = 0
 		ShadowQuality.HIGH:
-			size = 4096
+			size = 2048
 			soft = 1
 		ShadowQuality.ULTRA:
-			size = 8192
-			soft = 2
+			size = 2048
+			soft = 1
 	ProjectSettings.set_setting("rendering/lights_and_shadows/directional_shadow/size", size)
 	ProjectSettings.set_setting("rendering/lights_and_shadows/directional_shadow/soft_shadow_filter_quality", soft)
-	ProjectSettings.set_setting("rendering/lights_and_shadows/positional_shadow/soft_shadow_filter_quality", soft)
+	ProjectSettings.set_setting("rendering/lights_and_shadows/positional_shadow/atlas_size", 1024)
+	ProjectSettings.set_setting("rendering/lights_and_shadows/positional_shadow/soft_shadow_filter_quality", 0)
 
 
 static func _apply_world(root: Node) -> void:
@@ -317,19 +334,26 @@ static func apply_directional_light(light: DirectionalLight3D) -> void:
 		light.light_energy = maxf(light.light_energy, 1.15)
 	light.shadow_bias = maxf(light.shadow_bias, 0.04)
 	light.shadow_normal_bias = maxf(light.shadow_normal_bias, 2.0)
+	light.directional_shadow_blend_splits = true
+	light.directional_shadow_fade_start = 0.8
+	# One or two cascades, only around the car. Four splits out to 400 m re-draw the whole track.
 	match shadow_quality:
 		ShadowQuality.LOW:
 			light.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
-			light.shadow_blur = 0.5
+			light.directional_shadow_max_distance = 40.0
+			light.shadow_blur = 0.3
 		ShadowQuality.MEDIUM:
-			light.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
-			light.shadow_blur = 0.8
+			light.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
+			light.directional_shadow_max_distance = 60.0
+			light.shadow_blur = 0.4
 		ShadowQuality.HIGH:
-			light.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
-			light.shadow_blur = 1.0
+			light.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
+			light.directional_shadow_max_distance = 80.0
+			light.shadow_blur = 0.5
 		ShadowQuality.ULTRA:
-			light.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
-			light.shadow_blur = 1.2
+			light.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
+			light.directional_shadow_max_distance = 100.0
+			light.shadow_blur = 0.6
 
 
 static func _sanitize_unsafe_settings() -> void:

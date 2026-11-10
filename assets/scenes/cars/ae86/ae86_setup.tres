@@ -1,0 +1,104 @@
+[gd_resource type="Resource" script_class="CarSetup" format=3 uid="uid://dy8yhf66qcef5"]
+
+[ext_resource type="Script" uid="uid://cu5yo5tt3sa0d" path="res://vehicles/car_setup.gd" id="1_setup"]
+
+[sub_resource type="Curve" id="Curve_steer"]
+_data = [Vector2(0, 1), 0.0, 0.0, 0, 0, Vector2(0.18, 0.7), 0.0, 0.0, 0, 0, Vector2(0.32, 0.4), 0.0, 0.0, 0, 0, Vector2(0.48, 0.24), 0.0, 0.0, 0, 0, Vector2(0.72, 0.15), 0.0, 0.0, 0, 0, Vector2(1, 0.11), 0.0, 0.0, 0, 0]
+point_count = 6
+
+[sub_resource type="Curve" id="Curve_torque"]
+_data = [Vector2(0, 0.55), 0.0, 0.0, 0, 0, Vector2(0.22, 0.85), 0.0, 0.0, 0, 0, Vector2(0.45, 1), 0.0, 0.0, 0, 0, Vector2(0.68, 0.97), 0.0, 0.0, 0, 0, Vector2(0.86, 0.88), 0.0, 0.0, 0, 0, Vector2(1, 0.7), 0.0, 0.0, 0, 0]
+point_count = 6
+
+[resource]
+script = ExtResource("1_setup")
+mass = 1020.0
+center_of_mass_offset = Vector3(0, -0.3, -0.06)
+max_power_hp = 128.0
+max_power_kw = 95.42
+idle_rpm = 900.0
+max_rpm = 7600.0
+engine_inertia = 0.17
+engine_coast_friction_scale = 1.5
+torque_curve = SubResource("Curve_torque")
+displacement_cc = 1587.0
+bore_mm = 81.0
+stroke_mm = 77.0
+bank_angle_deg = 0.0
+exhaust_length_mm = 380.0
+hf_gain = 0.14
+noise = 0.45
+jitter = 0.4
+gear_ratios = Array[float]([3.58, 2.02, 1.38, 1.0, 0.82])
+reverse_ratio = 3.2
+final_drive = 4.1
+shift_time = 0.18
+clutch_max_torque = 300.0
+diff_preload = 60.0
+diff_coast_lock = 0.2
+brake_elsd = 1.0
+wheel_radius = 0.3015
+wheel_width = 0.185
+wheel_inertia = 0.7
+wheel_positions = Array[Vector3]([Vector3(-0.75, 0.29, -1.3244784), Vector3(0.75, 0.29, -1.3244784), Vector3(-0.75, 0.29, 1.0736458), Vector3(0.75, 0.29, 1.0736458)])
+front_axle_z = -1.3244784
+front_mount_y = 0.29
+front_rim_inches = 15.0
+front_tire_width_mm = 185.0
+front_tire_aspect = 60.0
+front_wheel_radius = 0.3015
+front_wheel_width = 0.185
+front_mesh_scale = 1.05
+rear_axle_z = 1.0736458
+rear_mount_y = 0.29
+rear_rim_inches = 15.0
+rear_tire_width_mm = 185.0
+rear_tire_aspect = 60.0
+rear_wheel_radius = 0.3015
+rear_wheel_width = 0.185
+rear_mesh_scale = 1.05
+front_rest_length = 0.45
+front_travel = 0.16
+front_stiffness = 30000.0
+front_damping_compression = 4800.0
+front_anti_roll = 3200.0
+rear_rest_length = 0.45
+rear_travel = 0.16
+rear_stiffness = 33000.0
+rear_damping_compression = 4600.0
+rear_damping_rebound = 4000.0
+rear_anti_roll = 2400.0
+rest_length = 0.45
+travel = 0.16
+stiffness = 30000.0
+damping = 4800.0
+anti_roll = 3200.0
+tire_mu_front = 1.35
+tire_mu_rear = 1.25
+pacejka_b_lat = 5.2
+pacejka_e_lat = 0.2
+rolling_resistance = 0.014
+grip_longitudinal = 2.0
+grip_lateral = 1.95
+brake_force = 10500.0
+handbrake_force = 16000.0
+handbrake_lat_grip = 0.12
+brake_bias_front = 0.66
+drag_coefficient = 0.38
+downforce_coefficient = 0.1
+frontal_area = 1.85
+steer_angle_curve = SubResource("Curve_steer")
+front_caster_deg = 4.5
+throttle_rise_rate = 2.2
+tire_relaxation_longitudinal = 0.28
+tire_relaxation_lateral = 0.5
+max_steer_angle = 52.0
+steer_speed = 3.2
+counter_steer_lock_max = 0.95
+counter_steer_rate_mult = 2.2
+counter_steer_recover_rate = 0.4
+diff_power_lock = 0.75
+diff_coast_lock = 0.35
+arcade_assist = 0.0
+drift_assist = 0.55
+auto_hold_gear_in_drift = true

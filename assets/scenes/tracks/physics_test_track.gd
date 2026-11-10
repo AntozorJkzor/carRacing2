@@ -10,9 +10,36 @@ func _ready() -> void:
 	GraphicsConfig.load_from_disk()
 	call_deferred("_apply_graphics")
 	call_deferred("_bootstrap_engine_sounds")
+	call_deferred("_spawn_selected_car")
 	GameAudio.restart_music()
 	_pause_menu = PAUSE_MENU_SCENE.instantiate()
 	add_child(_pause_menu)
+	add_child(FrameAnalyzer.new())
+
+
+## Swap the static Car node for the garage pick and put us in the seat.
+func _spawn_selected_car() -> void:
+	var marker: Node3D = get_node_or_null("Car")
+	if marker == null:
+		return
+	var t: Transform3D = marker.global_transform
+	var catalog: CarsCatalog = TuningStore.catalog
+	var scene: PackedScene = null
+	if catalog != null:
+		scene = catalog.get_scene(TuningStore.selected_car_id)
+		if scene == null:
+			scene = catalog.get_scene(&"ae86")
+	marker.free()
+	if scene == null:
+		return
+	var car := scene.instantiate() as CarController
+	add_child(car)
+	car.global_transform = t
+	var driver := car.get_node_or_null("PlayerDriver")
+	if driver != null:
+		driver.set("can_exit", false)
+	car.set_occupied(true, null)
+	TuningStore.bind_car_id(car.car_id)
 
 
 func _apply_graphics() -> void:
@@ -50,7 +77,7 @@ func _show_bootstrap_ui() -> void:
 
 	var dim := ColorRect.new()
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
-	dim.color = Color(0.02, 0.03, 0.05, 0.82)
+	dim.color = Color(0.005, 0.01, 0.03, 0.82)
 	dim.name = "Dim"
 	_bootstrap_layer.add_child(dim)
 
@@ -62,7 +89,9 @@ func _show_bootstrap_ui() -> void:
 	panel.offset_right = 220.0
 	panel.offset_bottom = 72.0
 	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.05, 0.06, 0.08, 0.92)
+	style.bg_color = Color(0.045, 0.055, 0.095, 0.95)
+	style.border_color = Color(0.82, 0.48, 0.17)
+	style.set_border_width_all(2)
 	style.corner_radius_top_left = 10
 	style.corner_radius_top_right = 10
 	style.corner_radius_bottom_left = 10
@@ -81,12 +110,14 @@ func _show_bootstrap_ui() -> void:
 
 	var title := Label.new()
 	title.name = "Title"
+	title.add_theme_color_override("font_color", Color(1.0, 0.63, 0.24))
 	title.text = "Preparing engine sounds…"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(title)
 
 	var status := Label.new()
 	status.name = "Status"
+	status.add_theme_color_override("font_color", Color(0.55, 0.95, 0.6))
 	status.text = "Checking…"
 	status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	status.add_theme_font_size_override("font_size", 14)

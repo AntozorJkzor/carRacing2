@@ -1,0 +1,7 @@
+[gd_scene format=3 uid="uid://civicwheel00001"]
+
+[ext_resource type="PackedScene" uid="uid://dggluc2b1w30t" path="res://assets/models/cars/civic/civic_wheel.glb" id="1_mesh"]
+
+[node name="CivicWheel" type="Node3D"]
+
+[node name="Mesh" parent="." instance=ExtResource("1_mesh")]

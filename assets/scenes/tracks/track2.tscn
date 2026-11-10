@@ -1,0 +1,9 @@
+[gd_scene load_steps=3 format=3 uid="uid://dp2bqopcnx2qs"]
+
+[ext_resource type="Script" path="res://assets/scenes/tracks/track2.gd" id="1_script"]
+[ext_resource type="PackedScene" uid="uid://bxcliobri4vgh" path="res://assets/models/track/track2.glb" id="2_model"]
+
+[node name="Track2" type="Node3D"]
+script = ExtResource("1_script")
+
+[node name="Model" parent="." instance=ExtResource("2_model")]

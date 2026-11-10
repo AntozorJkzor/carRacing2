@@ -28,8 +28,12 @@ enum EngineLayout { INLINE, V, BOXER }
 ## Crankshaft inertia (kg·m²) for clutch / free-rev integration.
 @export var engine_inertia: float = 0.25
 ## Spark cut above this × max_rpm (open throttle). Re-enable below rev_limiter_cut_low_frac.
-@export_range(0.94, 1.0, 0.005) var rev_limiter_cut_high_frac: float = 0.98
+@export_range(0.94, 1.03, 0.005) var rev_limiter_cut_high_frac: float = 0.98
 @export_range(0.84, 0.97, 0.005) var rev_limiter_cut_low_frac: float = 0.91
+## Nitrous: extra horsepower while the pedal is flat (arcade-style auto shot).
+@export var nos_power_add: float = 0.0
+## Turbo kit level 0-3: boost ramps with rpm (spool from ~idle+1200 to +3800).
+@export_range(0, 3, 1) var turbo_level: int = 0
 ## Extra RPM-dependent friction when throttle released (neutral / coast).
 @export_range(0.5, 3.0, 0.05) var engine_coast_friction_scale: float = 1.65
 ## X = RPM (0..1 normalized against max_rpm), Y = torque multiplier (0..1+).
@@ -75,6 +79,10 @@ enum EngineLayout { INLINE, V, BOXER }
 @export_range(0.0, 1.0) var diff_coast_lock: float = 0.15
 ## WELDED (заварка): equalizing stiffness (N·m per rad/s of wheel-speed diff).
 @export var locked_diff_stiffness: float = 800.0
+## Тормозной eLSD на ведущей оси (0 = выкл, 1 = улица, 2 = агрессивно).
+## Давит тормозом быстрое ведущее колесо — лечит пробуксовку внутреннего
+## колеса открытого диффа в повороте (для FWD — также спасает руление).
+@export_range(0.0, 2.0, 0.05) var brake_elsd: float = 0.0
 
 @export_group("Wheels / Axles")
 ## Legacy single radius — synced from front when axles migrate; prefer per-axle radii.
@@ -155,9 +163,12 @@ enum EngineLayout { INLINE, V, BOXER }
 @export var pacejka_b_lat: float = 5.5
 @export var pacejka_c_lat: float = 1.2
 @export var pacejka_e_lat: float = 0.25
+## Tire carcass response distances in metres. Higher = more progressive breakaway.
+@export_range(0.05, 1.5, 0.05) var tire_relaxation_longitudinal: float = 0.3
+@export_range(0.05, 1.5, 0.05) var tire_relaxation_lateral: float = 0.45
 @export var rolling_resistance: float = 0.015
-## Soft minimum normal load as fraction of static weight per wheel.
-@export_range(0.0, 0.25) var min_load_fraction: float = 0.06
+## Legacy compatibility only. Unloaded raycast wheels now have zero tire force.
+@export_range(0.0, 0.25) var min_load_fraction: float = 0.0
 
 @export_group("Tires Legacy")
 @export var grip_longitudinal: float = 1.2
@@ -167,9 +178,8 @@ enum EngineLayout { INLINE, V, BOXER }
 @export_group("Brakes")
 @export var brake_force: float = 12000.0
 @export var handbrake_force: float = 22000.0
-## Rear lateral grip while handbrake is fully held (0 = ice, 1 = no cut).
-## Scales with handbrake input: lat *= lerp(1, this, hb).
-@export_range(0.0, 1.0) var handbrake_lat_grip: float = 0.15
+## Legacy compatibility only. Rear grip loss now comes from brake lock and combined slip.
+@export_range(0.0, 1.0) var handbrake_lat_grip: float = 1.0
 ## Fraction of service brake torque on the front axle.
 @export_range(0.0, 1.0) var brake_bias_front: float = 0.65
 
@@ -206,6 +216,13 @@ enum EngineLayout { INLINE, V, BOXER }
 ## How fast steer_lock may rise/fall (1/s). Stops one-frame lock jumps.
 @export_range(1.0, 20.0, 0.5) var steer_lock_smooth: float = 6.0
 
+@export_group("Alignment")
+## Кастер передней оси, °. Даёт self-centering руля и тяжесть от нагрузки на передок.
+@export_range(0.0, 10.0, 0.25) var front_caster_deg: float = 4.0
+## Развал задней оси, ° (отрицательный = «домиком», колёса наклонены внутрь).
+## Camber thrust добавляет боковую силу задка в повороте; крен кузова меняет его.
+@export_range(-6.0, 2.0, 0.25) var rear_camber_deg: float = -1.0
+
 @export_group("Throttle response")
 ## How fast throttle command rises toward pedal (1/s). Lower = softer throttle onset.
 @export var throttle_rise_rate: float = 2.0
@@ -213,12 +230,17 @@ enum EngineLayout { INLINE, V, BOXER }
 @export var throttle_fall_rate: float = 6.0
 
 @export_group("Assist")
-## Помощь дрифта (RWD): 0 = выкл, 1 = норма, до 2 = сильнее держит угол / гасит спин.
+## Аркадный помощник управляемости: 0 = чистый сим, 1 = жёсткая аркада.
+## Доворачивает машину к целевой траектории по углу руля и гасит боковой снос.
+@export_range(0.0, 1.0, 0.05) var arcade_assist: float = 0.4
+## Анти-спин: мягко гасит только раскрывающийся занос, не выпрямляя машину.
+## 0 = выкл (также отключается counter-steer soft-lock), 1 = норма, 2 = сильнее.
 ## Для FWD обычно 0 — стабильность даёт fwd_lat_priority, не yaw-torque.
+## При 0 также отключается counter-steer soft-lock — руль чистый.
 @export_range(0.0, 2.0, 0.05) var drift_assist: float = 1.0
 
 @export_group("FWD stability")
-## 0 = off, 1 = сильно режет Fx/тягу на передней оси при большом угле увода (сохраняет Fy).
+## 0 = off, 1 = сильно режет тягу (движущий момент) на передней оси при большом угле увода (сохраняет Fy).
 @export_range(0.0, 1.0, 0.05) var fwd_lat_priority: float = 0.0
 ## |slip_angle| (deg), с которого начинается FWD lat-priority.
 @export_range(2.0, 18.0, 0.5) var fwd_slip_angle_start_deg: float = 5.0
@@ -229,6 +251,8 @@ enum EngineLayout { INLINE, V, BOXER }
 
 @export_group("Simulation")
 @export_range(1, 8) var physics_substeps: int = 4
+## Keeps the current gear while sliding so the driver can control the drift with torque.
+@export var auto_hold_gear_in_drift: bool = true
 ## When on, softens torque after high slip — leave off for stronger launch wheelspin.
 @export var traction_control: bool = false
 ## Target |κ| under power. Higher = more launch wheelspin allowed.

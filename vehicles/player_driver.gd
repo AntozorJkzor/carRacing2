@@ -24,8 +24,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not active or car == null:
 		return
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_V:
-		if car.has_method("toggle_camera_view"):
-			car.toggle_camera_view()
+		car.toggle_camera_view()
 		get_viewport().set_input_as_handled()
 
 
@@ -40,8 +39,8 @@ func _physics_process(_delta: float) -> void:
 			car.want_reverse = false
 		return
 
-	var accel_raw := Input.get_action_strength("accelerate")
-	var brake_raw := Input.get_action_strength("brake")
+	var accel_raw = Input.get_action_strength("accelerate")
+	var brake_raw = Input.get_action_strength("brake")
 	car.handbrake = Input.get_action_strength("handbrake")
 	car.steering = (
 		Input.get_action_strength("steer_left")
@@ -78,12 +77,12 @@ func _apply_pedals(accel_raw: float, brake_raw: float) -> void:
 		car.brake = brake_raw
 		return
 
-	var forward_speed := car.linear_velocity.dot(-car.global_transform.basis.z)
-	var in_reverse := car.current_gear < 0
-	var near_stop := absf(forward_speed) < REVERSE_NEAR_STOP
+	var forward_speed = car.linear_velocity.dot(-car.global_transform.basis.z)
+	var in_reverse = car.current_gear < 0
+	var near_stop = absf(forward_speed) < REVERSE_NEAR_STOP
 
 	# Intent stays only while holding S; pressing W clears it so we can return to D.
-	var want_r := false
+	var want_r = false
 	if in_reverse:
 		want_r = brake_raw > 0.15 and accel_raw < 0.25
 	elif (
@@ -109,6 +108,6 @@ func _apply_pedals(accel_raw: float, brake_raw: float) -> void:
 
 
 func _exit_to_character() -> void:
-	var player := car.occupant as PlayerController
+	var player = car.occupant as PlayerController
 	if player:
 		player.exit_car()

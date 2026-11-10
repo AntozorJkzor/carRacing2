@@ -2,7 +2,7 @@ class_name EngineLabSynth
 extends RefCounted
 
 ## Port of engine-sound-lab (pulse @ 10 kHz → synth chain + FI + IR) for offline bake.
-## API mirrors EngineWaveguideSynth: configure_from_setup + render_mono.
+## API: configure_from_setup + render_mono (used by EngineBankBaker).
 
 const SPEED_OF_SOUND := 343.0
 const SIM_RATE := 10000.0

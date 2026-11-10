@@ -9,3 +9,13 @@ extends Resource
 @export var id: StringName = &""
 @export var display_name: String = ""
 @export var scene: PackedScene
+## CarSetup .tres for this pack. Empty = convention res://assets/scenes/cars/<id>/<id>_setup.tres.
+@export var setup_path: String = ""
+## Podium yaw so the car shows a 3/4 view with the nose to the left.
+@export var showroom_yaw_deg: float = 0.0
+
+
+func get_setup_path() -> String:
+	if not setup_path.is_empty():
+		return setup_path
+	return "res://assets/scenes/cars/%s/%s_setup.tres" % [String(id), String(id)]

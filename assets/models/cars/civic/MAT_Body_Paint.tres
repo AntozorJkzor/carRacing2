@@ -1,0 +1,19 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://d18q103uib317"]
+
+[ext_resource type="Texture2D" uid="uid://cccf1w5gnrljr" path="res://assets/models/cars/civic/civic_26.png" id="1_ao0me"]
+[ext_resource type="Texture2D" uid="uid://ofeb1nworib7" path="res://assets/models/cars/civic/civic_27.png" id="2_kxl2m"]
+[ext_resource type="Texture2D" uid="uid://dkfniv3i2q5hb" path="res://assets/models/cars/civic/civic_28.png" id="3_bu7k0"]
+
+[resource]
+resource_name = "MAT_Body_Paint"
+albedo_texture = ExtResource("1_ao0me")
+metallic = 1.0
+metallic_texture = ExtResource("2_kxl2m")
+metallic_texture_channel = 2
+roughness_texture = ExtResource("2_kxl2m")
+roughness_texture_channel = 1
+normal_enabled = true
+normal_texture = ExtResource("3_bu7k0")
+ao_enabled = true
+ao_texture = ExtResource("2_kxl2m")
+metadata/_gltf_primary_texture_coord = 0

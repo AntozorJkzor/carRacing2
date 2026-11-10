@@ -3,27 +3,42 @@
 [ext_resource type="Script" path="res://vehicles/cars_catalog.gd" id="1_catalog"]
 [ext_resource type="Script" path="res://vehicles/car_definition.gd" id="2_def"]
 [ext_resource type="PackedScene" path="res://assets/scenes/cars/volga/volga.tscn" id="3_volga"]
-[ext_resource type="PackedScene" path="res://assets/scenes/cars/demo/demo.tscn" id="4_demo"]
 [ext_resource type="PackedScene" path="res://assets/scenes/cars/golf/golf.tscn" id="5_golf"]
+[ext_resource type="PackedScene" uid="uid://civiccarpack0001" path="res://assets/scenes/cars/civic/civic.tscn" id="6_civic"]
+[ext_resource type="PackedScene" uid="uid://ae86car00000001" path="res://assets/scenes/cars/ae86/ae86.tscn" id="7_ae86"]
 
 [sub_resource type="Resource" id="CarDefinition_volga"]
 script = ExtResource("2_def")
 id = &"volga"
 display_name = "Volga"
 scene = ExtResource("3_volga")
-
-[sub_resource type="Resource" id="CarDefinition_demo"]
-script = ExtResource("2_def")
-id = &"demo"
-display_name = "Demo"
-scene = ExtResource("4_demo")
+setup_path = "res://assets/scenes/cars/volga/volga_setup.tres"
+showroom_yaw_deg = 135.0
 
 [sub_resource type="Resource" id="CarDefinition_golf"]
 script = ExtResource("2_def")
 id = &"golf"
 display_name = "Golf"
 scene = ExtResource("5_golf")
+setup_path = "res://assets/scenes/cars/golf/golf_setup.tres"
+showroom_yaw_deg = 135.0
+
+[sub_resource type="Resource" id="CarDefinition_civic"]
+script = ExtResource("2_def")
+id = &"civic"
+display_name = "Civic"
+scene = ExtResource("6_civic")
+setup_path = "res://assets/scenes/cars/civic/civic_setup.tres"
+showroom_yaw_deg = 135.0
+
+[sub_resource type="Resource" id="CarDefinition_ae86"]
+script = ExtResource("2_def")
+id = &"ae86"
+display_name = "Toyota AE86"
+scene = ExtResource("7_ae86")
+setup_path = "res://assets/scenes/cars/ae86/ae86_setup.tres"
+showroom_yaw_deg = 135.0
 
 [resource]
 script = ExtResource("1_catalog")
-cars = Array[CarDefinition]([SubResource("CarDefinition_volga"), SubResource("CarDefinition_demo"), SubResource("CarDefinition_golf")])
+cars = Array[CarDefinition]([SubResource("CarDefinition_volga"), SubResource("CarDefinition_golf"), SubResource("CarDefinition_civic"), SubResource("CarDefinition_ae86")])

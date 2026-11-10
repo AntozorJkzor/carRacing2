@@ -1,0 +1,19 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://b4gndqinh2k2n"]
+
+[ext_resource type="Texture2D" uid="uid://o7o0cmdie2jx" path="res://assets/models/cars/civic/civic_29.png" id="1_h73yx"]
+[ext_resource type="Texture2D" uid="uid://clbduo5x21714" path="res://assets/models/cars/civic/civic_30.png" id="2_efaac"]
+[ext_resource type="Texture2D" uid="uid://tj2uu4bcyh1k" path="res://assets/models/cars/civic/civic_31.png" id="3_hwrdh"]
+
+[resource]
+resource_name = "MAT_Black_Grid"
+albedo_texture = ExtResource("1_h73yx")
+metallic = 1.0
+metallic_texture = ExtResource("2_efaac")
+metallic_texture_channel = 2
+roughness_texture = ExtResource("2_efaac")
+roughness_texture_channel = 1
+normal_enabled = true
+normal_texture = ExtResource("3_hwrdh")
+ao_enabled = true
+ao_texture = ExtResource("2_efaac")
+metadata/_gltf_primary_texture_coord = 0

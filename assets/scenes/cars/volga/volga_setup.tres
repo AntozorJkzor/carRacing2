@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="CarSetup" format=3 uid="uid://byqnvr1ij0hka"]
 
-[ext_resource type="Script" uid="uid://cfaj5h28ainqg" path="res://vehicles/car_setup.gd" id="1_setup"]
+[ext_resource type="Script" uid="uid://cu5yo5tt3sa0d" path="res://vehicles/car_setup.gd" id="1_setup"]
 
 [sub_resource type="Curve" id="Curve_steer"]
 _data = [Vector2(0, 1), 0.0, 0.0, 0, 0, Vector2(0.2, 0.68), 0.0, 0.0, 0, 0, Vector2(0.36, 0.4), 0.0, 0.0, 0, 0, Vector2(0.5, 0.28), 0.0, 0.0, 0, 0, Vector2(0.75, 0.18), 0.0, 0.0, 0, 0, Vector2(1, 0.14), 0.0, 0.0, 0, 0]
@@ -35,10 +35,10 @@ reverse_ratio = 4.1
 shift_time = 0.28
 clutch_max_torque = 350.0
 clutch_engage_time = 0.22
-rear_diff_type = 0
-diff_preload = 40.0
-diff_power_lock = 0.2
-diff_coast_lock = 0.1
+rear_diff_type = 1
+diff_preload = 70.0
+diff_power_lock = 0.6
+diff_coast_lock = 0.3
 wheel_radius = 0.32130000000000003
 wheel_width = 0.205
 wheel_inertia = 1.05
@@ -86,3 +86,13 @@ steer_speed = 2.0
 steer_angle_curve = SubResource("Curve_steer")
 throttle_rise_rate = 1.4
 throttle_fall_rate = 3.5
+tire_relaxation_longitudinal = 0.35
+tire_relaxation_lateral = 0.55
+max_steer_angle = 48.0
+steer_speed = 2.8
+counter_steer_lock_max = 0.9
+counter_steer_rate_mult = 2.0
+counter_steer_recover_rate = 0.4
+arcade_assist = 0.0
+drift_assist = 0.45
+auto_hold_gear_in_drift = true

@@ -10,6 +10,7 @@ extends Control
 @onready var _back_button: Button = %BackButton
 @onready var _save_button: Button = %SaveButton
 @onready var _reset_button: Button = %ResetButton
+@onready var _title: Label = %Title
 
 var _sliders: Dictionary = {}
 var _value_labels: Dictionary = {}
@@ -20,14 +21,130 @@ var _layout_option: OptionButton
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	_path_label.text = "Car: %s  ·  %s" % [
-		String(TuningStore.active_car_id),
-		ProjectSettings.globalize_path(TuningStore.SAVE_PATH),
-	]
+	var bg := ColorRect.new()
+	add_child(bg)
+	UiStyle.night_sky(bg)
+	move_child(bg, 0)
+	UiStyle.button(_back_button, UiStyle.RED, 18)
+	UiStyle.button(_save_button, UiStyle.AMBER, 18)
+	UiStyle.button(_reset_button, UiStyle.RED, 18)
+	Lang.language_changed.connect(_refresh_language)
+	_refresh_language()
 	_back_button.pressed.connect(_on_back)
 	_save_button.pressed.connect(_on_save)
 	_reset_button.pressed.connect(_on_reset)
 	_rebuild_ui()
+
+
+func _refresh_language() -> void:
+	_title.text = Lang.t("car.title")
+	UiStyle.section_label_style(_title, 28)
+	UiStyle.lcd_label_style(_path_label, 13)
+	_back_button.text = Lang.t("common.back")
+	_save_button.text = Lang.t("common.save")
+	_reset_button.text = Lang.t("common.reset_defaults")
+	_path_label.text = Lang.t("car.path_label") % [
+		String(TuningStore.active_car_id),
+		ProjectSettings.globalize_path(TuningStore.SAVE_PATH),
+	]
+	_rebuild_ui()
+
+
+## Declarative UI table. Entry kinds:
+## {"section": title} / {"key", "label", "min", "max", "step"} / {"options": id} / {"gears": true}
+const PARAMS: Array[Dictionary] = [
+	{"section": "car.sec.visual"},
+	{"key": "clearance", "tkey": "car.clearance", "min": -0.3, "max": 0.5, "step": 0.01},
+	{"section": "car.sec.body"},
+	{"key": "mass", "tkey": "car.mass", "min": 600.0, "max": 2500.0, "step": 10.0},
+	{"key": "com_x", "tkey": "car.com_x", "min": -0.5, "max": 0.5, "step": 0.01},
+	{"key": "com_y", "tkey": "car.com_y", "min": -0.8, "max": 0.3, "step": 0.01},
+	{"key": "com_z", "tkey": "car.com_z", "min": -0.5, "max": 0.5, "step": 0.01},
+	{"section": "car.sec.engine"},
+	{"key": "max_power_hp", "tkey": "car.max_power_hp", "min": 50.0, "max": 550.0, "step": 1.0},
+	{"key": "idle_rpm", "tkey": "car.idle_rpm", "min": 600.0, "max": 1500.0, "step": 10.0},
+	{"key": "max_rpm", "tkey": "car.max_rpm", "min": 4000.0, "max": 10000.0, "step": 50.0},
+	{"section": "car.sec.engine_sound"},
+	{"key": "cylinders", "tkey": "car.cylinders", "min": 2.0, "max": 12.0, "step": 1.0},
+	{"key": "displacement_cc", "tkey": "car.displacement_cc", "min": 500.0, "max": 10000.0, "step": 50.0},
+	{"key": "bore_mm", "tkey": "car.bore_mm", "min": 0.0, "max": 120.0, "step": 1.0},
+	{"key": "stroke_mm", "tkey": "car.stroke_mm", "min": 50.0, "max": 120.0, "step": 1.0},
+	{"options": "engine_layout"},
+	{"key": "bank_angle_deg", "tkey": "car.bank_angle_deg", "min": 0.0, "max": 180.0, "step": 1.0},
+	{"key": "valves_per_cylinder", "tkey": "car.valves_per_cylinder", "min": 2.0, "max": 4.0, "step": 2.0},
+	{"key": "exhaust_length_mm", "tkey": "car.exhaust_length_mm", "min": 300.0, "max": 900.0, "step": 10.0},
+	{"key": "cam_duration_deg", "tkey": "car.cam_duration_deg", "min": 180.0, "max": 280.0, "step": 1.0},
+	{"key": "cam_lift_mm", "tkey": "car.cam_lift_mm", "min": 6.0, "max": 14.0, "step": 0.1},
+	{"key": "hf_gain", "tkey": "car.hf_gain", "min": 0.0, "max": 1.0, "step": 0.01},
+	{"key": "noise", "tkey": "car.noise", "min": 0.0, "max": 2.0, "step": 0.01},
+	{"key": "jitter", "tkey": "car.jitter", "min": 0.0, "max": 1.0, "step": 0.01},
+	{"key": "engine_sound_volume_db", "tkey": "car.engine_sound_volume_db", "min": -24.0, "max": 12.0, "step": 0.5},
+	{"section": "car.sec.drivetrain"},
+	{"options": "drive_type"},
+	{"key": "final_drive", "tkey": "car.final_drive", "min": 2.0, "max": 6.0, "step": 0.05},
+	{"key": "reverse_ratio", "tkey": "car.reverse_ratio", "min": 1.5, "max": 5.0, "step": 0.05},
+	{"key": "shift_time", "tkey": "car.shift_time", "min": 0.05, "max": 0.5, "step": 0.01},
+	{"gears": true},
+	{"section": "car.sec.differential"},
+	{"options": "rear_diff_type"},
+	{"key": "diff_preload", "tkey": "car.diff_preload", "min": 0.0, "max": 400.0, "step": 5.0},
+	{"key": "diff_power_lock", "tkey": "car.diff_power_lock", "min": 0.0, "max": 1.0, "step": 0.05},
+	{"key": "diff_coast_lock", "tkey": "car.diff_coast_lock", "min": 0.0, "max": 1.0, "step": 0.05},
+	{"key": "locked_diff_stiffness", "tkey": "car.locked_diff_stiffness", "min": 100.0, "max": 2000.0, "step": 25.0},
+	{"key": "awd_front_bias", "tkey": "car.awd_front_bias", "min": 0.0, "max": 1.0, "step": 0.05},
+	{"key": "brake_elsd", "tkey": "car.brake_elsd", "min": 0.0, "max": 2.0, "step": 0.05},
+	{"section": "car.sec.wheels"},
+	{"key": "wheel_inertia", "tkey": "car.wheel_inertia", "min": 0.3, "max": 3.0, "step": 0.05},
+	{"section": "car.sec.susp_front"},
+	{"key": "front_rest_length", "tkey": "car.front_rest_length", "min": 0.3, "max": 1.0, "step": 0.01},
+	{"key": "front_travel", "tkey": "car.front_travel", "min": 0.05, "max": 0.4, "step": 0.01},
+	{"key": "front_stiffness", "tkey": "car.front_stiffness", "min": 10000.0, "max": 100000.0, "step": 500.0},
+	{"key": "front_damping_compression", "tkey": "car.front_damping_compression", "min": 1000.0, "max": 15000.0, "step": 100.0},
+	{"key": "front_damping_rebound", "tkey": "car.front_damping_rebound", "min": 1000.0, "max": 15000.0, "step": 100.0},
+	{"key": "front_anti_roll", "tkey": "car.front_anti_roll", "min": 0.0, "max": 15000.0, "step": 100.0},
+	{"section": "car.sec.susp_rear"},
+	{"key": "rear_rest_length", "tkey": "car.rear_rest_length", "min": 0.3, "max": 1.0, "step": 0.01},
+	{"key": "rear_travel", "tkey": "car.rear_travel", "min": 0.05, "max": 0.4, "step": 0.01},
+	{"key": "rear_stiffness", "tkey": "car.rear_stiffness", "min": 10000.0, "max": 100000.0, "step": 500.0},
+	{"key": "rear_damping_compression", "tkey": "car.rear_damping_compression", "min": 1000.0, "max": 15000.0, "step": 100.0},
+	{"key": "rear_damping_rebound", "tkey": "car.rear_damping_rebound", "min": 1000.0, "max": 15000.0, "step": 100.0},
+	{"key": "rear_anti_roll", "tkey": "car.rear_anti_roll", "min": 0.0, "max": 15000.0, "step": 100.0},
+	{"section": "car.sec.tires"},
+	{"key": "tire_mu_front", "tkey": "car.tire_mu_front", "min": 0.6, "max": 2.5, "step": 0.05},
+	{"key": "tire_mu_rear", "tkey": "car.tire_mu_rear", "min": 0.6, "max": 2.5, "step": 0.05},
+	{"key": "rolling_resistance", "tkey": "car.rolling_resistance", "min": 0.0, "max": 0.05, "step": 0.001},
+	{"key": "brake_force", "tkey": "car.brake_force", "min": 2000.0, "max": 30000.0, "step": 100.0},
+	{"key": "handbrake_force", "tkey": "car.handbrake_force", "min": 5000.0, "max": 40000.0, "step": 100.0},
+	{"key": "handbrake_lat_grip", "tkey": "car.handbrake_lat_grip", "min": 0.0, "max": 1.0, "step": 0.01},
+	{"key": "brake_bias_front", "tkey": "car.brake_bias_front", "min": 0.3, "max": 0.85, "step": 0.01},
+	{"section": "car.sec.clutch"},
+	{"key": "clutch_max_torque", "tkey": "car.clutch_max_torque", "min": 200.0, "max": 1500.0, "step": 10.0},
+	{"key": "clutch_engage_time", "tkey": "car.clutch_engage_time", "min": 0.05, "max": 0.8, "step": 0.01},
+	{"key": "engine_inertia", "tkey": "car.engine_inertia", "min": 0.08, "max": 0.8, "step": 0.01},
+	{"section": "car.sec.aero"},
+	{"key": "drag_coefficient", "tkey": "car.drag_coefficient", "min": 0.15, "max": 0.8, "step": 0.01},
+	{"key": "downforce_coefficient", "tkey": "car.downforce_coefficient", "min": 0.0, "max": 2.0, "step": 0.05},
+	{"key": "frontal_area", "tkey": "car.frontal_area", "min": 1.2, "max": 3.0, "step": 0.05},
+	{"key": "physics_substeps", "tkey": "car.physics_substeps", "min": 1.0, "max": 8.0, "step": 1.0},
+	{"key": "tc_slip_ratio", "tkey": "car.tc_slip_ratio", "min": 0.05, "max": 0.45, "step": 0.01},
+	{"key": "tc_gain", "tkey": "car.tc_gain", "min": 0.5, "max": 12.0, "step": 0.1},
+	{"key": "tc_min_scale", "tkey": "car.tc_min_scale", "min": 0.0, "max": 1.0, "step": 0.05},
+	{"section": "car.sec.steering"},
+	{"key": "max_steer_angle", "tkey": "car.max_steer_angle", "min": 10.0, "max": 45.0, "step": 0.5},
+	{"key": "steer_speed", "tkey": "car.steer_speed", "min": 0.3, "max": 6.0, "step": 0.05},
+	{"key": "steer_curve_max_kmh", "tkey": "car.steer_curve_max_kmh", "min": 60.0, "max": 260.0, "step": 5.0},
+	{"key": "steer_high_speed_factor", "tkey": "car.steer_high_speed_factor", "min": 0.15, "max": 1.0, "step": 0.05},
+	{"key": "steer_input_gamma", "tkey": "car.steer_input_gamma", "min": 1.0, "max": 2.5, "step": 0.05},
+	{"key": "drift_assist", "tkey": "car.drift_assist", "min": 0.0, "max": 2.0, "step": 0.05},
+	{"key": "arcade_assist", "tkey": "car.arcade_assist", "min": 0.0, "max": 1.0, "step": 0.05},
+	{"key": "fwd_lat_priority", "tkey": "car.fwd_lat_priority", "min": 0.0, "max": 1.0, "step": 0.05},
+	{"key": "fwd_slip_angle_start_deg", "tkey": "car.fwd_slip_angle_start_deg", "min": 2.0, "max": 18.0, "step": 0.5},
+	{"key": "fwd_counter_steer_scale", "tkey": "car.fwd_counter_steer_scale", "min": 0.15, "max": 1.0, "step": 0.05},
+	{"key": "fwd_recover_bleed", "tkey": "car.fwd_recover_bleed", "min": 0.8, "max": 2.0, "step": 0.05},
+	{"section": "car.sec.alignment"},
+	{"key": "front_caster_deg", "tkey": "car.front_caster_deg", "min": 0.0, "max": 10.0, "step": 0.25},
+	{"key": "rear_camber_deg", "tkey": "car.rear_camber_deg", "min": -6.0, "max": 2.0, "step": 0.25},
+]
 
 
 func _rebuild_ui() -> void:
@@ -39,147 +156,54 @@ func _rebuild_ui() -> void:
 	_rear_diff_option = null
 	_layout_option = null
 
-	_add_section("Visual / ride height")
-	_add_slider("clearance", "Ground clearance (model + collision)", -0.3, 0.5, 0.01, TuningStore.clearance)
+	for entry: Dictionary in PARAMS:
+		if entry.has("section"):
+			_add_section(Lang.t(entry.section))
+		elif entry.has("options"):
+			match String(entry.options):
+				"engine_layout":
+					_add_engine_layout()
+				"drive_type":
+					_add_drive_type()
+				"rear_diff_type":
+					_add_rear_diff_type()
+		elif entry.has("gears"):
+			for i in TuningStore.setup.gear_ratios.size():
+				_add_slider(
+					"gear_%d" % (i + 1),
+					Lang.t("car.gear_n") % (i + 1),
+					0.5,
+					5.0,
+					0.05,
+					TuningStore.setup.gear_ratios[i]
+				)
+		else:
+			_add_slider(entry.key, Lang.t(entry.tkey), entry.min, entry.max, entry.step, _param_value(entry.key))
 
-	_add_section("Body")
-	_add_slider("mass", "Mass, kg", 600.0, 2500.0, 10.0, TuningStore.setup.mass)
-	_add_slider("com_x", "Center of mass X", -0.5, 0.5, 0.01, TuningStore.setup.center_of_mass_offset.x)
-	_add_slider("com_y", "Center of mass Y", -0.8, 0.3, 0.01, TuningStore.setup.center_of_mass_offset.y)
-	_add_slider("com_z", "Center of mass Z", -0.5, 0.5, 0.01, TuningStore.setup.center_of_mass_offset.z)
 
-	_add_section("Engine")
-	_add_slider("max_power_hp", "Power, hp", 50.0, 550.0, 1.0, TuningStore.setup.max_power_hp)
-	_add_slider("idle_rpm", "Idle, rpm", 600.0, 1500.0, 10.0, TuningStore.setup.idle_rpm)
-	_add_slider("max_rpm", "Max rpm", 4000.0, 10000.0, 50.0, TuningStore.setup.max_rpm)
-
-	_add_section("Engine sound (EngineSim)")
-	_add_slider("cylinders", "Cylinders", 2.0, 12.0, 1.0, float(TuningStore.setup.cylinders))
-	_add_slider("displacement_cc", "Displacement, cc", 500.0, 10000.0, 50.0, TuningStore.setup.displacement_cc)
-	_add_slider("bore_mm", "Bore, mm (0=auto)", 0.0, 120.0, 1.0, TuningStore.setup.bore_mm)
-	_add_slider("stroke_mm", "Stroke, mm", 50.0, 120.0, 1.0, TuningStore.setup.stroke_mm)
-	_add_engine_layout()
-	_add_slider("bank_angle_deg", "Bank angle, °", 0.0, 180.0, 1.0, TuningStore.setup.bank_angle_deg)
-	_add_slider("valves_per_cylinder", "Valves per cylinder", 2.0, 4.0, 2.0, float(TuningStore.setup.valves_per_cylinder))
-	_add_slider("exhaust_length_mm", "Exhaust length, mm", 300.0, 900.0, 10.0, TuningStore.setup.exhaust_length_mm)
-	_add_slider("cam_duration_deg", "Cam duration, °", 180.0, 280.0, 1.0, TuningStore.setup.cam_duration_deg)
-	_add_slider("cam_lift_mm", "Cam lift, mm", 6.0, 14.0, 0.1, TuningStore.setup.cam_lift_mm)
-	_add_slider("hf_gain", "HF gain", 0.0, 1.0, 0.01, TuningStore.setup.hf_gain)
-	_add_slider("noise", "Noise", 0.0, 2.0, 0.01, TuningStore.setup.noise)
-	_add_slider("jitter", "Jitter", 0.0, 1.0, 0.01, TuningStore.setup.jitter)
-	_add_slider(
-		"engine_sound_volume_db",
-		"In-game volume, dB",
-		-24.0,
-		12.0,
-		0.5,
-		TuningStore.setup.engine_sound_volume_db
-	)
-
-	_add_section("Gearbox / drivetrain")
-	_add_drive_type()
-	_add_slider("final_drive", "Final drive", 2.0, 6.0, 0.05, TuningStore.setup.final_drive)
-	_add_slider("reverse_ratio", "Reverse gear", 1.5, 5.0, 0.05, TuningStore.setup.reverse_ratio)
-	_add_slider("shift_time", "Shift time, s", 0.05, 0.5, 0.01, TuningStore.setup.shift_time)
-	for i in TuningStore.setup.gear_ratios.size():
-		_add_slider(
-			"gear_%d" % (i + 1),
-			"Gear %d" % (i + 1),
-			0.5,
-			5.0,
-			0.05,
-			TuningStore.setup.gear_ratios[i]
-		)
-
-	_add_section("Rear differential")
-	_add_rear_diff_type()
-	_add_slider("diff_preload", "LSD preload", 0.0, 400.0, 5.0, TuningStore.setup.diff_preload)
-	_add_slider("diff_power_lock", "LSD power lock", 0.0, 1.0, 0.05, TuningStore.setup.diff_power_lock)
-	_add_slider("diff_coast_lock", "LSD coast lock", 0.0, 1.0, 0.05, TuningStore.setup.diff_coast_lock)
-	_add_slider("locked_diff_stiffness", "Welded diff stiffness", 100.0, 2000.0, 25.0, TuningStore.setup.locked_diff_stiffness)
-	_add_slider("awd_front_bias", "AWD front bias", 0.0, 1.0, 0.05, TuningStore.setup.awd_front_bias)
-
-	_add_section("Wheels (physics)")
-	_add_slider("wheel_inertia", "Wheel inertia", 0.3, 3.0, 0.05, TuningStore.setup.wheel_inertia)
-
-	_add_section("Front suspension")
-	_add_slider("front_rest_length", "Front rest length", 0.3, 1.0, 0.01, TuningStore.setup.front_rest_length)
-	_add_slider("front_travel", "Front travel", 0.05, 0.4, 0.01, TuningStore.setup.front_travel)
-	_add_slider("front_stiffness", "Front stiffness", 10000.0, 100000.0, 500.0, TuningStore.setup.front_stiffness)
-	_add_slider("front_damping_compression", "Front compression damping", 1000.0, 15000.0, 100.0, TuningStore.setup.front_damping_compression)
-	_add_slider("front_damping_rebound", "Front rebound damping", 1000.0, 15000.0, 100.0, TuningStore.setup.front_damping_rebound)
-	_add_slider("front_anti_roll", "Front anti-roll bar", 0.0, 15000.0, 100.0, TuningStore.setup.front_anti_roll)
-
-	_add_section("Rear suspension")
-	_add_slider("rear_rest_length", "Rear rest length", 0.3, 1.0, 0.01, TuningStore.setup.rear_rest_length)
-	_add_slider("rear_travel", "Rear travel", 0.05, 0.4, 0.01, TuningStore.setup.rear_travel)
-	_add_slider("rear_stiffness", "Rear stiffness", 10000.0, 100000.0, 500.0, TuningStore.setup.rear_stiffness)
-	_add_slider("rear_damping_compression", "Rear compression damping", 1000.0, 15000.0, 100.0, TuningStore.setup.rear_damping_compression)
-	_add_slider("rear_damping_rebound", "Rear rebound damping", 1000.0, 15000.0, 100.0, TuningStore.setup.rear_damping_rebound)
-	_add_slider("rear_anti_roll", "Rear anti-roll bar", 0.0, 15000.0, 100.0, TuningStore.setup.rear_anti_roll)
-
-	_add_section("Tires / brakes")
-	_add_slider("tire_mu_front", "Front µ", 0.6, 2.5, 0.05, TuningStore.setup.tire_mu_front)
-	_add_slider("tire_mu_rear", "Rear µ", 0.6, 2.5, 0.05, TuningStore.setup.tire_mu_rear)
-	_add_slider("rolling_resistance", "Rolling resistance", 0.0, 0.05, 0.001, TuningStore.setup.rolling_resistance)
-	_add_slider("brake_force", "Brake force", 2000.0, 30000.0, 100.0, TuningStore.setup.brake_force)
-	_add_slider("handbrake_force", "Handbrake force", 5000.0, 40000.0, 100.0, TuningStore.setup.handbrake_force)
-	_add_slider("handbrake_lat_grip", "Handbrake: rear lateral grip", 0.0, 1.0, 0.01, TuningStore.setup.handbrake_lat_grip)
-	_add_slider("brake_bias_front", "Front brake bias", 0.3, 0.85, 0.01, TuningStore.setup.brake_bias_front)
-
-	_add_section("Clutch / inertia")
-	_add_slider("clutch_max_torque", "Clutch torque", 200.0, 1500.0, 10.0, TuningStore.setup.clutch_max_torque)
-	_add_slider("clutch_engage_time", "Clutch engage time, s", 0.05, 0.8, 0.01, TuningStore.setup.clutch_engage_time)
-	_add_slider("engine_inertia", "Engine inertia", 0.08, 0.8, 0.01, TuningStore.setup.engine_inertia)
-
-	_add_section("Aero / simulation")
-	_add_slider("drag_coefficient", "Cd", 0.15, 0.8, 0.01, TuningStore.setup.drag_coefficient)
-	_add_slider("downforce_coefficient", "Cl downforce", 0.0, 2.0, 0.05, TuningStore.setup.downforce_coefficient)
-	_add_slider("frontal_area", "Frontal area", 1.2, 3.0, 0.05, TuningStore.setup.frontal_area)
-	_add_slider("physics_substeps", "Physics substeps", 1.0, 8.0, 1.0, float(TuningStore.setup.physics_substeps))
-	_add_slider("tc_slip_ratio", "TC target κ", 0.05, 0.45, 0.01, TuningStore.setup.tc_slip_ratio)
-	_add_slider("tc_gain", "TC gain", 0.5, 12.0, 0.1, TuningStore.setup.tc_gain)
-	_add_slider("tc_min_scale", "TC min traction", 0.0, 1.0, 0.05, TuningStore.setup.tc_min_scale)
-
-	_add_section("Steering")
-	_add_slider("max_steer_angle", "Max steering angle (lock)", 10.0, 45.0, 0.5, TuningStore.setup.max_steer_angle)
-	_add_slider("steer_speed", "Steering response speed", 0.3, 6.0, 0.05, TuningStore.setup.steer_speed)
-	_add_slider("steer_curve_max_kmh", "Soft lock: full reduction speed (km/h)", 60.0, 260.0, 5.0, TuningStore.setup.steer_curve_max_kmh)
-	_add_slider("steer_high_speed_factor", "High-speed response (lower = calmer)", 0.15, 1.0, 0.05, TuningStore.setup.steer_high_speed_factor)
-	_add_slider("steer_input_gamma", "Center precision (gamma)", 1.0, 2.5, 0.05, TuningStore.setup.steer_input_gamma)
-	_add_slider("drift_assist", "Drift assist (RWD; 0 = off)", 0.0, 2.0, 0.05, TuningStore.setup.drift_assist)
-	_add_slider("fwd_lat_priority", "FWD: lateral grip priority", 0.0, 1.0, 0.05, TuningStore.setup.fwd_lat_priority)
-	_add_slider(
-		"fwd_slip_angle_start_deg",
-		"FWD: traction cut start (slip angle °)",
-		2.0,
-		18.0,
-		0.5,
-		TuningStore.setup.fwd_slip_angle_start_deg
-	)
-	_add_slider(
-		"fwd_counter_steer_scale",
-		"FWD: counter-steer strength (lower = more stable)",
-		0.15,
-		1.0,
-		0.05,
-		TuningStore.setup.fwd_counter_steer_scale
-	)
-	_add_slider(
-		"fwd_recover_bleed",
-		"FWD: steering release speed after slide",
-		0.8,
-		2.0,
-		0.05,
-		TuningStore.setup.fwd_recover_bleed
-	)
+func _param_value(key: String) -> float:
+	var s := TuningStore.setup
+	match key:
+		"clearance":
+			return TuningStore.clearance
+		"com_x":
+			return s.center_of_mass_offset.x
+		"com_y":
+			return s.center_of_mass_offset.y
+		"com_z":
+			return s.center_of_mass_offset.z
+		"cylinders":
+			return float(s.cylinders)
+		"valves_per_cylinder":
+			return float(s.valves_per_cylinder)
+		"physics_substeps":
+			return float(s.physics_substeps)
+		_:
+			return float(s.get(key))
 
 
 func _add_section(title: String) -> void:
-	var label := Label.new()
-	label.text = title
-	label.add_theme_font_size_override("font_size", 20)
-	label.add_theme_color_override("font_color", Color(0.95, 0.85, 0.4))
+	var label := UiStyle.section_label(title, 20)
 	_list.add_child(label)
 	var sep := HSeparator.new()
 	_list.add_child(sep)
@@ -189,7 +213,7 @@ func _add_engine_layout() -> void:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 12)
 	var name_l := Label.new()
-	name_l.text = "Layout"
+	name_l.text = Lang.t("car.layout")
 	name_l.custom_minimum_size = Vector2(240, 0)
 	row.add_child(name_l)
 	_layout_option = OptionButton.new()
@@ -206,7 +230,7 @@ func _add_drive_type() -> void:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 12)
 	var name_l := Label.new()
-	name_l.text = "Drive type"
+	name_l.text = Lang.t("car.drive_type")
 	name_l.custom_minimum_size = Vector2(240, 0)
 	row.add_child(name_l)
 	_drive_option = OptionButton.new()
@@ -223,7 +247,7 @@ func _add_rear_diff_type() -> void:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 12)
 	var name_l := Label.new()
-	name_l.text = "Rear differential"
+	name_l.text = Lang.t("car.rear_diff_type")
 	name_l.custom_minimum_size = Vector2(240, 0)
 	row.add_child(name_l)
 	_rear_diff_option = OptionButton.new()
@@ -249,6 +273,7 @@ func _add_slider(
 
 	var name_l := Label.new()
 	name_l.text = title
+	name_l.add_theme_color_override("font_color", UiStyle.CHROME)
 	name_l.custom_minimum_size = Vector2(240, 0)
 	row.add_child(name_l)
 
@@ -277,22 +302,6 @@ func _add_slider(
 	_value_labels[key] = val_l
 
 
-func _add_checkbox(key: String, title: String, value: bool) -> void:
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 12)
-	var name_l := Label.new()
-	name_l.text = title
-	name_l.custom_minimum_size = Vector2(240, 0)
-	row.add_child(name_l)
-	var box := CheckBox.new()
-	box.button_pressed = value
-	box.toggled.connect(func(on: bool) -> void:
-		_apply_bool_key(key, on)
-	)
-	row.add_child(box)
-	_list.add_child(row)
-
-
 func _format_value(value: float, step: float) -> String:
 	if step >= 1.0:
 		return str(int(round(value)))
@@ -313,10 +322,6 @@ func _on_drive_selected(index: int) -> void:
 
 func _on_rear_diff_selected(index: int) -> void:
 	TuningStore.setup.rear_diff_type = _rear_diff_option.get_item_id(index) as CarSetup.RearDiffType
-
-
-func _apply_bool_key(_key: String, _value: bool) -> void:
-	pass
 
 
 func _apply_key(key: String, value: float) -> void:
@@ -386,6 +391,8 @@ func _apply_key(key: String, value: float) -> void:
 			s.locked_diff_stiffness = value
 		"awd_front_bias":
 			s.awd_front_bias = value
+		"brake_elsd":
+			s.brake_elsd = value
 		"wheel_inertia":
 			s.wheel_inertia = value
 		"front_rest_length":
@@ -465,6 +472,12 @@ func _apply_key(key: String, value: float) -> void:
 			s.steer_input_gamma = value
 		"drift_assist":
 			s.drift_assist = value
+		"arcade_assist":
+			s.arcade_assist = value
+		"front_caster_deg":
+			s.front_caster_deg = value
+		"rear_camber_deg":
+			s.rear_camber_deg = value
 		"fwd_lat_priority":
 			s.fwd_lat_priority = value
 		"fwd_slip_angle_start_deg":
@@ -489,12 +502,12 @@ func _run_save_with_progress() -> void:
 	var banks: Dictionary = await TuningStore.save_to_disk_async()
 	_end_bake_ui()
 	if banks.is_empty():
-		_path_label.text = "Save / sound generation error"
+		_path_label.text = Lang.t("car.bake.error")
 		return
 	if bool(banks.get("live", false)):
 		_path_label.text = "Saved (live synth, no bake): %s" % String(TuningStore.active_car_id)
 	elif bool(banks.get("skipped", false)):
-		_path_label.text = "Saved (sound already up to date): %s" % String(TuningStore.active_car_id)
+		_path_label.text = Lang.t("car.saved_unchanged") % String(TuningStore.active_car_id)
 	else:
 		_path_label.text = "Saved + new sound: %s → %s" % [
 			String(TuningStore.active_car_id),
@@ -510,7 +523,7 @@ func _save_with_optional_bake(show_status_when_skipped: bool) -> void:
 		return
 	TuningStore.save_config_only()
 	if show_status_when_skipped:
-		_path_label.text = "Saved (sound unchanged): %s" % String(TuningStore.active_car_id)
+		_path_label.text = Lang.t("car.saved_unchanged") % String(TuningStore.active_car_id)
 
 
 func _begin_bake_ui() -> void:
@@ -519,7 +532,7 @@ func _begin_bake_ui() -> void:
 	_back_button.disabled = true
 	_bake_row.visible = true
 	_bake_progress.value = 0
-	_bake_status.text = "Preparing…"
+	_bake_status.text = Lang.t("car.bake.prepare")
 	if not TuningStore.engine_bake_progress.is_connected(_on_engine_bake_progress):
 		TuningStore.engine_bake_progress.connect(_on_engine_bake_progress)
 
@@ -537,28 +550,28 @@ func _on_engine_bake_progress(current: int, total: int, rpm: float, phase: Strin
 	_bake_progress.max_value = maxf(float(maxi(total, 1)), 1.0)
 	match phase:
 		"check":
-			_bake_status.text = "Checking sound cache…"
+			_bake_status.text = Lang.t("car.bake.check")
 			_bake_progress.value = 0.0
 		"cached":
-			_bake_status.text = "Sound is up to date — no regeneration needed"
+			_bake_status.text = Lang.t("car.bake.cached")
 			_bake_progress.value = _bake_progress.max_value
 		"start":
-			_bake_status.text = "Preparing sweep bake (step %.0f rpm)…" % EngineBankBaker.RPM_STEP
+			_bake_status.text = Lang.t("car.bake.start") % EngineBankBaker.RPM_STEP
 			_bake_progress.value = float(current)
 		"sweep":
-			_bake_status.text = "Synthesizing sweep idle→%.0f rpm (single pass)…" % rpm
+			_bake_status.text = Lang.t("car.bake.sweep") % rpm
 			_bake_progress.value = float(current)
 		"rpm":
-			_bake_status.text = "Synthesizing %d / %d  ·  %.0f rpm" % [current, total, rpm]
+			_bake_status.text = Lang.t("car.bake.rpm") % [current, total, rpm]
 			_bake_progress.value = float(current)
 		"promote":
-			_bake_status.text = "Saving banks to disk…"
+			_bake_status.text = Lang.t("car.bake.promote")
 			_bake_progress.value = float(current)
 		"apply":
-			_bake_status.text = "Applying sound to car…"
+			_bake_status.text = Lang.t("car.bake.apply")
 			_bake_progress.value = _bake_progress.max_value
 		"error":
-			_bake_status.text = "Sound generation error"
+			_bake_status.text = Lang.t("car.bake.error")
 		_:
 			_bake_status.text = phase
 
@@ -566,7 +579,7 @@ func _on_engine_bake_progress(current: int, total: int, rpm: float, phase: Strin
 func _on_reset() -> void:
 	TuningStore.reset_to_defaults()
 	_rebuild_ui()
-	_path_label.text = "Reset to bundled (%s), user bake removed" % String(TuningStore.active_car_id)
+	_path_label.text = Lang.t("car.reset_done") % String(TuningStore.active_car_id)
 
 
 func _on_back() -> void:

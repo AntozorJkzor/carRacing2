@@ -8,55 +8,97 @@ extends CharacterBody3D
 @export var enter_distance: float = 4.5
 @export var exit_offset: Vector3 = Vector3(2.2, 0.0, 0.0)
 @export var anim_blend: float = 0.18
+@export var look_around_idle_delay: float = 15.0
+@export var turn_speed: float = 14.0
+@export var model_yaw_offset: float = PI
+@export var model_scale: float = 2.0
 
 @onready var _head: Node3D = %Head
 @onready var _camera: Camera3D = %Camera3D
 @onready var _model: Node3D = $Model
 
 var _anim: AnimationPlayer
+var _skeleton: Skeleton3D
+var _hips_bone: int = -1
 var _anim_idle: String = ""
 var _anim_walk: String = ""
 var _anim_run: String = ""
-var _anim_jump: String = ""
+var _anim_look: String = ""
+var _anim_dance: String = ""
 var _pitch: float = 0.0
+var _cam_yaw: float = 0.0
+var _body_yaw: float = PI
 var _active: bool = true
 var _current_car: CarController = null
 var _was_on_floor: bool = true
+var _idle_time: float = 0.0
+var _looking_around: bool = false
+var _dancing: bool = false
 
 
 func _ready() -> void:
 	add_to_group("player_character")
+	_body_yaw = model_yaw_offset
+	_apply_model_yaw(_body_yaw)
 	_resolve_animations()
 	set_on_foot(true)
 
 
 func _resolve_animations() -> void:
 	_anim = _find_animation_player(_model)
+	_skeleton = _find_skeleton(_model)
+	if _skeleton != null:
+		_hips_bone = _find_hips_bone(_skeleton)
 	if _anim == null:
 		push_warning("Player model has no AnimationPlayer")
 		return
 
-	_anim_idle = _match_anim(["expectation", "idle", "Expectation"])
-	_anim_walk = _match_anim(["walk", "Walk"])
-	_anim_run = _match_anim(["run", "Run"])
-	_anim_jump = _match_anim(["jump", "Jump"])
+	_anim_idle = _match_anim(["idle"])
+	_anim_walk = _match_anim(["walk"])
+	_anim_run = _match_anim(["run"])
+	_anim_look = _match_anim(["look_around", "look around", "lookaround"])
+	_anim_dance = _match_anim(["танц", "dance", "blackhole", "muse"])
 	_fallback_single_animation()
+	_strip_root_xz_motion()
 
-	# Loop locomotion / idle; jump plays once.
 	for anim_name in _anim.get_animation_list():
 		var animation := _anim.get_animation(anim_name)
 		if animation == null:
 			continue
-		var lower := anim_name.to_lower()
-		if "jump" in lower or "bow" in lower or "u-turn" in lower or "uturn" in lower:
+		var lower := String(anim_name).to_lower()
+		if anim_name == _anim_look:
 			animation.loop_mode = Animation.LOOP_NONE
-		else:
+		elif anim_name == _anim_dance or "walk" in lower or "run" in lower or "idle" in lower:
 			animation.loop_mode = Animation.LOOP_LINEAR
+		else:
+			animation.loop_mode = Animation.LOOP_NONE
+
+	if not _anim.animation_finished.is_connected(_on_animation_finished):
+		_anim.animation_finished.connect(_on_animation_finished)
 
 	if _anim_idle != "":
 		_anim.play(_anim_idle)
-	elif _anim_run != "":
-		_anim.play(_anim_run)
+
+
+func _strip_root_xz_motion() -> void:
+	## Mixamo hip position tracks slide the mesh away from the capsule while running.
+	if _anim == null:
+		return
+	for anim_name in _anim.get_animation_list():
+		var animation := _anim.get_animation(anim_name)
+		if animation == null:
+			continue
+		for track_i in range(animation.get_track_count()):
+			if animation.track_get_type(track_i) != Animation.TYPE_POSITION_3D:
+				continue
+			var path := String(animation.track_get_path(track_i)).to_lower()
+			if "hip" not in path:
+				continue
+			for key_i in range(animation.track_get_key_count(track_i)):
+				var pos: Vector3 = animation.track_get_key_value(track_i, key_i)
+				pos.x = 0.0
+				pos.z = 0.0
+				animation.track_set_key_value(track_i, key_i, pos)
 
 
 func _find_animation_player(root: Node) -> AnimationPlayer:
@@ -69,6 +111,24 @@ func _find_animation_player(root: Node) -> AnimationPlayer:
 	return null
 
 
+func _find_skeleton(root: Node) -> Skeleton3D:
+	if root is Skeleton3D:
+		return root as Skeleton3D
+	for child in root.get_children():
+		var found := _find_skeleton(child)
+		if found:
+			return found
+	return null
+
+
+func _find_hips_bone(skeleton: Skeleton3D) -> int:
+	for i in range(skeleton.get_bone_count()):
+		var lower := skeleton.get_bone_name(i).to_lower()
+		if "hip" in lower or "pelvis" in lower:
+			return i
+	return -1
+
+
 func _match_anim(candidates: Array) -> String:
 	if _anim == null:
 		return ""
@@ -77,13 +137,11 @@ func _match_anim(candidates: Array) -> String:
 		var key := str(candidate).to_lower()
 		for anim_name in list:
 			var lower := String(anim_name).to_lower()
-			# Prefer exact / suffix match; skip expectation.001 when looking for expectation
-			# by taking the shortest matching name.
 			if lower == key or lower.ends_with("/" + key) or lower.ends_with("|" + key):
 				return anim_name
 		for anim_name in list:
 			var lower := String(anim_name).to_lower()
-			if key in lower and not (key == "expectation" and ".001" in lower):
+			if key in lower:
 				return anim_name
 	return ""
 
@@ -94,7 +152,6 @@ func _fallback_single_animation() -> void:
 	var list := _anim.get_animation_list()
 	if list.is_empty():
 		return
-	# player2-style models: one run clip only — use it for all locomotion states.
 	if list.size() == 1:
 		var only := list[0]
 		_anim_run = only
@@ -113,36 +170,59 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not _active:
 		return
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-		rotate_y(-event.relative.x * mouse_sensitivity)
-		_pitch = clampf(_pitch - event.relative.y * mouse_sensitivity, deg_to_rad(-85.0), deg_to_rad(85.0))
-		_head.rotation.x = _pitch
+		var motion: InputEventMouseMotion = event as InputEventMouseMotion
+		var rel: Vector2 = motion.relative
+		# Camera only — body stays put while idle / turns toward move dir while walking.
+		_cam_yaw -= rel.x * mouse_sensitivity
+		_pitch = clampf(_pitch - rel.y * mouse_sensitivity, deg_to_rad(-85.0), deg_to_rad(85.0))
+		_head.rotation = Vector3(_pitch, _cam_yaw, 0.0)
+	if event.is_action_pressed("dance"):
+		_try_start_dance()
+		get_viewport().set_input_as_handled()
 
 
 func _physics_process(delta: float) -> void:
+	FrameClock.measure("phys:player", _profiled_physics_process, delta)
+
+
+func _profiled_physics_process(delta: float) -> void:
 	if not _active:
 		return
 
 	if not is_on_floor():
 		velocity.y -= ProjectSettings.get_setting("physics/3d/default_gravity") * delta
 
-	var jumped := false
 	if Input.is_action_just_pressed("jump") and is_on_floor():
 		velocity.y = jump_velocity
-		jumped = true
+		_cancel_idle_extras()
 
 	var input_dir := Input.get_vector("steer_left", "steer_right", "accelerate", "brake")
-	var direction := (transform.basis * Vector3(input_dir.x, 0.0, input_dir.y)).normalized()
-	var speed := run_speed if Input.is_action_pressed("sprint") else walk_speed
+	var cam_basis := Basis(Vector3.UP, _cam_yaw)
+	var direction := (cam_basis * Vector3(input_dir.x, 0.0, input_dir.y))
+	direction.y = 0.0
+	if direction.length_squared() > 0.0001:
+		direction = direction.normalized()
+	else:
+		direction = Vector3.ZERO
 
-	if direction != Vector3.ZERO:
+	var speed := run_speed if Input.is_action_pressed("sprint") else walk_speed
+	var moving := direction != Vector3.ZERO
+
+	if moving:
+		_cancel_idle_extras()
 		velocity.x = direction.x * speed
 		velocity.z = direction.z * speed
+		# Face the actual move direction so side / diagonal walks look correct.
+		var target_yaw: float = atan2(direction.x, direction.z) + model_yaw_offset
+		_body_yaw = lerp_angle(_body_yaw, target_yaw, clampf(turn_speed * delta, 0.0, 1.0))
+		_apply_model_yaw(_body_yaw)
 	else:
 		velocity.x = move_toward(velocity.x, 0.0, speed)
 		velocity.z = move_toward(velocity.z, 0.0, speed)
 
 	move_and_slide()
-	_update_animation(jumped)
+	_stabilize_hips()
+	_update_animation(delta, moving, speed)
 
 	if Input.is_action_just_pressed("interact"):
 		_try_enter_car()
@@ -150,35 +230,96 @@ func _physics_process(delta: float) -> void:
 	_was_on_floor = is_on_floor()
 
 
-func _update_animation(jumped: bool) -> void:
+func _apply_model_yaw(yaw: float) -> void:
+	if _model == null:
+		return
+	_model.scale = Vector3(model_scale, model_scale, model_scale)
+	_model.rotation = Vector3(0.0, yaw, 0.0)
+
+
+func _stabilize_hips() -> void:
+	if _skeleton == null or _hips_bone < 0:
+		return
+	var pos := _skeleton.get_bone_pose_position(_hips_bone)
+	if absf(pos.x) < 0.0001 and absf(pos.z) < 0.0001:
+		return
+	pos.x = 0.0
+	pos.z = 0.0
+	_skeleton.set_bone_pose_position(_hips_bone, pos)
+
+
+func _update_animation(delta: float, moving: bool, speed: float) -> void:
 	if _anim == null:
 		return
 
 	var horizontal := Vector2(velocity.x, velocity.z).length()
+
+	if _dancing:
+		if _anim_dance != "" and _anim.current_animation != _anim_dance:
+			_anim.play(_anim_dance, anim_blend)
+		return
+
+	if _looking_around:
+		return
+
 	var target := _anim_idle
-
-	if not is_on_floor() or jumped:
-		target = _anim_jump if _anim_jump != "" else target
-	elif horizontal > run_speed * 0.75:
-		target = _anim_run if _anim_run != "" else _anim_walk
-	elif horizontal > 0.35:
-		target = _anim_walk if _anim_walk != "" else _anim_idle
+	if moving or horizontal > 0.35:
+		_idle_time = 0.0
+		var sprinting := Input.is_action_pressed("sprint")
+		if horizontal > run_speed * 0.75 or (moving and sprinting):
+			target = _anim_run if _anim_run != "" else _anim_walk
+		else:
+			target = _anim_walk if _anim_walk != "" else _anim_idle
 	else:
+		_idle_time += delta
 		target = _anim_idle
+		if (
+			_idle_time >= look_around_idle_delay
+			and _anim_look != ""
+			and is_on_floor()
+		):
+			_idle_time = 0.0
+			_looking_around = true
+			_anim.play(_anim_look, anim_blend)
+			return
 
+	_play_locomotion(target)
+
+
+func _play_locomotion(target: String) -> void:
 	if target == "":
 		return
 	if _anim.current_animation == target and _anim.is_playing():
 		return
-	# Don't interrupt jump mid-air with idle/walk until we land / jump ends.
-	if (
-		_anim.current_animation == _anim_jump
-		and _anim.is_playing()
-		and not is_on_floor()
-		and target != _anim_jump
-	):
-		return
 	_anim.play(target, anim_blend)
+
+
+func _try_start_dance() -> void:
+	if not _active or _anim == null or _anim_dance == "":
+		return
+	if not is_on_floor():
+		return
+	var horizontal := Vector2(velocity.x, velocity.z).length()
+	if horizontal > 0.35:
+		return
+	_looking_around = false
+	_dancing = true
+	_idle_time = 0.0
+	_anim.play(_anim_dance, anim_blend)
+
+
+func _cancel_idle_extras() -> void:
+	_dancing = false
+	_looking_around = false
+	_idle_time = 0.0
+
+
+func _on_animation_finished(anim_name: StringName) -> void:
+	if String(anim_name) == _anim_look and _looking_around:
+		_looking_around = false
+		_idle_time = 0.0
+		if _anim_idle != "":
+			_anim.play(_anim_idle, anim_blend)
 
 
 func set_on_foot(enabled: bool) -> void:
@@ -192,12 +333,16 @@ func set_on_foot(enabled: bool) -> void:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 		_current_car = null
 		_rebind_minimap()
+		_cancel_idle_extras()
+		_head.rotation = Vector3(_pitch, _cam_yaw, 0.0)
+		_apply_model_yaw(_body_yaw)
 		if _anim and _anim_idle != "":
 			_anim.play(_anim_idle, anim_blend)
 		elif _anim and _anim_run != "":
 			_anim.play(_anim_run, anim_blend)
 	else:
 		velocity = Vector3.ZERO
+		_cancel_idle_extras()
 		if _anim:
 			_anim.stop()
 
@@ -250,6 +395,7 @@ func play_run_animation() -> void:
 		_fallback_single_animation()
 	if _anim_run == "":
 		return
+	_cancel_idle_extras()
 	if _anim.current_animation == _anim_run and _anim.is_playing():
 		return
 	_anim.play(_anim_run, 0.0)
@@ -267,7 +413,9 @@ func exit_car() -> void:
 	var away := global_position - car.global_position
 	away.y = 0.0
 	if away.length_squared() > 0.01:
-		look_at(global_position + away.normalized(), Vector3.UP)
+		var face := away.normalized()
+		_body_yaw = atan2(face.x, face.z) + model_yaw_offset
+		_apply_model_yaw(_body_yaw)
 	set_on_foot(true)
 
 

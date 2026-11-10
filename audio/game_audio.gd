@@ -3,6 +3,8 @@ extends Node
 ## Global music + one-shot SFX (hit jingle). No looping game bed track.
 
 const AUDIO_SAVE_PATH := "user://audio_settings.cfg"
+## Temporary mute for all bed / intro / terror music tracks.
+const MUSIC_ENABLED := false
 
 @export var music_volume_db: float = -12.0
 @export var sfx_volume_db: float = 8.0
@@ -78,10 +80,8 @@ func _ready() -> void:
 
 
 func load_audio_settings() -> void:
-	if not FileAccess.file_exists(AUDIO_SAVE_PATH):
-		return
-	var cfg := ConfigFile.new()
-	if cfg.load(AUDIO_SAVE_PATH) != OK:
+	var cfg := ConfigStore.open(AUDIO_SAVE_PATH)
+	if cfg == null:
 		return
 	master_linear = clampf(float(cfg.get_value("volume", "master", master_linear)), 0.0, 1.0)
 	music_linear = clampf(float(cfg.get_value("volume", "music", music_linear)), 0.0, 1.0)
@@ -89,11 +89,11 @@ func load_audio_settings() -> void:
 
 
 func save_audio_settings() -> void:
-	var cfg := ConfigFile.new()
-	cfg.set_value("volume", "master", master_linear)
-	cfg.set_value("volume", "music", music_linear)
-	cfg.set_value("volume", "car", car_linear)
-	cfg.save(AUDIO_SAVE_PATH)
+	ConfigStore.save(AUDIO_SAVE_PATH, {"volume": {
+		"master": master_linear,
+		"music": music_linear,
+		"car": car_linear,
+	}})
 
 
 func set_master_linear(value: float) -> void:
@@ -155,6 +155,10 @@ func _stop_terror_player() -> void:
 ## Stop any looping bed / one-shot music (no game bed track).
 func restart_music() -> void:
 	_stop_terror_player()
+	if not MUSIC_ENABLED:
+		if _music != null and _music.playing:
+			_music.stop()
+		return
 	if _music == null or _main_music_stream == null:
 		return
 	_music.volume_db = get_effective_music_db()
@@ -167,6 +171,10 @@ func restart_music() -> void:
 
 func play_intro_music() -> void:
 	_stop_terror_player()
+	if not MUSIC_ENABLED:
+		if _music != null and _music.playing:
+			_music.stop()
+		return
 	if _music == null or _intro_music_stream == null:
 		return
 	_music.volume_db = get_effective_music_db()
@@ -177,6 +185,10 @@ func play_intro_music() -> void:
 
 func play_lose_music() -> void:
 	_stop_terror_player()
+	if not MUSIC_ENABLED:
+		if _music != null and _music.playing:
+			_music.stop()
+		return
 	if _music == null or _lose_music_stream == null:
 		return
 	_music.volume_db = get_effective_music_db()
@@ -186,6 +198,11 @@ func play_lose_music() -> void:
 
 
 func play_terror_music() -> void:
+	if not MUSIC_ENABLED:
+		_stop_terror_player()
+		if _music != null and _music.playing:
+			_music.stop()
+		return
 	if _terror == null or _terror_music_stream == null:
 		return
 	_terror_active = true

@@ -1,0 +1,19 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://drmn6c52f3h8b"]
+
+[ext_resource type="Texture2D" uid="uid://djvcw4pdqx38k" path="res://assets/models/cars/civic/civic_15.png" id="1_7qy25"]
+[ext_resource type="Texture2D" uid="uid://cnta0ukg1smgg" path="res://assets/models/cars/civic/civic_16.png" id="2_iilk6"]
+[ext_resource type="Texture2D" uid="uid://be61r78evc2p3" path="res://assets/models/cars/civic/civic_17.png" id="3_sdw3a"]
+
+[resource]
+resource_name = "MAT_Light_Housing"
+albedo_texture = ExtResource("1_7qy25")
+metallic = 1.0
+metallic_texture = ExtResource("2_iilk6")
+metallic_texture_channel = 2
+roughness_texture = ExtResource("2_iilk6")
+roughness_texture_channel = 1
+normal_enabled = true
+normal_texture = ExtResource("3_sdw3a")
+ao_enabled = true
+ao_texture = ExtResource("2_iilk6")
+metadata/_gltf_primary_texture_coord = 0

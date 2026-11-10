@@ -8,6 +8,8 @@ extends Control
 @onready var _save_button: Button = %SaveButton
 @onready var _reset_button: Button = %ResetButton
 @onready var _status: Label = %StatusLabel
+@onready var _title: Label = %Title
+@onready var _background: ColorRect = $Background
 
 var _suppress: bool = false
 var _checkboxes: Dictionary = {}
@@ -17,22 +19,39 @@ var _options: Dictionary = {}
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	UiStyle.night_sky(_background)
+	UiStyle.button(_back_button, UiStyle.RED, 18)
+	UiStyle.button(_save_button, UiStyle.AMBER, 18)
+	UiStyle.button(_reset_button, UiStyle.RED, 18)
+	UiStyle.section_label_style(_title, 28)
 	GraphicsConfig.load_from_disk()
 	GraphicsConfig.apply_all(get_tree())
 	_back_button.pressed.connect(_on_back)
 	_save_button.pressed.connect(_on_save)
 	_reset_button.pressed.connect(_on_reset)
-	_preset_option.clear()
-	_preset_option.add_item("Custom", GraphicsConfig.Preset.CUSTOM)
-	_preset_option.add_item("Low", GraphicsConfig.Preset.LOW)
-	_preset_option.add_item("Medium", GraphicsConfig.Preset.MEDIUM)
-	_preset_option.add_item("High", GraphicsConfig.Preset.HIGH)
-	_preset_option.add_item("Ultra", GraphicsConfig.Preset.ULTRA)
 	_preset_option.item_selected.connect(_on_preset_selected)
+	Lang.language_changed.connect(_refresh_language)
+	_refresh_language()
 	_rebuild_ui()
 	_sync_preset_option()
-	_status.text = "MSAA above 2x and SDFGI are disabled as unstable"
+	_status.text = Lang.t("gfx.status_unstable")
 	_back_button.grab_focus()
+
+
+func _refresh_language() -> void:
+	_title.text = Lang.t("gfx.title")
+	_back_button.text = Lang.t("common.back")
+	_save_button.text = Lang.t("common.save")
+	_reset_button.text = Lang.t("common.reset")
+	_preset_option.clear()
+	_preset_option.add_item(Lang.t("gfx.custom"), GraphicsConfig.Preset.CUSTOM)
+	_preset_option.add_item(Lang.t("gfx.low"), GraphicsConfig.Preset.LOW)
+	_preset_option.add_item(Lang.t("gfx.medium"), GraphicsConfig.Preset.MEDIUM)
+	_preset_option.add_item(Lang.t("gfx.high"), GraphicsConfig.Preset.HIGH)
+	_preset_option.add_item(Lang.t("gfx.ultra"), GraphicsConfig.Preset.ULTRA)
+	_status.text = Lang.t("gfx.status_unstable")
+	_rebuild_ui()
+	_sync_preset_option()
 
 
 func _rebuild_ui() -> void:
@@ -42,45 +61,45 @@ func _rebuild_ui() -> void:
 	_sliders.clear()
 	_options.clear()
 
-	_add_section("Scaling & anti-aliasing")
-	_add_slider("render_scale", "3D scale", 0.5, 1.0, 0.05, GraphicsConfig.render_scale)
-	_add_option("upscale_mode", "Upscaling", [
-		["Bilinear", GraphicsConfig.UpscaleMode.BILINEAR],
+	_add_section(Lang.t("gfx.sec.scaling"))
+	_add_slider("render_scale", Lang.t("gfx.render_scale"), 0.5, 1.0, 0.05, GraphicsConfig.render_scale)
+	_add_option("upscale_mode", Lang.t("gfx.upscale_mode"), [
+		[Lang.t("gfx.bilinear"), GraphicsConfig.UpscaleMode.BILINEAR],
 		["FSR 1.0", GraphicsConfig.UpscaleMode.FSR1],
 		["FSR 2.2", GraphicsConfig.UpscaleMode.FSR2],
 	], GraphicsConfig.upscale_mode)
-	_add_slider("fsr_sharpness", "FSR sharpness", 0.0, 2.0, 0.05, GraphicsConfig.fsr_sharpness)
-	_add_option("msaa", "MSAA", [
-		["Off", GraphicsConfig.MsaaMode.OFF],
+	_add_slider("fsr_sharpness", Lang.t("gfx.fsr_sharpness"), 0.0, 2.0, 0.05, GraphicsConfig.fsr_sharpness)
+	_add_option("msaa", Lang.t("gfx.msaa"), [
+		[Lang.t("common.off"), GraphicsConfig.MsaaMode.OFF],
 		["2x", GraphicsConfig.MsaaMode.X2],
 	], GraphicsConfig.msaa)
-	_add_check("use_taa", "TAA", GraphicsConfig.use_taa)
-	_add_check("use_fxaa", "FXAA", GraphicsConfig.use_fxaa)
+	_add_check("use_taa", Lang.t("gfx.taa"), GraphicsConfig.use_taa)
+	_add_check("use_fxaa", Lang.t("gfx.fxaa"), GraphicsConfig.use_fxaa)
 
-	_add_section("Lighting & effects")
-	_add_check("glow_enabled", "Glow / Bloom", GraphicsConfig.glow_enabled)
-	_add_slider("glow_intensity", "Glow intensity", 0.05, 1.5, 0.05, GraphicsConfig.glow_intensity)
-	_add_check("ssao_enabled", "SSAO", GraphicsConfig.ssao_enabled)
-	_add_check("ssil_enabled", "SSIL", GraphicsConfig.ssil_enabled)
-	_add_check("ssr_enabled", "SSR (reflections)", GraphicsConfig.ssr_enabled)
-	_add_check("sdfgi_enabled", "SDFGI (temporarily disabled)", false)
-	_add_check("fog_enabled", "Fog", GraphicsConfig.fog_enabled)
-	_add_check("volumetric_fog_enabled", "Volumetric fog", GraphicsConfig.volumetric_fog_enabled)
-	_add_check("use_aces_tonemap", "Tonemap ACES", GraphicsConfig.use_aces_tonemap)
-	_add_option("shadow_quality", "Shadow quality", [
-		["Low", GraphicsConfig.ShadowQuality.LOW],
-		["Medium", GraphicsConfig.ShadowQuality.MEDIUM],
-		["High", GraphicsConfig.ShadowQuality.HIGH],
-		["Ultra", GraphicsConfig.ShadowQuality.ULTRA],
+	_add_section(Lang.t("gfx.sec.lighting"))
+	_add_check("glow_enabled", Lang.t("gfx.glow_enabled"), GraphicsConfig.glow_enabled)
+	_add_slider("glow_intensity", Lang.t("gfx.glow_intensity"), 0.05, 1.5, 0.05, GraphicsConfig.glow_intensity)
+	_add_check("ssao_enabled", Lang.t("gfx.ssao"), GraphicsConfig.ssao_enabled)
+	_add_check("ssil_enabled", Lang.t("gfx.ssil"), GraphicsConfig.ssil_enabled)
+	_add_check("ssr_enabled", Lang.t("gfx.ssr"), GraphicsConfig.ssr_enabled)
+	_add_check("sdfgi_enabled", Lang.t("gfx.sdfgi"), false)
+	_add_check("fog_enabled", Lang.t("gfx.fog"), GraphicsConfig.fog_enabled)
+	_add_check("volumetric_fog_enabled", Lang.t("gfx.volumetric_fog"), GraphicsConfig.volumetric_fog_enabled)
+	_add_check("use_aces_tonemap", Lang.t("gfx.aces"), GraphicsConfig.use_aces_tonemap)
+	_add_option("shadow_quality", Lang.t("gfx.shadow_quality"), [
+		[Lang.t("gfx.low"), GraphicsConfig.ShadowQuality.LOW],
+		[Lang.t("gfx.medium"), GraphicsConfig.ShadowQuality.MEDIUM],
+		[Lang.t("gfx.high"), GraphicsConfig.ShadowQuality.HIGH],
+		[Lang.t("gfx.ultra"), GraphicsConfig.ShadowQuality.ULTRA],
 	], GraphicsConfig.shadow_quality)
 
-	_add_section("World")
-	_add_check("night", "Night", GraphicsConfig.night)
-	_add_check("tire_smoke_enabled", "Tire smoke", GraphicsConfig.tire_smoke_enabled)
+	_add_section(Lang.t("gfx.sec.world"))
+	_add_check("night", Lang.t("gfx.night"), GraphicsConfig.night)
+	_add_check("tire_smoke_enabled", Lang.t("gfx.tire_smoke"), GraphicsConfig.tire_smoke_enabled)
 
-	_add_section("Display")
-	_add_check("fullscreen", "Fullscreen", GraphicsConfig.fullscreen)
-	_add_check("vsync", "VSync", GraphicsConfig.vsync)
+	_add_section(Lang.t("gfx.sec.display"))
+	_add_check("fullscreen", Lang.t("gfx.fullscreen"), GraphicsConfig.fullscreen)
+	_add_check("vsync", Lang.t("gfx.vsync"), GraphicsConfig.vsync)
 
 
 func _sync_preset_option() -> void:
@@ -93,10 +112,7 @@ func _sync_preset_option() -> void:
 
 
 func _add_section(title: String) -> void:
-	var label := Label.new()
-	label.text = title
-	label.add_theme_font_size_override("font_size", 18)
-	label.add_theme_color_override("font_color", Color(0.75, 0.82, 0.95))
+	var label := UiStyle.section_label(title, 18)
 	_list.add_child(label)
 
 
@@ -105,6 +121,7 @@ func _add_check(key: String, title: String, value: bool) -> void:
 	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var label := Label.new()
 	label.text = title
+	label.add_theme_color_override("font_color", UiStyle.CHROME)
 	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var box := CheckButton.new()
 	box.button_pressed = value
@@ -121,8 +138,10 @@ func _add_slider(key: String, title: String, min_v: float, max_v: float, step: f
 	var header := HBoxContainer.new()
 	var label := Label.new()
 	label.text = title
+	label.add_theme_color_override("font_color", UiStyle.CHROME)
 	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var value_label := Label.new()
+	value_label.add_theme_color_override("font_color", UiStyle.LCD_GREEN)
 	value_label.name = "Value"
 	value_label.text = _fmt(value)
 	header.add_child(label)
@@ -176,7 +195,7 @@ func _on_preset_selected(index: int) -> void:
 	GraphicsConfig.apply_preset(id)
 	GraphicsConfig.apply_all(get_tree())
 	_rebuild_ui()
-	_status.text = "Preset applied"
+	_status.text = Lang.t("gfx.preset_applied")
 
 
 func _on_check(key: String, on: bool) -> void:
@@ -245,7 +264,7 @@ func _on_option(key: String, id: int) -> void:
 func _on_save() -> void:
 	GraphicsConfig.save_to_disk()
 	GraphicsConfig.apply_all(get_tree())
-	_status.text = "Saved"
+	_status.text = Lang.t("gfx.saved")
 
 
 func _on_reset() -> void:
@@ -254,7 +273,7 @@ func _on_reset() -> void:
 	GraphicsConfig.apply_all(get_tree())
 	_rebuild_ui()
 	_sync_preset_option()
-	_status.text = "Reset to defaults"
+	_status.text = Lang.t("gfx.reset_done")
 
 
 func _on_back() -> void:

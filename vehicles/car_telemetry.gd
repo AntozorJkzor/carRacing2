@@ -25,7 +25,7 @@ var _has_prev_vel: bool = false
 
 
 func _ready() -> void:
-	var layer := CanvasLayer.new()
+	var layer = CanvasLayer.new()
 	layer.layer = 21
 	add_child(layer)
 	_hud = Label.new()
@@ -90,8 +90,8 @@ func start_recording() -> void:
 
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(LOG_DIR))
 	_path_latest = ProjectSettings.globalize_path("%s/%s" % [LOG_DIR, LATEST_NAME])
-	var stamp := Time.get_datetime_string_from_system().replace(":", "-").replace("T", "_")
-	var car_tag := String(_car.car_id)
+	var stamp = Time.get_datetime_string_from_system().replace(":", "-").replace("T", "_")
+	var car_tag = String(_car.car_id)
 	if car_tag.is_empty():
 		car_tag = "car"
 	_path_stamp = ProjectSettings.globalize_path(
@@ -124,9 +124,9 @@ func stop_recording() -> void:
 		_file.close()
 		_file = null
 	if not _path_latest.is_empty() and not _path_stamp.is_empty():
-		var src := FileAccess.open(_path_latest, FileAccess.READ)
+		var src = FileAccess.open(_path_latest, FileAccess.READ)
 		if src:
-			var dst := FileAccess.open(_path_stamp, FileAccess.WRITE)
+			var dst = FileAccess.open(_path_stamp, FileAccess.WRITE)
 			if dst:
 				dst.store_string(src.get_as_text())
 				dst.close()
@@ -188,6 +188,8 @@ func _header() -> String:
 					"w%d_comp" % i,
 					"w%d_k" % i,
 					"w%d_a_deg" % i,
+					"w%d_k_f" % i,
+					"w%d_a_f_deg" % i,
 					"w%d_fx" % i,
 					"w%d_fy" % i,
 					"w%d_fz" % i,
@@ -216,24 +218,24 @@ func _write_row(delta: float) -> void:
 	if _file == null or _car.setup == null:
 		return
 
-	var basis := _car.global_transform.basis
-	var vel_world := _car.linear_velocity
-	var vel_body := basis.inverse() * vel_world
-	var accel_body := Vector3.ZERO
+	var basis = _car.global_transform.basis
+	var vel_world = _car.linear_velocity
+	var vel_body = basis.inverse() * vel_world
+	var accel_body = Vector3.ZERO
 	if _has_prev_vel and delta > 0.0001:
-		var accel_world := (vel_world - _prev_vel) / delta
+		var accel_world = (vel_world - _prev_vel) / delta
 		accel_body = basis.inverse() * accel_world
 	_prev_vel = vel_world
 	_has_prev_vel = true
 
-	var wheels := _car.get_wheels()
-	var front_fy := 0.0
-	var rear_fy := 0.0
-	var front_a := 0.0
-	var front_n := 0
-	var rear_k := 0.0
-	var rear_a := 0.0
-	var rear_n := 0
+	var wheels = _car.get_wheels()
+	var front_fy = 0.0
+	var rear_fy = 0.0
+	var front_a = 0.0
+	var front_n = 0
+	var rear_k = 0.0
+	var rear_a = 0.0
+	var rear_n = 0
 
 	var parts: PackedStringArray = [
 		"%.4f" % _t,
@@ -278,22 +280,26 @@ func _write_row(delta: float) -> void:
 	]
 
 	for i in 4:
-		var gnd := 0
-		var comp := 0.0
-		var k := 0.0
-		var a := 0.0
-		var fx := 0.0
-		var fy := 0.0
-		var fz := 0.0
-		var w := 0.0
-		var drive := 0.0
-		var brk := 0.0
+		var gnd = 0
+		var comp = 0.0
+		var k = 0.0
+		var a = 0.0
+		var kf = 0.0
+		var af = 0.0
+		var fx = 0.0
+		var fy = 0.0
+		var fz = 0.0
+		var w = 0.0
+		var drive = 0.0
+		var brk = 0.0
 		if i < wheels.size():
 			var wheel: Wheel = wheels[i]
 			gnd = 1 if wheel.on_ground else 0
 			comp = wheel.compression
 			k = wheel.slip_ratio
 			a = rad_to_deg(wheel.slip_angle)
+			kf = wheel.filtered_slip_ratio
+			af = rad_to_deg(wheel.filtered_slip_angle)
 			fx = wheel.long_force
 			fy = wheel.lat_force
 			fz = wheel.normal_load
@@ -316,6 +322,8 @@ func _write_row(delta: float) -> void:
 					"%.3f" % comp,
 					"%.4f" % k,
 					"%.2f" % a,
+					"%.4f" % kf,
+					"%.2f" % af,
 					"%.1f" % fx,
 					"%.1f" % fy,
 					"%.1f" % fz,
@@ -326,9 +334,9 @@ func _write_row(delta: float) -> void:
 			)
 		)
 
-	var front_a_avg := front_a / float(maxi(front_n, 1))
-	var rear_k_avg := rear_k / float(maxi(rear_n, 1))
-	var rear_a_avg := rear_a / float(maxi(rear_n, 1))
+	var front_a_avg = front_a / float(maxi(front_n, 1))
+	var rear_k_avg = rear_k / float(maxi(rear_n, 1))
+	var rear_a_avg = rear_a / float(maxi(rear_n, 1))
 	parts.append_array(
 		PackedStringArray(
 			[

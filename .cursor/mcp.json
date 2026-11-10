@@ -1,0 +1,21 @@
+﻿{
+  "mcpServers": {
+    "aker-mcp": {
+      "type": "stdio",
+      "command": "dotnet",
+      "args": [
+        "run",
+        "--project",
+        "C:/Users/anton/Documents/AkerMCP-1.5.0/Server",
+        "-c",
+        "Release",
+        "--verbosity",
+        "quiet",
+        "--nologo"
+      ],
+      "env": {
+        "DOTNET_ROLL_FORWARD": "LatestMajor"
+      }
+    }
+  }
+}

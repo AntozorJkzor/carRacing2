@@ -1,17 +1,24 @@
 extends Node
 
+const TuningParts := preload("res://vehicles/tuning_parts.gd")
+
 signal engine_bake_progress(current: int, total: int, rpm: float, phase: String)
 
 ## Per-car debug overrides. Scene CarSetup + WheelLayout/Collision are source of truth for layout.
 const CATALOG_PATH := "res://vehicles/cars_catalog.tres"
 const LEGACY_SAVE_PATH := "user://car_tuning.cfg"
+const HANDLING_VERSION := 2
 
 var catalog: CarsCatalog
 var active_car_id: StringName = &"volga"
+## Picked in the garage; the track spawns this car and puts us in the seat.
+var selected_car_id: StringName = &"ae86"
 ## Working copy edited by Settings (physics fields only).
 var setup: CarSetup
 ## Runtime visual offset; does not rewrite scene node bases permanently.
 var clearance: float = 0.0
+## Upgrade parts selection (category → level 0-3) for the active car.
+var parts_levels: Dictionary = {}
 
 
 var SAVE_PATH: String:
@@ -31,24 +38,17 @@ func save_path_for(car_id: StringName) -> String:
 
 
 func _pack_setup_path(car_id: StringName) -> String:
-	match String(car_id):
-		"demo":
-			return "res://assets/scenes/cars/demo/demo_setup.tres"
-		"volga":
-			return "res://assets/scenes/cars/volga/volga_setup.tres"
-		"golf":
-			return "res://assets/scenes/cars/golf/golf_setup.tres"
-		_:
-			if catalog != null:
-				var def := catalog.get_by_id(car_id)
-				if def != null and def.scene != null:
-					# Fallback: volga setup if unknown pack.
-					pass
-			return "res://assets/scenes/cars/volga/volga_setup.tres"
+	if catalog != null:
+		var def := catalog.get_by_id(car_id)
+		if def != null:
+			return def.get_setup_path()
+	# Unknown pack: volga setup as fallback.
+	return "res://assets/scenes/cars/volga/volga_setup.tres"
 
 
 func _reset_working_from_pack(car_id: StringName) -> void:
 	active_car_id = car_id
+	parts_levels = {}
 	var base := load(_pack_setup_path(car_id)) as CarSetup
 	if base:
 		setup = base.duplicate(true) as CarSetup
@@ -95,6 +95,8 @@ func apply_overrides_to_car(car: Node) -> void:
 		_restore_pack_axle_layout(car_id, target_setup)
 		return
 	_apply_physics_cfg(target_setup, cfg)
+	_load_parts_levels(cfg)
+	_apply_parts_to_setup(target_setup)
 	_apply_clearance_cfg(car, cfg)
 	_restore_pack_axle_layout(car_id, target_setup)
 
@@ -147,7 +149,10 @@ func _push_working_to_live_cars() -> void:
 		copy.ensure_steer_angle_curve()
 		copy.migrate_legacy_fields()
 		copy.rebuild_wheel_positions()
-		if node.has_method("set_setup"):
+		_apply_parts_to_setup(copy)
+		if node.has_method("apply_setup"):
+			node.call("apply_setup", copy)
+		elif node.has_method("set_setup"):
 			node.call("set_setup", copy)
 		else:
 			node.set("setup", copy)
@@ -218,111 +223,139 @@ func engine_bake_is_stale() -> bool:
 
 
 func _write_config_to_disk() -> void:
-	var cfg := ConfigFile.new()
-	cfg.set_value("visual", "clearance", clearance)
-
-	cfg.set_value("body", "mass", setup.mass)
-	cfg.set_value("body", "com_x", setup.center_of_mass_offset.x)
-	cfg.set_value("body", "com_y", setup.center_of_mass_offset.y)
-	cfg.set_value("body", "com_z", setup.center_of_mass_offset.z)
-
-	cfg.set_value("engine", "max_power_hp", setup.max_power_hp)
-	cfg.set_value("engine", "max_power_kw", setup.max_power_hp * CarSetup.KW_PER_HP)
-	cfg.set_value("engine", "idle_rpm", setup.idle_rpm)
-	cfg.set_value("engine", "max_rpm", setup.max_rpm)
-	cfg.set_value("engine", "torque_boost", setup.torque_boost)
-	cfg.set_value("engine", "engine_inertia", setup.engine_inertia)
-
-	cfg.set_value("engine_sound", "cylinders", setup.cylinders)
-	cfg.set_value("engine_sound", "displacement_cc", setup.displacement_cc)
-	cfg.set_value("engine_sound", "bore_mm", setup.bore_mm)
-	cfg.set_value("engine_sound", "stroke_mm", setup.stroke_mm)
-	cfg.set_value("engine_sound", "engine_layout", int(setup.engine_layout))
-	cfg.set_value("engine_sound", "bank_angle_deg", setup.bank_angle_deg)
-	cfg.set_value("engine_sound", "valves_per_cylinder", setup.valves_per_cylinder)
-	cfg.set_value("engine_sound", "exhaust_length_mm", setup.exhaust_length_mm)
-	cfg.set_value("engine_sound", "cam_duration_deg", setup.cam_duration_deg)
-	cfg.set_value("engine_sound", "cam_lift_mm", setup.cam_lift_mm)
-	cfg.set_value("engine_sound", "hf_gain", setup.hf_gain)
-	cfg.set_value("engine_sound", "noise", setup.noise)
-	cfg.set_value("engine_sound", "jitter", setup.jitter)
-	cfg.set_value("engine_sound", "engine_sound_volume_db", setup.engine_sound_volume_db)
-
-	cfg.set_value("drivetrain", "reverse_ratio", setup.reverse_ratio)
-	cfg.set_value("drivetrain", "final_drive", setup.final_drive)
-	cfg.set_value("drivetrain", "drive_type", int(setup.drive_type))
-	cfg.set_value("drivetrain", "shift_time", setup.shift_time)
-	cfg.set_value("drivetrain", "clutch_max_torque", setup.clutch_max_torque)
-	cfg.set_value("drivetrain", "clutch_engage_time", setup.clutch_engage_time)
-	cfg.set_value("drivetrain", "awd_front_bias", setup.awd_front_bias)
-	cfg.set_value("drivetrain", "rear_diff_type", int(setup.rear_diff_type))
-	cfg.set_value("drivetrain", "diff_preload", setup.diff_preload)
-	cfg.set_value("drivetrain", "diff_power_lock", setup.diff_power_lock)
-	cfg.set_value("drivetrain", "diff_coast_lock", setup.diff_coast_lock)
-	cfg.set_value("drivetrain", "locked_diff_stiffness", setup.locked_diff_stiffness)
+	if setup == null:
+		return
+	## The working copy holds slider edits ONLY — parts are applied at push
+	## time, never here, so their multipliers can never compound into the cfg.
+	var drivetrain := {
+		"reverse_ratio": setup.reverse_ratio,
+		"final_drive": setup.final_drive,
+		"drive_type": int(setup.drive_type),
+		"shift_time": setup.shift_time,
+		"clutch_max_torque": setup.clutch_max_torque,
+		"clutch_engage_time": setup.clutch_engage_time,
+		"awd_front_bias": setup.awd_front_bias,
+		"rear_diff_type": int(setup.rear_diff_type),
+		"diff_preload": setup.diff_preload,
+		"diff_power_lock": setup.diff_power_lock,
+		"diff_coast_lock": setup.diff_coast_lock,
+		"locked_diff_stiffness": setup.locked_diff_stiffness,
+		"brake_elsd": setup.brake_elsd,
+	}
 	for i in setup.gear_ratios.size():
-		cfg.set_value("drivetrain", "gear_%d" % (i + 1), setup.gear_ratios[i])
+		drivetrain["gear_%d" % (i + 1)] = setup.gear_ratios[i]
 
-	# Wheel inertia only — axle geometry / tire ISO live in pack WheelLayout.
-	cfg.set_value("wheels", "wheel_inertia", setup.wheel_inertia)
-
-	cfg.set_value("suspension", "front_rest_length", setup.front_rest_length)
-	cfg.set_value("suspension", "rear_rest_length", setup.rear_rest_length)
-	cfg.set_value("suspension", "front_travel", setup.front_travel)
-	cfg.set_value("suspension", "rear_travel", setup.rear_travel)
-	cfg.set_value("suspension", "front_stiffness", setup.front_stiffness)
-	cfg.set_value("suspension", "rear_stiffness", setup.rear_stiffness)
-	cfg.set_value("suspension", "front_damping_compression", setup.front_damping_compression)
-	cfg.set_value("suspension", "front_damping_rebound", setup.front_damping_rebound)
-	cfg.set_value("suspension", "rear_damping_compression", setup.rear_damping_compression)
-	cfg.set_value("suspension", "rear_damping_rebound", setup.rear_damping_rebound)
-	cfg.set_value("suspension", "front_anti_roll", setup.front_anti_roll)
-	cfg.set_value("suspension", "rear_anti_roll", setup.rear_anti_roll)
-
-	cfg.set_value("tires", "tire_mu_front", setup.tire_mu_front)
-	cfg.set_value("tires", "tire_mu_rear", setup.tire_mu_rear)
-	cfg.set_value("tires", "tire_v_low", setup.tire_v_low)
-	cfg.set_value("tires", "pacejka_b_long", setup.pacejka_b_long)
-	cfg.set_value("tires", "pacejka_c_long", setup.pacejka_c_long)
-	cfg.set_value("tires", "pacejka_e_long", setup.pacejka_e_long)
-	cfg.set_value("tires", "pacejka_b_lat", setup.pacejka_b_lat)
-	cfg.set_value("tires", "pacejka_c_lat", setup.pacejka_c_lat)
-	cfg.set_value("tires", "pacejka_e_lat", setup.pacejka_e_lat)
-	cfg.set_value("tires", "rolling_resistance", setup.rolling_resistance)
-	cfg.set_value("tires", "brake_force", setup.brake_force)
-	cfg.set_value("tires", "handbrake_force", setup.handbrake_force)
-	cfg.set_value("tires", "handbrake_lat_grip", setup.handbrake_lat_grip)
-	cfg.set_value("tires", "brake_bias_front", setup.brake_bias_front)
-
-	cfg.set_value("aero", "drag_coefficient", setup.drag_coefficient)
-	cfg.set_value("aero", "downforce_coefficient", setup.downforce_coefficient)
-	cfg.set_value("aero", "frontal_area", setup.frontal_area)
-
-	cfg.set_value("steering", "max_steer_angle", setup.max_steer_angle)
-	cfg.set_value("steering", "steer_speed", setup.steer_speed)
-	cfg.set_value("steering", "steer_curve_max_kmh", setup.steer_curve_max_kmh)
-	cfg.set_value("steering", "steer_speed_ref", setup.steer_speed_ref)
-	cfg.set_value("steering", "steer_high_speed_factor", setup.steer_high_speed_factor)
-	cfg.set_value("steering", "steer_input_gamma", setup.steer_input_gamma)
-	cfg.set_value("steering", "counter_steer_slip_deg", setup.counter_steer_slip_deg)
-	cfg.set_value("steering", "counter_steer_lock_max", setup.counter_steer_lock_max)
-	cfg.set_value("steering", "counter_steer_rate_mult", setup.counter_steer_rate_mult)
-	cfg.set_value("steering", "counter_steer_recover_rate", setup.counter_steer_recover_rate)
-	cfg.set_value("steering", "steer_lock_smooth", setup.steer_lock_smooth)
-	cfg.set_value("throttle", "throttle_rise_rate", setup.throttle_rise_rate)
-	cfg.set_value("throttle", "throttle_fall_rate", setup.throttle_fall_rate)
-	cfg.set_value("assist", "drift_assist", setup.drift_assist)
-	cfg.set_value("fwd", "fwd_lat_priority", setup.fwd_lat_priority)
-	cfg.set_value("fwd", "fwd_slip_angle_start_deg", setup.fwd_slip_angle_start_deg)
-	cfg.set_value("fwd", "fwd_counter_steer_scale", setup.fwd_counter_steer_scale)
-	cfg.set_value("fwd", "fwd_recover_bleed", setup.fwd_recover_bleed)
-	cfg.set_value("simulation", "physics_substeps", setup.physics_substeps)
-	cfg.set_value("simulation", "traction_control", setup.traction_control)
-	cfg.set_value("simulation", "tc_slip_ratio", setup.tc_slip_ratio)
-	cfg.set_value("simulation", "tc_gain", setup.tc_gain)
-	cfg.set_value("simulation", "tc_min_scale", setup.tc_min_scale)
-
-	cfg.save(save_path_for(active_car_id))
+	ConfigStore.save(save_path_for(active_car_id), {
+		"visual": {"clearance": clearance},
+		"body": {
+			"mass": setup.mass,
+			"com_x": setup.center_of_mass_offset.x,
+			"com_y": setup.center_of_mass_offset.y,
+			"com_z": setup.center_of_mass_offset.z,
+		},
+		"engine": {
+			"max_power_hp": setup.max_power_hp,
+			"max_power_kw": setup.max_power_hp * CarSetup.KW_PER_HP,
+			"idle_rpm": setup.idle_rpm,
+			"max_rpm": setup.max_rpm,
+			"torque_boost": setup.torque_boost,
+			"engine_inertia": setup.engine_inertia,
+		},
+		"engine_sound": {
+			"cylinders": setup.cylinders,
+			"displacement_cc": setup.displacement_cc,
+			"bore_mm": setup.bore_mm,
+			"stroke_mm": setup.stroke_mm,
+			"engine_layout": int(setup.engine_layout),
+			"bank_angle_deg": setup.bank_angle_deg,
+			"valves_per_cylinder": setup.valves_per_cylinder,
+			"exhaust_length_mm": setup.exhaust_length_mm,
+			"cam_duration_deg": setup.cam_duration_deg,
+			"cam_lift_mm": setup.cam_lift_mm,
+			"hf_gain": setup.hf_gain,
+			"noise": setup.noise,
+			"jitter": setup.jitter,
+			"engine_sound_volume_db": setup.engine_sound_volume_db,
+		},
+		"drivetrain": drivetrain,
+		# Wheel inertia only — axle geometry / tire ISO live in pack WheelLayout.
+		"wheels": {"wheel_inertia": setup.wheel_inertia},
+		"suspension": {
+			"front_rest_length": setup.front_rest_length,
+			"rear_rest_length": setup.rear_rest_length,
+			"front_travel": setup.front_travel,
+			"rear_travel": setup.rear_travel,
+			"front_stiffness": setup.front_stiffness,
+			"rear_stiffness": setup.rear_stiffness,
+			"front_damping_compression": setup.front_damping_compression,
+			"front_damping_rebound": setup.front_damping_rebound,
+			"rear_damping_compression": setup.rear_damping_compression,
+			"rear_damping_rebound": setup.rear_damping_rebound,
+			"front_anti_roll": setup.front_anti_roll,
+			"rear_anti_roll": setup.rear_anti_roll,
+		},
+		"tires": {
+			"tire_mu_front": setup.tire_mu_front,
+			"tire_mu_rear": setup.tire_mu_rear,
+			"tire_v_low": setup.tire_v_low,
+			"pacejka_b_long": setup.pacejka_b_long,
+			"pacejka_c_long": setup.pacejka_c_long,
+			"pacejka_e_long": setup.pacejka_e_long,
+			"pacejka_b_lat": setup.pacejka_b_lat,
+			"pacejka_c_lat": setup.pacejka_c_lat,
+			"pacejka_e_lat": setup.pacejka_e_lat,
+			"tire_relaxation_longitudinal": setup.tire_relaxation_longitudinal,
+			"tire_relaxation_lateral": setup.tire_relaxation_lateral,
+			"rolling_resistance": setup.rolling_resistance,
+			"brake_force": setup.brake_force,
+			"handbrake_force": setup.handbrake_force,
+			"handbrake_lat_grip": setup.handbrake_lat_grip,
+			"brake_bias_front": setup.brake_bias_front,
+		},
+		"aero": {
+			"drag_coefficient": setup.drag_coefficient,
+			"downforce_coefficient": setup.downforce_coefficient,
+			"frontal_area": setup.frontal_area,
+		},
+		"steering": {
+			"max_steer_angle": setup.max_steer_angle,
+			"steer_speed": setup.steer_speed,
+			"steer_curve_max_kmh": setup.steer_curve_max_kmh,
+			"steer_speed_ref": setup.steer_speed_ref,
+			"steer_high_speed_factor": setup.steer_high_speed_factor,
+			"steer_input_gamma": setup.steer_input_gamma,
+			"counter_steer_slip_deg": setup.counter_steer_slip_deg,
+			"counter_steer_lock_max": setup.counter_steer_lock_max,
+			"counter_steer_rate_mult": setup.counter_steer_rate_mult,
+			"counter_steer_recover_rate": setup.counter_steer_recover_rate,
+			"steer_lock_smooth": setup.steer_lock_smooth,
+		},
+		"throttle": {
+			"throttle_rise_rate": setup.throttle_rise_rate,
+			"throttle_fall_rate": setup.throttle_fall_rate,
+		},
+		"assist": {"drift_assist": setup.drift_assist, "arcade_assist": setup.arcade_assist},
+		"parts": parts_levels.duplicate(),
+		"alignment": {
+			"front_caster_deg": setup.front_caster_deg,
+			"rear_camber_deg": setup.rear_camber_deg,
+		},
+		"fwd": {
+			"fwd_lat_priority": setup.fwd_lat_priority,
+			"fwd_slip_angle_start_deg": setup.fwd_slip_angle_start_deg,
+			"fwd_counter_steer_scale": setup.fwd_counter_steer_scale,
+			"fwd_recover_bleed": setup.fwd_recover_bleed,
+		},
+		"simulation": {
+			"handling_version": HANDLING_VERSION,
+			"physics_substeps": setup.physics_substeps,
+			"auto_hold_gear_in_drift": setup.auto_hold_gear_in_drift,
+			"traction_control": setup.traction_control,
+			"tc_slip_ratio": setup.tc_slip_ratio,
+			"tc_gain": setup.tc_gain,
+			"tc_min_scale": setup.tc_min_scale,
+		},
+	})
 
 
 ## EngineSimBaker bake → user:// banks + swap on live cars.
@@ -385,8 +418,8 @@ func _bake_engine_sweep_async(duration_sec: float, fingerprint: String) -> Dicti
 		var bake_car_id := active_car_id
 		var rpms := EngineBankBaker.band_rpms(bake_setup)
 		var band_count := rpms.size()
-		var idle_rpm := rpms[0] if band_count > 0 else bake_setup.idle_rpm
-		var max_rpm := rpms[band_count - 1] if band_count > 0 else bake_setup.max_rpm
+		var idle_rpm: float = float(rpms[0]) if band_count > 0 else float(bake_setup.idle_rpm)
+		var max_rpm: float = float(rpms[band_count - 1]) if band_count > 0 else float(bake_setup.max_rpm)
 		engine_bake_progress.emit(0, _SWEEP_PROGRESS_STEPS, idle_rpm, "start")
 		await get_tree().process_frame
 		engine_bake_progress.emit(1, _SWEEP_PROGRESS_STEPS, max_rpm, "sweep")
@@ -620,22 +653,56 @@ func _restore_pack_audio_on_live_cars() -> void:
 func load_from_disk() -> void:
 	if setup == null:
 		_reset_working_from_pack(active_car_id)
-	var cfg := ConfigFile.new()
-	var path := save_path_for(active_car_id)
-	if cfg.load(path) != OK:
-		if active_car_id == &"volga" and cfg.load(LEGACY_SAVE_PATH) == OK:
-			_apply_physics_cfg(setup, cfg)
-			if cfg.has_section_key("visual", "clearance"):
-				clearance = float(cfg.get_value("visual", "clearance", clearance))
-			elif cfg.has_section_key("visual", "model_y_offset"):
-				var old_model := float(cfg.get_value("visual", "model_y_offset", -0.082))
-				var old_col := float(cfg.get_value("visual", "collision_y", 0.456))
-				clearance = 0.5 * ((old_model - (-0.082)) + (old_col - 0.456))
+	var cfg := ConfigStore.open(save_path_for(active_car_id))
+	if cfg == null and active_car_id == &"volga":
+		# Migrate pre-multi-car tuning.cfg.
+		cfg = ConfigStore.open(LEGACY_SAVE_PATH)
+	if cfg == null:
 		_restore_pack_axle_layout(active_car_id, setup)
 		return
 	_apply_physics_cfg(setup, cfg)
-	clearance = float(cfg.get_value("visual", "clearance", clearance))
+	if cfg.has_section_key("visual", "model_y_offset") and not cfg.has_section_key("visual", "clearance"):
+		var old_model := float(cfg.get_value("visual", "model_y_offset", -0.082))
+		var old_col := float(cfg.get_value("visual", "collision_y", 0.456))
+		clearance = 0.5 * ((old_model - (-0.082)) + (old_col - 0.456))
+	else:
+		clearance = float(cfg.get_value("visual", "clearance", clearance))
+	_load_parts_levels(cfg)
 	_restore_pack_axle_layout(active_car_id, setup)
+
+
+## Selected upgrade parts (category → level 0-3) for the active car.
+func _load_parts_levels(cfg: ConfigFile) -> void:
+	parts_levels.clear()
+	if cfg.has_section("parts"):
+		for key: String in cfg.get_section_keys("parts"):
+			parts_levels[key] = clampi(int(cfg.get_value("parts", key, 0)), 0, 3)
+
+
+func _apply_parts_to_setup(target: CarSetup) -> void:
+	if target == null:
+		return
+	for cat: String in TuningParts.CATEGORIES:
+		var level := int(parts_levels.get(cat, 0))
+		if level > 0:
+			TuningParts.apply(target, cat, level)
+
+
+## Garage parts UI entry point: pick a level and push to the live car.
+func set_part_level(category: String, level: int) -> void:
+	if setup == null:
+		return
+	parts_levels[category] = clampi(level, 0, 3)
+	## Save first: _rebuild_working resets from the pack + cfg, and the cfg
+	## must already carry the new level for it to survive the rebuild.
+	_write_config_to_disk()
+	_rebuild_working()
+	_push_working_to_live_cars()
+
+
+func _rebuild_working() -> void:
+	_reset_working_from_pack(active_car_id)
+	load_from_disk()
 
 
 func _apply_engine_sound_cfg(target: CarSetup, cfg: ConfigFile) -> void:
@@ -699,6 +766,20 @@ func _apply_engine_sound_cfg(target: CarSetup, cfg: ConfigFile) -> void:
 
 
 func _apply_physics_cfg(target: CarSetup, cfg: ConfigFile) -> void:
+	var legacy_handling := int(cfg.get_value("simulation", "handling_version", 0)) < HANDLING_VERSION
+	var pack_handling := {
+		"max_steer": target.max_steer_angle,
+		"steer_speed": target.steer_speed,
+		"counter_cap": target.counter_steer_lock_max,
+		"counter_rate": target.counter_steer_rate_mult,
+		"counter_recover": target.counter_steer_recover_rate,
+		"arcade": target.arcade_assist,
+		"drift": target.drift_assist,
+		"diff_type": target.rear_diff_type,
+		"diff_preload": target.diff_preload,
+		"power_lock": target.diff_power_lock,
+		"coast_lock": target.diff_coast_lock,
+	}
 	target.mass = float(cfg.get_value("body", "mass", target.mass))
 	target.center_of_mass_offset = Vector3(
 		float(cfg.get_value("body", "com_x", target.center_of_mass_offset.x)),
@@ -731,9 +812,10 @@ func _apply_physics_cfg(target: CarSetup, cfg: ConfigFile) -> void:
 	target.diff_power_lock = float(cfg.get_value("drivetrain", "diff_power_lock", target.diff_power_lock))
 	target.diff_coast_lock = float(cfg.get_value("drivetrain", "diff_coast_lock", target.diff_coast_lock))
 	target.locked_diff_stiffness = float(cfg.get_value("drivetrain", "locked_diff_stiffness", target.locked_diff_stiffness))
+	target.brake_elsd = float(cfg.get_value("drivetrain", "brake_elsd", target.brake_elsd))
 	var gears: Array[float] = []
 	for i in maxi(target.gear_ratios.size(), 5):
-		var default_g := target.gear_ratios[i] if i < target.gear_ratios.size() else 1.0
+		var default_g: float = float(target.gear_ratios[i]) if i < target.gear_ratios.size() else 1.0
 		gears.append(float(cfg.get_value("drivetrain", "gear_%d" % (i + 1), default_g)))
 	target.gear_ratios = gears
 
@@ -775,6 +857,12 @@ func _apply_physics_cfg(target: CarSetup, cfg: ConfigFile) -> void:
 	target.pacejka_b_lat = float(cfg.get_value("tires", "pacejka_b_lat", target.pacejka_b_lat))
 	target.pacejka_c_lat = float(cfg.get_value("tires", "pacejka_c_lat", target.pacejka_c_lat))
 	target.pacejka_e_lat = float(cfg.get_value("tires", "pacejka_e_lat", target.pacejka_e_lat))
+	target.tire_relaxation_longitudinal = float(
+		cfg.get_value("tires", "tire_relaxation_longitudinal", target.tire_relaxation_longitudinal)
+	)
+	target.tire_relaxation_lateral = float(
+		cfg.get_value("tires", "tire_relaxation_lateral", target.tire_relaxation_lateral)
+	)
 	target.rolling_resistance = float(cfg.get_value("tires", "rolling_resistance", target.rolling_resistance))
 	target.brake_force = float(cfg.get_value("tires", "brake_force", target.brake_force))
 	target.handbrake_force = float(cfg.get_value("tires", "handbrake_force", target.handbrake_force))
@@ -809,6 +897,7 @@ func _apply_physics_cfg(target: CarSetup, cfg: ConfigFile) -> void:
 	elif cfg.has_section_key("yaw", "yaw_stability_enabled"):
 		# Legacy multi-knob assist → single strength (off or default).
 		target.drift_assist = 1.0 if bool(cfg.get_value("yaw", "yaw_stability_enabled", true)) else 0.0
+	target.arcade_assist = float(cfg.get_value("assist", "arcade_assist", target.arcade_assist))
 	target.fwd_lat_priority = float(cfg.get_value("fwd", "fwd_lat_priority", target.fwd_lat_priority))
 	target.fwd_slip_angle_start_deg = float(
 		cfg.get_value("fwd", "fwd_slip_angle_start_deg", target.fwd_slip_angle_start_deg)
@@ -817,11 +906,40 @@ func _apply_physics_cfg(target: CarSetup, cfg: ConfigFile) -> void:
 		cfg.get_value("fwd", "fwd_counter_steer_scale", target.fwd_counter_steer_scale)
 	)
 	target.fwd_recover_bleed = float(cfg.get_value("fwd", "fwd_recover_bleed", target.fwd_recover_bleed))
+	target.front_caster_deg = float(cfg.get_value("alignment", "front_caster_deg", target.front_caster_deg))
+	target.rear_camber_deg = float(cfg.get_value("alignment", "rear_camber_deg", target.rear_camber_deg))
 	target.physics_substeps = int(cfg.get_value("simulation", "physics_substeps", target.physics_substeps))
+	target.auto_hold_gear_in_drift = bool(
+		cfg.get_value("simulation", "auto_hold_gear_in_drift", target.auto_hold_gear_in_drift)
+	)
 	target.traction_control = bool(cfg.get_value("simulation", "traction_control", target.traction_control))
 	target.tc_slip_ratio = float(cfg.get_value("simulation", "tc_slip_ratio", target.tc_slip_ratio))
 	target.tc_gain = float(cfg.get_value("simulation", "tc_gain", target.tc_gain))
 	target.tc_min_scale = float(cfg.get_value("simulation", "tc_min_scale", target.tc_min_scale))
+	if legacy_handling and target.drive_type == CarSetup.DriveType.RWD:
+		# Upgrade only known legacy defaults; custom values remain untouched.
+		if is_equal_approx(target.max_steer_angle, 32.0):
+			target.max_steer_angle = float(pack_handling.max_steer)
+		if is_equal_approx(target.steer_speed, 2.0) or is_equal_approx(target.steer_speed, 2.4):
+			target.steer_speed = float(pack_handling.steer_speed)
+		if is_equal_approx(target.counter_steer_lock_max, 0.58):
+			target.counter_steer_lock_max = float(pack_handling.counter_cap)
+		if is_equal_approx(target.counter_steer_rate_mult, 1.85):
+			target.counter_steer_rate_mult = float(pack_handling.counter_rate)
+		if is_equal_approx(target.counter_steer_recover_rate, 0.32):
+			target.counter_steer_recover_rate = float(pack_handling.counter_recover)
+		if is_equal_approx(target.arcade_assist, 0.5):
+			target.arcade_assist = float(pack_handling.arcade)
+		if is_equal_approx(target.drift_assist, 1.0):
+			target.drift_assist = float(pack_handling.drift)
+		if target.rear_diff_type == CarSetup.RearDiffType.OPEN:
+			target.rear_diff_type = int(pack_handling.diff_type) as CarSetup.RearDiffType
+		if is_equal_approx(target.diff_preload, 40.0) or is_equal_approx(target.diff_preload, 60.0):
+			target.diff_preload = float(pack_handling.diff_preload)
+		if is_equal_approx(target.diff_power_lock, 0.2) or is_equal_approx(target.diff_power_lock, 0.35):
+			target.diff_power_lock = float(pack_handling.power_lock)
+		if is_equal_approx(target.diff_coast_lock, 0.1) or is_equal_approx(target.diff_coast_lock, 0.15):
+			target.diff_coast_lock = float(pack_handling.coast_lock)
 	if target.clutch_max_torque < 600.0:
 		target.clutch_max_torque = 1000.0
 	target.ensure_torque_curve()

@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://carbase00000001"]
 
-[ext_resource type="Script" uid="uid://cs73rwj1sm2gy" path="res://vehicles/car_controller.gd" id="1_ctrl"]
+[ext_resource type="Script" path="res://vehicles/CarController.cs" id="1_ctrl"]
 [ext_resource type="Resource" path="res://vehicles/default_car_setup.tres" id="2_setup"]
 [ext_resource type="Script" uid="uid://daklkp5n374mx" path="res://vehicles/car_debug_draw.gd" id="4_debug"]
 [ext_resource type="Script" uid="uid://dfll73ax5bfkt" path="res://vehicles/engine_audio.gd" id="5_engine"]

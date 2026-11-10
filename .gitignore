@@ -1,3 +1,15 @@
 # Godot 4+ specific ignores
 .godot/
-build
+build/
+
+# Godot editor temp / lock files (~lib*.dll, *.TMP)
+~*
+*.TMP
+
+# Logs & telemetry dumps (keep the dir itself)
+logs/*
+!logs/.gitkeep
+*.log
+
+# Kimi Code session data
+.kimi-code/

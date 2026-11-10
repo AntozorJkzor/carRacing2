@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://rjds4u2jgfvk"]
 
-[ext_resource type="Script" uid="uid://cs73rwj1sm2gy" path="res://vehicles/car_controller.gd" id="1_ctrl"]
+[ext_resource type="Script" path="res://vehicles/CarController.cs" id="1_ctrl"]
 [ext_resource type="Resource" uid="uid://byqnvr1ij0hka" path="res://assets/scenes/cars/volga/volga_setup.tres" id="2_setup"]
 [ext_resource type="PackedScene" uid="uid://dm5lyy8bcgrrj" path="res://assets/models/cars/volga/volga.glb" id="3_model"]
 [ext_resource type="Script" uid="uid://daklkp5n374mx" path="res://vehicles/car_debug_draw.gd" id="4_debug"]

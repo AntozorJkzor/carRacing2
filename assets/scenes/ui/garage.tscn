@@ -1,0 +1,201 @@
+[gd_scene format=3 uid="uid://garagescene0001"]
+
+[ext_resource type="Script" path="res://assets/scenes/ui/garage.gd" id="1_garage"]
+[ext_resource type="Script" path="res://assets/scenes/ui/garage_tuning.gd" id="3_tuning"]
+
+[sub_resource type="Environment" id="Environment_garage"]
+background_mode = 1
+background_color = Color(0.015, 0.017, 0.022, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.32, 0.34, 0.4, 1)
+ambient_light_energy = 1.1
+reflected_light_source = 1
+
+[sub_resource type="StandardMaterial3D" id="Material_podium"]
+albedo_color = Color(0.11, 0.12, 0.15, 1)
+metallic = 0.55
+roughness = 0.32
+
+[sub_resource type="CylinderMesh" id="Mesh_podium"]
+top_radius = 3.4
+bottom_radius = 3.6
+height = 0.3
+radial_segments = 64
+rings = 1
+material = SubResource("Material_podium")
+
+[sub_resource type="CylinderShape3D" id="Shape_podium"]
+radius = 3.4
+height = 0.3
+
+[sub_resource type="StandardMaterial3D" id="Material_floor"]
+albedo_color = Color(0.045, 0.05, 0.06, 1)
+metallic = 0.2
+roughness = 0.55
+
+[sub_resource type="PlaneMesh" id="Mesh_floor"]
+size = Vector2(40, 40)
+material = SubResource("Material_floor")
+
+[sub_resource type="BoxMesh" id="Mesh_backwall"]
+size = Vector3(40, 12, 0.4)
+material = SubResource("Material_floor")
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_panel"]
+bg_color = Color(0.05, 0.06, 0.08, 0.82)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
+content_margin_left = 16.0
+content_margin_top = 12.0
+content_margin_right = 16.0
+content_margin_bottom = 12.0
+
+[node name="Garage" type="Node3D"]
+script = ExtResource("1_garage")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_garage")
+
+[node name="Floor" type="MeshInstance3D" parent="."]
+mesh = SubResource("Mesh_floor")
+
+[node name="BackWall" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 6, 12)
+mesh = SubResource("Mesh_backwall")
+
+[node name="KeyLight" type="SpotLight3D" parent="."]
+transform = Transform3D(0.866025, 0.353553, -0.353553, 0, 0.707107, 0.707107, 0.5, -0.612372, 0.612372, 4, 7, 3)
+light_energy = 14.0
+spot_range = 26.0
+spot_angle = 48.0
+shadow_enabled = true
+
+[node name="FillLight" type="OmniLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 4.5, 2.5)
+light_energy = 3.0
+omni_range = 14.0
+
+[node name="RimLight" type="SpotLight3D" parent="."]
+transform = Transform3D(0.866025, -0.353553, 0.353553, 0, 0.707107, 0.707107, -0.5, -0.612372, 0.612372, -3, 7, -5)
+light_energy = 5.0
+light_color = Color(0.75, 0.85, 1, 1)
+spot_range = 25.0
+spot_angle = 50.0
+
+[node name="Podium" type="StaticBody3D" parent="."]
+position = Vector3(0, 0.15, 0)
+collision_layer = 1
+
+[node name="Mesh" type="MeshInstance3D" parent="Podium"]
+mesh = SubResource("Mesh_podium")
+
+[node name="Shape" type="CollisionShape3D" parent="Podium"]
+shape = SubResource("Shape_podium")
+
+[node name="Anchor" type="Node3D" parent="."]
+position = Vector3(0, 0.3, 0)
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.92388, 0.382683, 0, -0.382683, 0.92388, 0, 2.1, 7.2)
+current = true
+fov = 42.0
+
+[node name="UI" type="CanvasLayer" parent="."]
+
+[node name="TopBar" type="HBoxContainer" parent="UI"]
+anchors_preset = 10
+anchor_right = 1.0
+offset_top = 18.0
+offset_bottom = 66.0
+grow_horizontal = 2
+theme_override_constants/separation = 16
+alignment = 1
+
+[node name="PrevButton" type="Button" parent="UI/TopBar"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(72, 44)
+layout_mode = 2
+theme_override_font_sizes/font_size = 22
+text = "◀"
+
+[node name="CarName" type="Label" parent="UI/TopBar"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(340, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 30
+text = "Car"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="NextButton" type="Button" parent="UI/TopBar"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(72, 44)
+layout_mode = 2
+theme_override_font_sizes/font_size = 22
+text = "▶"
+
+[node name="Title" type="Label" parent="UI"]
+unique_name_in_owner = true
+anchors_preset = 10
+anchor_right = 1.0
+offset_top = 64.0
+offset_bottom = 100.0
+grow_horizontal = 2
+theme_override_font_sizes/font_size = 20
+theme_override_colors/font_color = Color(0.75, 0.8, 0.9, 1)
+text = "Гараж"
+horizontal_alignment = 1
+
+[node name="BottomBar" type="HBoxContainer" parent="UI"]
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -88.0
+offset_bottom = -26.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 18
+alignment = 1
+
+[node name="MenuButton" type="Button" parent="UI/BottomBar"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(210, 52)
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "Главное меню"
+
+[node name="TuningButton" type="Button" parent="UI/BottomBar"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(210, 52)
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "Тюнинг"
+
+[node name="DriveButton" type="Button" parent="UI/BottomBar"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(260, 52)
+layout_mode = 2
+theme_override_font_sizes/font_size = 22
+text = "На трассу"
+
+[node name="Hint" type="Label" parent="UI"]
+unique_name_in_owner = true
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -24.0
+offset_bottom = -6.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_font_sizes/font_size = 13
+theme_override_colors/font_color = Color(0.6, 0.65, 0.72, 1)
+text = "ЛКМ — вращать подиум"
+horizontal_alignment = 1
+
+[node name="TuningPanel" type="CanvasLayer" parent="."]
+visible = false
+script = ExtResource("3_tuning")

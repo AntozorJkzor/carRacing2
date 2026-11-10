@@ -74,6 +74,10 @@ func _input(event: InputEvent) -> void:
 
 
 func _physics_process(delta: float) -> void:
+	FrameClock.measure("phys:camera", _profiled_physics_process, delta)
+
+
+func _profiled_physics_process(delta: float) -> void:
 	if not _active:
 		return
 	if _target == null and target_path != NodePath():

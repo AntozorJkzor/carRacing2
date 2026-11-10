@@ -66,11 +66,11 @@ func _update_fps(_force: bool) -> void:
 	var fps := int(round(Engine.get_frames_per_second()))
 	_fps_label.text = "FPS  %d" % fps
 	if fps >= 55:
-		_fps_label.add_theme_color_override("font_color", Color(0.55, 0.95, 0.55, 1.0))
+		_fps_label.add_theme_color_override("font_color", Color(0.55, 0.95, 0.6, 1.0))
 	elif fps >= 30:
-		_fps_label.add_theme_color_override("font_color", Color(0.98, 0.86, 0.32, 1.0))
+		_fps_label.add_theme_color_override("font_color", Color(1.0, 0.63, 0.24, 1.0))
 	else:
-		_fps_label.add_theme_color_override("font_color", Color(1.0, 0.38, 0.32, 1.0))
+		_fps_label.add_theme_color_override("font_color", Color(0.9, 0.23, 0.21, 1.0))
 
 
 func _on_score_changed(score: int) -> void:

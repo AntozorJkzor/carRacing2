@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="CarSetup" format=3 uid="uid://bjem1xbvsqfy8"]
 
-[ext_resource type="Script" uid="uid://cfaj5h28ainqg" path="res://vehicles/car_setup.gd" id="1_setup"]
+[ext_resource type="Script" path="res://vehicles/car_setup.gd" id="1_setup"]
 
 [sub_resource type="Curve" id="Curve_steer"]
 _data = [Vector2(0, 1), 0.0, 0.0, 0, 0, Vector2(0.2, 0.68), 0.0, 0.0, 0, 0, Vector2(0.36, 0.4), 0.0, 0.0, 0, 0, Vector2(0.5, 0.28), 0.0, 0.0, 0, 0, Vector2(0.75, 0.18), 0.0, 0.0, 0, 0, Vector2(1, 0.14), 0.0, 0.0, 0, 0]

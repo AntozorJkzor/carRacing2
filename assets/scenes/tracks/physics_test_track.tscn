@@ -1,17 +1,16 @@
 [gd_scene format=3 uid="uid://dxjqvbkvoxl8c"]
 
 [ext_resource type="Script" uid="uid://1ru6riksi846" path="res://assets/scenes/tracks/physics_test_track.gd" id="1_track"]
-[ext_resource type="Texture2D" uid="uid://p6fh2xu5twcs" path="res://assets/models/track/mountainRoad_asphalt.jpg" id="2_ymt46"]
-[ext_resource type="PackedScene" uid="uid://rjds4u2jgfvk" path="res://assets/scenes/cars/volga/volga.tscn" id="3_car"]
+[ext_resource type="PackedScene" uid="uid://dp2bqopcnx2qs" path="res://assets/scenes/tracks/track2.tscn" id="2_2rbhu"]
+[ext_resource type="PackedScene" uid="uid://dyruflh6qcef5" path="res://assets/scenes/cars/ae86/ae86.tscn" id="4_wl23i"]
 [ext_resource type="Script" uid="uid://b6kalqnamm3fi" path="res://vehicles/follow_camera.gd" id="5_cam"]
 [ext_resource type="Script" uid="uid://dkgl45y64oxb1" path="res://assets/scenes/tracks/hud.gd" id="6_hud"]
-[ext_resource type="PackedScene" uid="uid://dy2dmlkpk6eqq" path="res://assets/scenes/characters/player.tscn" id="7_player"]
-[ext_resource type="PackedScene" uid="uid://cp2b6m7dnrk2s" path="res://assets/scenes/cars/golf/golf.tscn" id="8_nc687"]
 [ext_resource type="Script" uid="uid://dqjvsw6cml4bd" path="res://assets/scenes/tracks/minimap.gd" id="9_minimap"]
 [ext_resource type="Script" uid="uid://bhgb7mbvcyyk7" path="res://assets/scenes/tracks/minimap_camera.gd" id="10_minimap_cam"]
 [ext_resource type="Script" uid="uid://dfoj1vbwvwfkh" path="res://assets/scenes/tracks/minimap_marker.gd" id="11_minimap_marker"]
 [ext_resource type="Script" uid="uid://ds3s6465ms82l" path="res://rendering/day_cycle.gd" id="12_2rbhu"]
-[ext_resource type="Script" path="res://rendering/skid_mark_baker.gd" id="13_skidbake"]
+[ext_resource type="Script" uid="uid://c2xoo6npae3e7" path="res://rendering/skid_mark_baker.gd" id="13_skidbake"]
+[ext_resource type="Script" uid="uid://c6wpqte6hcbpt" path="res://assets/scenes/tracks/race_manager.gd" id="14_race"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_2rbhu"]
 sky_top_color = Color(0.24, 0.5, 0.95, 1)
@@ -34,29 +33,18 @@ reflected_light_source = 2
 tonemap_mode = 2
 glow_enabled = true
 glow_intensity = 0.25
-
-[sub_resource type="PlaneMesh" id="PlaneMesh_qaki3"]
-size = Vector2(2000, 2000)
-subdivide_width = 31
-subdivide_depth = 31
-
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_0sk6r"]
-albedo_color = Color(0.28, 0.29, 0.3, 1)
-albedo_texture = ExtResource("2_ymt46")
-roughness = 0.85
-uv1_scale = Vector3(250, 250, 250)
-texture_filter = 5
-
-[sub_resource type="BoxShape3D" id="BoxShape3D_ymt46"]
-size = Vector3(2000, 2, 2000)
+fog_enabled = true
+fog_light_color = Color(0.78, 0.84, 0.94, 1)
+fog_density = 0.0012
+fog_sky_affect = 0.55
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_minimap"]
-bg_color = Color(0.05, 0.06, 0.08, 0.75)
+bg_color = Color(0.03, 0.05, 0.09, 0.8)
+border_color = Color(0.82, 0.48, 0.17, 1)
 border_width_left = 2
 border_width_top = 2
 border_width_right = 2
 border_width_bottom = 2
-border_color = Color(0.2, 0.24, 0.3, 0.9)
 corner_radius_top_left = 8
 corner_radius_top_right = 8
 corner_radius_bottom_right = 8
@@ -64,20 +52,22 @@ corner_radius_bottom_left = 8
 
 [sub_resource type="Environment" id="Environment_minimap"]
 background_mode = 1
-background_color = Color(0.12, 0.14, 0.16, 1)
+background_color = Color(0.45, 0.52, 0.48, 1)
 ambient_light_source = 2
 ambient_light_color = Color(1, 1, 1, 1)
+ambient_light_energy = 1.35
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
+bg_color = Color(0.03, 0.045, 0.08, 0.85)
+border_color = Color(0.82, 0.48, 0.17, 1)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
 content_margin_left = 14.0
 content_margin_top = 10.0
 content_margin_right = 14.0
 content_margin_bottom = 10.0
-bg_color = Color(0.05, 0.06, 0.08, 0.6)
-corner_radius_top_left = 8
-corner_radius_top_right = 8
-corner_radius_bottom_right = 8
-corner_radius_bottom_left = 8
 
 [node name="PhysicsTestTrack" type="Node3D" unique_id=1341290839]
 script = ExtResource("1_track")
@@ -87,42 +77,33 @@ environment = SubResource("Environment_main")
 
 [node name="Sun" type="DirectionalLight3D" parent="." unique_id=402990280]
 transform = Transform3D(-0.81000763, 0.26325893, -0.52400607, 0, 0.89356893, 0.44892612, 0.5864193, 0.36363357, -0.7237977, -41.920486, 35.91409, -57.903816)
+layers = 524288
 light_color = Color(1, 0.96, 0.88, 1)
 light_energy = 1.35
 shadow_enabled = true
 shadow_bias = 0.2
 shadow_normal_bias = 4.0
-directional_shadow_max_distance = 400.0
+directional_shadow_mode = 1
+directional_shadow_max_distance = 80.0
 
-[node name="Ground" type="StaticBody3D" parent="." unique_id=928915321]
+[node name="Track2" parent="." unique_id=177778967 instance=ExtResource("2_2rbhu")]
 
-[node name="Plane" type="MeshInstance3D" parent="Ground" unique_id=2129992518]
-cast_shadow = 0
-mesh = SubResource("PlaneMesh_qaki3")
-surface_material_override/0 = SubResource("StandardMaterial3D_0sk6r")
-
-[node name="CollisionShape" type="CollisionShape3D" parent="Ground" unique_id=1971071300]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1, 0)
-shape = SubResource("BoxShape3D_ymt46")
-
-[node name="SkidMarkBaker" type="Node" parent="."]
+[node name="SkidMarkBaker" type="Node" parent="." unique_id=1194014930]
 script = ExtResource("13_skidbake")
-ground_mesh_path = NodePath("../Ground/Plane")
-world_size = 512.0
-resolution = 4096
+ground_mesh_path = NodePath("../Track2/Model/TrackRoad")
 
-[node name="Car" parent="." unique_id=422780937 instance=ExtResource("3_car")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
-
-[node name="Player" parent="." unique_id=1255242294 instance=ExtResource("7_player")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.5, 1.2, 2)
+[node name="Car" parent="." unique_id=617203870 instance=ExtResource("4_wl23i")]
+transform = Transform3D(0.9273931, 0, -0.37408823, 0, 1, 0, 0.37408823, 0, 0.9273931, -60.8, 6.7920866, -23.15)
 
 [node name="FollowCamera" type="Camera3D" parent="." unique_id=502018337]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5, 12)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -60.8, 12.8, -11)
 fov = 72.0
 far = 800.0
 script = ExtResource("5_cam")
 target_path = NodePath("../Car")
+
+[node name="RaceManager" type="Node3D" parent="." unique_id=494985906]
+script = ExtResource("14_race")
 
 [node name="HUD" type="CanvasLayer" parent="." unique_id=796749115]
 script = ExtResource("6_hud")
@@ -155,10 +136,14 @@ stretch = true
 
 [node name="SubViewport" type="SubViewport" parent="HUD/Minimap/MapFrame/SubViewportContainer" unique_id=536814677]
 handle_input_locally = false
+mesh_lod_threshold = 4.0
+anisotropic_filtering_level = 0
+positional_shadow_atlas_size = 0
 size = Vector2i(176, 176)
 render_target_update_mode = 4
 
 [node name="MinimapCamera" type="Camera3D" parent="HUD/Minimap/MapFrame/SubViewportContainer/SubViewport" unique_id=1802095230]
+cull_mask = 524285
 environment = SubResource("Environment_minimap")
 script = ExtResource("10_minimap_cam")
 
@@ -235,10 +220,7 @@ theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
 layout_mode = 2
 theme_override_colors/font_color = Color(0.9, 0.92, 0.95, 1)
 theme_override_font_sizes/font_size = 14
-text = "WASD walk  Shift run  Space jump  E enter/exit  in car: P T  L lights  N night  map +/-  F3  Esc menu"
-
-[node name="Car2" parent="." unique_id=2002535293 instance=ExtResource("8_nc687")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 1.2, 6)
+text = "W/S gas & brake  A/D steer  Space handbrake  R/Q gear up/down  P auto/manual  T reset car  L lights  N night  map +/-  F3  F4 frame  Esc menu"
 
 [node name="DayCycle" type="Node" parent="." unique_id=187875458]
 script = ExtResource("12_2rbhu")

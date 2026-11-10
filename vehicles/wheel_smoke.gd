@@ -1,6 +1,7 @@
 extends Node3D
 
 const _TireFx = preload("res://vehicles/tire_fx.gd")
+const MinimapLayers := preload("res://rendering/minimap_layers.gd")
 const _SMOKE_ATLAS_PATH := "res://assets/materials/smokeAtlas.png"
 
 ## Per-wheel tire smoke when spinning (κ) or sliding hard (α).
@@ -78,18 +79,22 @@ func _ready() -> void:
 
 
 func _physics_process(_delta: float) -> void:
+	FrameClock.measure("phys:wheel_smoke", _profiled_physics_process, _delta)
+
+
+func _profiled_physics_process(_delta: float) -> void:
 	if _car == null:
 		_car = get_parent() as CarController
 	if _car == null or _car.setup == null:
 		return
-	var smoke_on := GraphicsConfig.tire_smoke_enabled
-	var wheels := _car.get_wheels()
-	var needed := maxi(wheels.size(), _car.setup.wheel_positions.size())
+	var smoke_on = GraphicsConfig.tire_smoke_enabled
+	var wheels = _car.get_wheels()
+	var needed = maxi(wheels.size(), _car.setup.wheel_positions.size())
 	if needed > 0 and (_base_emitters.size() != needed or _plume_emitters.size() != needed):
 		_rebuild_emitters()
 	for i in needed:
-		var base_emitter := _base_emitters[i]
-		var plume_emitter := _plume_emitters[i]
+		var base_emitter = _base_emitters[i]
+		var plume_emitter = _plume_emitters[i]
 		if not smoke_on or i >= wheels.size():
 			base_emitter.emitting = false
 			plume_emitter.emitting = false
@@ -99,8 +104,8 @@ func _physics_process(_delta: float) -> void:
 			base_emitter.emitting = false
 			plume_emitter.emitting = false
 			continue
-		var vel := _car.linear_velocity
-		var speed := vel.length()
+		var vel = _car.linear_velocity
+		var speed = vel.length()
 
 		var intensity: float = _TireFx.intensity(_car, wheel, spin_kappa, slide_angle_deg)
 		_update_emitter(base_emitter, i, wheel, vel, speed, intensity, false)
@@ -110,7 +115,7 @@ func _physics_process(_delta: float) -> void:
 func _rebuild_emitters() -> void:
 	if _car == null:
 		_car = get_parent() as CarController
-	var count := 4
+	var count = 4
 	if _car != null and _car.setup != null and _car.setup.wheel_positions.size() > 0:
 		count = _car.setup.wheel_positions.size()
 	# Always rebuild so inspector tweaks apply after save / hot-reload in editor play.
@@ -139,26 +144,26 @@ func _update_emitter(
 	intensity: float,
 	is_plume: bool
 ) -> void:
-	var lift := 0.03 if is_plume else 0.015
+	var lift = 0.03 if is_plume else 0.015
 	emitter.global_position = wheel.hit_point + wheel.up * lift
 	if speed > 1.0:
-		var trail_scale := 0.14 if is_plume else 0.06
+		var trail_scale = 0.14 if is_plume else 0.06
 		emitter.global_position -= vel / speed * trail_scale
 	emitter.emitting = intensity > 0.04
 	# Base = sparse black near tires; plume = denser white volume above.
-	var layer_floor := 0.45 if is_plume else 0.18
-	var layer_density := density_boost * (1.0 if is_plume else 0.45)
+	var layer_floor = 0.45 if is_plume else 0.18
+	var layer_density = density_boost * (1.0 if is_plume else 0.45)
 	emitter.amount_ratio = clampf(lerpf(layer_floor, 1.0, intensity) * layer_density, 0.0, 1.0)
 
-	var proc := emitter.process_material as ParticleProcessMaterial
+	var proc = emitter.process_material as ParticleProcessMaterial
 	if proc != null:
-		var wind := _get_wind_vector(emitter_index)
-		var wind_push := Vector3(wind.x, 0.0, wind.z)
-		var up_weight := 0.9 if is_plume else 0.58
-		var back_weight := 0.28 if is_plume else 0.5
-		var drift_weight := drift_strength * (1.45 if is_plume else 0.85)
+		var wind = _get_wind_vector(emitter_index)
+		var wind_push = Vector3(wind.x, 0.0, wind.z)
+		var up_weight = 0.9 if is_plume else 0.58
+		var back_weight = 0.28 if is_plume else 0.5
+		var drift_weight = drift_strength * (1.45 if is_plume else 0.85)
 		if speed > 0.5:
-			var back := -vel / speed
+			var back = -vel / speed
 			proc.direction = (Vector3.UP * up_weight + back * back_weight + wind_push * drift_weight).normalized()
 		else:
 			proc.direction = (Vector3.UP * up_weight + wind_push * drift_weight).normalized()
@@ -175,36 +180,36 @@ func _load_atlas_texture() -> Texture2D:
 
 func _make_fallback_puff_texture() -> Texture2D:
 	## Soft radial alpha if the atlas is missing / not imported yet.
-	var size := 64
-	var img := Image.create(size, size, false, Image.FORMAT_RGBA8)
-	var mid := (size - 1) * 0.5
+	var size = 64
+	var img = Image.create(size, size, false, Image.FORMAT_RGBA8)
+	var mid = (size - 1) * 0.5
 	for y in size:
 		for x in size:
-			var dx := (float(x) - mid) / mid
-			var dy := (float(y) - mid) / mid
-			var r := sqrt(dx * dx + dy * dy)
-			var a := 0.0
+			var dx = (float(x) - mid) / mid
+			var dy = (float(y) - mid) / mid
+			var r = sqrt(dx * dx + dy * dy)
+			var a = 0.0
 			if r < 1.0:
-				var t := clampf(1.0 - r, 0.0, 1.0)
+				var t = clampf(1.0 - r, 0.0, 1.0)
 				a = t * t * (3.0 - 2.0 * t)
 			img.set_pixel(x, y, Color(1.0, 1.0, 1.0, a))
 	return ImageTexture.create_from_image(img)
 
 
 func _get_wind_vector(emitter_index: int) -> Vector3:
-	var base := wind_direction
+	var base = wind_direction
 	if base.length_squared() < 0.0001:
 		base = Vector3.RIGHT
-	var dir := base.normalized()
-	var phase := 0.0
+	var dir = base.normalized()
+	var phase = 0.0
 	if emitter_index >= 0 and emitter_index < _wind_phases.size():
 		phase = _wind_phases[emitter_index]
-	var gust := 1.0 + sin(Time.get_ticks_msec() * 0.001 * wind_gust_speed + phase) * wind_gust_strength
+	var gust = 1.0 + sin(Time.get_ticks_msec() * 0.001 * wind_gust_speed + phase) * wind_gust_strength
 	return dir * wind_strength * maxf(gust, 0.0)
 
 
 func _make_emitter(node_name: String, is_plume: bool) -> GPUParticles3D:
-	var p := GPUParticles3D.new()
+	var p = GPUParticles3D.new()
 	p.name = node_name
 	p.emitting = false
 	# Few dark puffs at the patch; most of the visible volume is the white plume.
@@ -216,9 +221,10 @@ func _make_emitter(node_name: String, is_plume: bool) -> GPUParticles3D:
 	p.visibility_aabb = AABB(Vector3(-20, -4, -20), Vector3(40, 24, 40))
 	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	p.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+	p.layers = MinimapLayers.EFFECTS
 	p.draw_order = GPUParticles3D.DRAW_ORDER_VIEW_DEPTH
 
-	var proc := ParticleProcessMaterial.new()
+	var proc = ParticleProcessMaterial.new()
 	proc.particle_flag_align_y = false
 	proc.direction = Vector3(0.0, 1.0, 0.0)
 	proc.spread = spread_deg * (1.2 if is_plume else 0.72)
@@ -249,15 +255,15 @@ func _make_emitter(node_name: String, is_plume: bool) -> GPUParticles3D:
 			proc.turbulence_influence_min = 0.08
 			proc.turbulence_influence_max = 0.35
 
-	var hot := plume_color_hot if is_plume else smoke_color_hot
-	var cool := plume_color_cool if is_plume else smoke_color_cool
-	var mid_rgb := 0.96 if is_plume else 0.05
-	var aged_rgb := 0.9 if is_plume else 0.07
-	var thin_rgb := 0.86 if is_plume else 0.1
-	var mid := Color(mid_rgb, mid_rgb, mid_rgb + (0.02 if is_plume else 0.0), hot.a * 0.75)
-	var aged := Color(aged_rgb, aged_rgb, aged_rgb + (0.02 if is_plume else 0.0), hot.a * 0.38)
-	var thin := Color(thin_rgb, thin_rgb, thin_rgb + (0.02 if is_plume else 0.0), hot.a * 0.14)
-	var grad := Gradient.new()
+	var hot = plume_color_hot if is_plume else smoke_color_hot
+	var cool = plume_color_cool if is_plume else smoke_color_cool
+	var mid_rgb = 0.96 if is_plume else 0.05
+	var aged_rgb = 0.9 if is_plume else 0.07
+	var thin_rgb = 0.86 if is_plume else 0.1
+	var mid = Color(mid_rgb, mid_rgb, mid_rgb + (0.02 if is_plume else 0.0), hot.a * 0.75)
+	var aged = Color(aged_rgb, aged_rgb, aged_rgb + (0.02 if is_plume else 0.0), hot.a * 0.38)
+	var thin = Color(thin_rgb, thin_rgb, thin_rgb + (0.02 if is_plume else 0.0), hot.a * 0.14)
+	var grad = Gradient.new()
 	grad.offsets = PackedFloat32Array([0.0, 0.12, 0.45, 0.78, 1.0])
 	grad.colors = PackedColorArray([
 		Color(hot.r, hot.g, hot.b, hot.a),
@@ -266,24 +272,24 @@ func _make_emitter(node_name: String, is_plume: bool) -> GPUParticles3D:
 		thin,
 		cool,
 	])
-	var grad_tex := GradientTexture1D.new()
+	var grad_tex = GradientTexture1D.new()
 	grad_tex.gradient = grad
 	proc.color_ramp = grad_tex
 
-	var scale_curve := Curve.new()
+	var scale_curve = Curve.new()
 	scale_curve.add_point(Vector2(0.0, 0.35))
 	scale_curve.add_point(Vector2(0.2, 1.05))
 	scale_curve.add_point(Vector2(0.55, 1.65))
 	scale_curve.add_point(Vector2(1.0, 2.35))
-	var scale_tex := CurveTexture.new()
+	var scale_tex = CurveTexture.new()
 	scale_tex.curve = scale_curve
 	proc.scale_curve = scale_tex
 
 	p.process_material = proc
 
-	var mesh := QuadMesh.new()
+	var mesh = QuadMesh.new()
 	mesh.size = Vector2.ONE * puff_size * (1.65 if is_plume else 1.0)
-	var draw_mat := StandardMaterial3D.new()
+	var draw_mat = StandardMaterial3D.new()
 	if receive_light:
 		draw_mat.shading_mode = BaseMaterial3D.SHADING_MODE_PER_PIXEL
 	else:

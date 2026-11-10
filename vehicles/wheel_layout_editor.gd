@@ -64,10 +64,6 @@ var _busy: bool = false
 	set(value):
 		front_wheel_width = value
 		_editor_axle_changed()
-@export var front_mesh_scale: float = 2.875:
-	set(value):
-		front_mesh_scale = value
-		_editor_axle_changed()
 
 @export_group("Rear axle")
 @export_range(800.0, 2000.0, 1.0) var rear_track_mm: float = 1500.0:
@@ -110,7 +106,14 @@ var _busy: bool = false
 	set(value):
 		rear_wheel_width = value
 		_editor_axle_changed()
-@export var rear_mesh_scale: float = 2.875:
+
+@export_group("Visual wheel mesh")
+## Scales the wheel pack mesh (tire + brake disc). Match orange physics ghost diameter.
+@export_range(0.05, 20.0, 0.01) var front_mesh_scale: float = 2.875:
+	set(value):
+		front_mesh_scale = value
+		_editor_axle_changed()
+@export_range(0.05, 20.0, 0.01) var rear_mesh_scale: float = 2.875:
 	set(value):
 		rear_mesh_scale = value
 		_editor_axle_changed()
@@ -321,6 +324,8 @@ func _load_from_setup() -> void:
 		_last_axle_pos.append(marker.position)
 	_busy = false
 	_sync_runtime_visual_scale()
+	if Engine.is_editor_hint() and is_inside_tree():
+		_apply_preview_scales()
 
 
 func _axles_moved() -> bool:
@@ -685,4 +690,9 @@ func _update_preview_transforms() -> void:
 		var rest := _rest_length_for_index(setup, i)
 		var radius := _radius_for_index(i)
 		child.position = mount + Vector3(0.0, -(rest - radius), 0.0)
+		## Keep mesh scale in sync every frame (nested wheel packs / brake parts).
+		var scale_v := _scale_for_index(i)
+		var mesh_root := child.get_node_or_null("Mesh") as Node3D
+		if mesh_root != null and not mesh_root.scale.is_equal_approx(Vector3(scale_v, scale_v, scale_v)):
+			mesh_root.scale = Vector3(scale_v, scale_v, scale_v)
 	_update_track_ghosts()

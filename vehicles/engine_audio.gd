@@ -278,6 +278,10 @@ func _apply_spatial() -> void:
 
 
 func _process(delta: float) -> void:
+	FrameClock.measure("proc:engine_audio", _profiled_process, delta)
+
+
+func _profiled_process(delta: float) -> void:
 	if _car == null or _car.setup == null:
 		return
 	if _live:
@@ -298,11 +302,7 @@ func _process_live(delta: float) -> void:
 		load_target = 0.15
 	_smooth_load = lerpf(_smooth_load, load_target, clampf(6.0 * delta, 0.0, 1.0))
 
-	var mute := (
-		GameAudio != null
-		and GameAudio.has_method("is_terror_playing")
-		and GameAudio.is_terror_playing()
-	)
+	var mute := GameAudio != null and GameAudio.is_terror_playing()
 	if mute:
 		_live_player.volume_db = -80.0
 		if _live_player.playing:
@@ -310,9 +310,7 @@ func _process_live(delta: float) -> void:
 	else:
 		var occupied_db := 0.0 if _car.occupied else -8.0
 		var vol_trim := float(_car.setup.get("engine_sound_volume_db"))
-		var car_user := 0.0
-		if GameAudio != null and GameAudio.has_method("get_car_volume_offset_db"):
-			car_user = float(GameAudio.get_car_volume_offset_db())
+		var car_user := float(GameAudio.get_car_volume_offset_db()) if GameAudio != null else 0.0
 		_live_player.volume_db = master_volume_db + vol_trim + occupied_db + car_user
 		if not _live_player.playing:
 			_live_player.play()
@@ -338,11 +336,7 @@ func _process_baked(delta: float) -> void:
 		load_target = 0.0
 	_smooth_load = lerpf(_smooth_load, load_target, clampf(6.0 * delta, 0.0, 1.0))
 
-	var mute := (
-		GameAudio != null
-		and GameAudio.has_method("is_terror_playing")
-		and GameAudio.is_terror_playing()
-	)
+	var mute := GameAudio != null and GameAudio.is_terror_playing()
 	var occupied_db := 0.0 if _car.occupied else -10.0
 	var load_db := lerpf(-3.0, 1.5, _smooth_load)
 	var idle_r := float(_car.setup.get("idle_rpm"))
@@ -350,9 +344,7 @@ func _process_baked(delta: float) -> void:
 	var rpm_t := clampf(inverse_lerp(idle_r, max_r, _smooth_rpm), 0.0, 1.0)
 	var rpm_db := lerpf(-1.0, 1.8, pow(rpm_t, 1.15))
 	var vol_trim := float(_car.setup.get("engine_sound_volume_db"))
-	var car_user := 0.0
-	if GameAudio != null and GameAudio.has_method("get_car_volume_offset_db"):
-		car_user = float(GameAudio.get_car_volume_offset_db())
+	var car_user := float(GameAudio.get_car_volume_offset_db()) if GameAudio != null else 0.0
 	var master := -80.0 if mute else (master_volume_db + vol_trim + load_db + occupied_db + rpm_db + car_user)
 
 	if _band_rpms.is_empty() and _car.setup:

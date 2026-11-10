@@ -28,10 +28,10 @@ func _ready() -> void:
 
 
 func _resolve_baker() -> void:
-	var tree := get_tree()
+	var tree = get_tree()
 	if tree == null:
 		return
-	var nodes := tree.get_nodes_in_group(SkidMarkBaker.GROUP)
+	var nodes = tree.get_nodes_in_group(SkidMarkBaker.GROUP)
 	if not nodes.is_empty():
 		_baker = nodes[0] as SkidMarkBaker
 		return
@@ -43,6 +43,10 @@ func _resolve_baker() -> void:
 
 
 func _physics_process(_delta: float) -> void:
+	FrameClock.measure("phys:skid_marks", _profiled_physics_process, _delta)
+
+
+func _profiled_physics_process(_delta: float) -> void:
 	if _car == null:
 		_car = get_parent() as CarController
 	if _car == null or _car.setup == null:
@@ -51,7 +55,7 @@ func _physics_process(_delta: float) -> void:
 		_resolve_baker()
 		if _baker == null:
 			return
-	var wheels := _car.get_wheels()
+	var wheels = _car.get_wheels()
 	_ensure_wheel_state(wheels.size())
 	for i in wheels.size():
 		var wheel: Wheel = wheels[i]
@@ -59,20 +63,20 @@ func _physics_process(_delta: float) -> void:
 		if not wheel.on_ground or intensity < min_intensity:
 			_has_last[i] = false
 			continue
-		var pos := wheel.hit_point
+		var pos = wheel.hit_point
 		# Contact patch half-width in meters (clamped so marks stay tire-thin).
-		var half_w := clampf(
+		var half_w = clampf(
 			_car.setup.get_wheel_width(i) * mark_width_scale * 0.5,
 			0.05,
 			0.12
 		)
-		var strength := paint_strength * clampf(lerpf(0.55, 1.0, intensity), 0.0, 1.0)
+		var strength = paint_strength * clampf(lerpf(0.55, 1.0, intensity), 0.0, 1.0)
 		if not _has_last[i]:
 			_last_pos[i] = pos
 			_last_width[i] = half_w
 			_has_last[i] = true
 			continue
-		var dist := pos.distance_to(_last_pos[i])
+		var dist = pos.distance_to(_last_pos[i])
 		if dist < segment_distance:
 			continue
 		_baker.stamp_segment(_last_pos[i], pos, (_last_width[i] + half_w) * 0.5, strength)

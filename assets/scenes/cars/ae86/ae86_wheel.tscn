@@ -1,0 +1,7 @@
+[gd_scene load_steps=2 uid="uid://ae86wheel000001"]
+
+[ext_resource type="PackedScene" uid="uid://ukftk2aoei2m" path="res://assets/models/cars/ae86/AE86_wheel.glb" id="1_mesh"]
+
+[node name="AE86Wheel" type="Node3D"]
+
+[node name="Mesh" parent="." instance=ExtResource("1_mesh")]

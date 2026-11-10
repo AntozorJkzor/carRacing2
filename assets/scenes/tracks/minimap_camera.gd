@@ -1,5 +1,7 @@
 extends Camera3D
 
+const MinimapLayers := preload("res://rendering/minimap_layers.gd")
+
 @export var target_path: NodePath
 @export var follow_height: float = 80.0
 @export var ortho_size: float = 165.0
@@ -18,8 +20,19 @@ func _ready() -> void:
 	_size_target = ortho_size
 	size = ortho_size
 	near = 0.5
-	far = follow_height * 2.5
+	far = follow_height + 40.0
 	current = true
+	# Flat map: no sun (so no shadow pass) and no smoke / skid / lamp layers.
+	cull_mask = MinimapLayers.ALL & ~MinimapLayers.EFFECTS & ~MinimapLayers.LIGHTS
+	attributes = null
+	var vp := get_viewport()
+	vp.positional_shadow_atlas_size = 0
+	vp.msaa_3d = Viewport.MSAA_DISABLED
+	vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_DISABLED
+	vp.use_taa = false
+	vp.use_debanding = false
+	vp.mesh_lod_threshold = 4.0
+	vp.anisotropic_filtering_level = Viewport.ANISOTROPY_DISABLED
 	_resolve_target()
 	if _target != null:
 		_sync_transform()

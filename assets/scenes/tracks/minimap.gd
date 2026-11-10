@@ -1,5 +1,7 @@
 extends PanelContainer
 
+const MinimapLayers := preload("res://rendering/minimap_layers.gd")
+
 ## Fallback when no target is bound yet (usually the on-foot player).
 @export var player_path: NodePath = NodePath("../../Player")
 
@@ -11,6 +13,13 @@ var _target: Node3D
 
 
 func _ready() -> void:
+	# Disabled for now: a live 3D SubViewport redraws the whole track.
+	if not visible:
+		if _sub_viewport != null:
+			_sub_viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
+		set_process(false)
+		set_process_unhandled_input(false)
+		return
 	call_deferred("_bind_world")
 	call_deferred("_bind_initial_target")
 
@@ -29,6 +38,12 @@ func _bind_world() -> void:
 	var main_vp := get_viewport()
 	if main_vp != null and _sub_viewport != null:
 		_sub_viewport.world_3d = main_vp.world_3d
+	# Lights the minimap camera cannot see are skipped, including their shadows.
+	var scene := get_tree().current_scene
+	if scene == null:
+		return
+	for node in scene.find_children("*", "Light3D", true, false):
+		(node as Light3D).layers = MinimapLayers.LIGHTS
 
 
 func _bind_initial_target() -> void:

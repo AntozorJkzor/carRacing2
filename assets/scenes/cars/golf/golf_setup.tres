@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="CarSetup" format=3 uid="uid://cqjf8hwdnrk2s"]
 
-[ext_resource type="Script" uid="uid://cfaj5h28ainqg" path="res://vehicles/car_setup.gd" id="1_setup"]
+[ext_resource type="Script" uid="uid://cu5yo5tt3sa0d" path="res://vehicles/car_setup.gd" id="1_setup"]
 
 [sub_resource type="Curve" id="Curve_steer"]
 _data = [Vector2(0, 1), 0.0, 0.0, 0, 0, Vector2(0.18, 0.7), 0.0, 0.0, 0, 0, Vector2(0.32, 0.4), 0.0, 0.0, 0, 0, Vector2(0.48, 0.24), 0.0, 0.0, 0, 0, Vector2(0.72, 0.15), 0.0, 0.0, 0, 0, Vector2(1, 0.11), 0.0, 0.0, 0, 0]
@@ -40,6 +40,7 @@ rear_diff_type = 0
 diff_preload = 40.0
 diff_power_lock = 0.2
 diff_coast_lock = 0.1
+brake_elsd = 1.0
 wheel_radius = 0.2876
 wheel_width = 0.17500000000000002
 wheel_inertia = 0.75
@@ -104,6 +105,7 @@ counter_steer_recover_rate = 0.22
 steer_lock_smooth = 7.0
 throttle_rise_rate = 1.5
 throttle_fall_rate = 4.0
+arcade_assist = 0.5
 drift_assist = 0.0
 fwd_lat_priority = 0.72
 fwd_counter_steer_scale = 0.5
