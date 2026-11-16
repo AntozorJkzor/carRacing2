@@ -17,7 +17,8 @@
 [ext_resource type="Script" uid="uid://bq5ijnjjlhpvd" path="res://vehicles/skid_marks.gd" id="15_skid"]
 [ext_resource type="Script" uid="uid://dgk6oqjosvnkl" path="res://vehicles/tire_audio.gd" id="16_tire"]
 [ext_resource type="Script" uid="uid://b76v1wghlf18s" path="res://vehicles/visual_steering_wheel.gd" id="17_steer"]
-[ext_resource type="Script" path="res://vehicles/car_paint_polish.gd" id="18_polish"]
+[ext_resource type="Script" uid="uid://bu565g1wf3ale" path="res://vehicles/car_paint_polish.gd" id="18_polish"]
+[ext_resource type="PackedScene" uid="uid://ccbuxm7s328j" path="res://assets/scenes/cars/ae86/ae86_cockpit.tscn" id="19_cockpit"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_body"]
 size = Vector3(1.74, 1.1, 3.95)
@@ -41,7 +42,7 @@ shape = SubResource("BoxShape3D_body")
 [node name="Model" parent="." unique_id=1609624393 instance=ExtResource("8_model")]
 transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, 0, 0, 0)
 
-[node name="PaintPolish" type="Node3D" parent="Model"]
+[node name="PaintPolish" type="Node3D" parent="Model" unique_id=1920831461]
 script = ExtResource("18_polish")
 
 [node name="EngineAudio" type="Node3D" parent="." unique_id=619681149]
@@ -68,14 +69,22 @@ script = ExtResource("13_lights")
 
 [node name="Headlights" type="Node3D" parent="CarLights" unique_id=1121947739]
 
-[node name="Center" type="Marker3D" parent="CarLights/Headlights" unique_id=1228138809]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, -1.95)
+[node name="Left" type="Marker3D" parent="CarLights/Headlights" unique_id=1228138809]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.62, 0.55, -1.95)
+gizmo_extents = 0.2
+
+[node name="Right" type="Marker3D" parent="CarLights/Headlights" unique_id=2038878455]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.62, 0.55, -1.95)
 gizmo_extents = 0.2
 
 [node name="BrakeLights" type="Node3D" parent="CarLights" unique_id=919036364]
 
-[node name="Center" type="Marker3D" parent="CarLights/BrakeLights" unique_id=1218253533]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.72, 1.85)
+[node name="Left" type="Marker3D" parent="CarLights/BrakeLights" unique_id=1218253533]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.62, 0.7, 1.85)
+gizmo_extents = 0.18
+
+[node name="Right" type="Marker3D" parent="CarLights/BrakeLights" unique_id=1256330950]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.62, 0.7, 1.85)
 gizmo_extents = 0.18
 
 [node name="ReverseLights" type="Node3D" parent="CarLights" unique_id=2069024797]
@@ -131,9 +140,11 @@ gizmo_extents = 0.45
 script = ExtResource("12_driver")
 
 [node name="Camera3D" type="Camera3D" parent="." unique_id=1457557308]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.35, 1, 0.05)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.1382933, 1.074211, -0.20059437)
 current = true
-fov = 70.0
+fov = 50.0
 
 [node name="VisualSteeringWheel" type="Node3D" parent="." unique_id=1556171993]
 script = ExtResource("17_steer")
+
+[node name="CockpitOverlay" parent="." unique_id=1606223014 instance=ExtResource("19_cockpit")]

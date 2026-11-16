@@ -1,0 +1,9 @@
+[gd_scene format=3 uid="uid://b0wn10mlu6els"]
+
+[ext_resource type="Script" path="res://assets/scenes/tracks/city.gd" id="1_script"]
+[ext_resource type="PackedScene" uid="uid://cschmpkxhq817" path="res://assets/models/track/city.glb" id="2_model"]
+
+[node name="City" type="Node3D"]
+script = ExtResource("1_script")
+
+[node name="Model" parent="." instance=ExtResource("2_model")]

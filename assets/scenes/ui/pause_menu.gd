@@ -30,20 +30,33 @@ func _ready() -> void:
 	_menu_button.pressed.connect(_on_menu_pressed)
 	_exit_button.pressed.connect(_on_exit_pressed)
 	Lang.language_changed.connect(_refresh_language)
+	UiStyle.dress(_root)
+	var panel := $Root/Center/Panel as PanelContainer
+	var box := panel.get_node("Margin/VBox")
+	var mark := UiStyle.logo_mark(340)
+	mark.name = "LogoBlock"
+	box.add_child(mark)
+	box.move_child(mark, 0)
+	UiStyle.dock_left(panel, 84.0, 0.4)
 	_refresh_language()
 
 
 func _refresh_language() -> void:
 	_title.text = Lang.t("menu.paused")
-	UiStyle.headline_style(_title, 40)
-	UiStyle.section_label_style(_subtitle, 18)
+	_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	UiStyle.headline_style(_title, 42)
+	_subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	_subtitle.add_theme_font_size_override("font_size", 16)
+	_subtitle.add_theme_color_override("font_color", UiStyle.MUTED)
+	_subtitle.add_theme_constant_override("outline_size", 0)
+	_subtitle.add_theme_constant_override("shadow_size", 0)
 	UiStyle.button(_continue_button, UiStyle.AMBER, 22)
 	UiStyle.button(_settings_button, UiStyle.AMBER, 22)
 	UiStyle.button(_menu_button, UiStyle.RED, 22)
 	UiStyle.button(_exit_button, UiStyle.RED, 22)
 	var dim := get_node_or_null("Root/Dim") as ColorRect
 	if dim != null:
-		dim.color = Color(0.005, 0.01, 0.03, 0.78)
+		dim.color = Color(0.004, 0.008, 0.02, 0.62)
 	_subtitle.text = Lang.t("menu.game_paused")
 	_continue_button.text = Lang.t("menu.resume")
 	_settings_button.text = Lang.t("menu.settings")

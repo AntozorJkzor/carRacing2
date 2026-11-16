@@ -12,6 +12,7 @@ var active: bool = false
 var can_exit: bool = true
 ## Skip exit on the same frame we were activated (tree order: enter then exit).
 var _exit_ready: bool = false
+var _tandem_hooked: bool = false
 
 
 func _ready() -> void:
@@ -26,9 +27,18 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_V:
 		car.toggle_camera_view()
 		get_viewport().set_input_as_handled()
+		return
+	if event is InputEventKey and event.pressed and not event.echo:
+		var key := event as InputEventKey
+		if key.keycode == KEY_O or key.physical_keycode == KEY_O:
+			_toggle_tandem()
+			get_viewport().set_input_as_handled()
 
 
 func _physics_process(_delta: float) -> void:
+	if active and not _tandem_hooked:
+		_tandem_hooked = true
+		_ensure_tandem()
 	if not active or car == null:
 		_exit_ready = false
 		if car != null:
@@ -105,6 +115,25 @@ func _apply_pedals(accel_raw: float, brake_raw: float) -> void:
 	else:
 		car.throttle = accel_raw
 		car.brake = brake_raw
+
+
+func _ensure_tandem() -> Node:
+	var host := get_tree().current_scene
+	if host == null:
+		return null
+	var node := host.get_node_or_null("TandemRival")
+	if node == null:
+		node = Node.new()
+		node.name = "TandemRival"
+		node.set_script(load("res://vehicles/tandem_rival.gd"))
+		host.add_child(node)
+	return node
+
+
+func _toggle_tandem() -> void:
+	var node := _ensure_tandem()
+	if node != null and node.has_method("toggle"):
+		node.call("toggle")
 
 
 func _exit_to_character() -> void:

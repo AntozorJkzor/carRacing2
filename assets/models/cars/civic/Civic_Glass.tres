@@ -1,0 +1,8 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://bybs2gr8fd2s1"]
+
+[resource]
+resource_name = "Civic_Glass"
+transparency = 4
+cull_mode = 2
+albedo_color = Color(0.38109186, 0.47312066, 0.5271128, 0.38)
+roughness = 0.12

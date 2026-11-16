@@ -28,21 +28,30 @@ static func slip_parts(
 	spin_kappa: float,
 	slide_angle_deg: float
 ) -> Vector3:
-	if car == null or wheel == null or not wheel.on_ground:
+	if car == null or wheel == null or not wheel.on_ground or wheel.contact_time < 0.1:
 		return Vector3.ZERO
-	var k := absf(wheel.slip_ratio)
+	var speed := _speed(car)
+	var throttle := float(car.get("throttle"))
+	var brake := float(car.get("brake"))
+	var handbrake := float(car.get("handbrake"))
+	if speed < 1.0 and throttle < 0.18 and brake < 0.2 and handbrake < 0.15:
+		return Vector3.ZERO
+
+	var long_slip_speed := absf(wheel.angular_velocity * wheel.effective_radius - wheel.longitudinal_speed)
+	var lateral_slip_speed := absf(wheel.lateral_speed)
+	if maxf(long_slip_speed, lateral_slip_speed) < 0.45:
+		return Vector3.ZERO
+
+	var k := absf(wheel.filtered_slip_ratio)
 	var spin_i := 0.0
 	var k0 := maxf(spin_kappa, 0.04)
 	if k >= k0:
 		spin_i = clampf((k - k0) / 0.45, 0.0, 1.0)
 	var slide_i := 0.0
-	var a_deg := absf(rad_to_deg(wheel.slip_angle))
+	var a_deg := absf(rad_to_deg(wheel.filtered_slip_angle))
 	var a0 := maxf(slide_angle_deg, 4.0)
 	if a_deg >= a0:
 		slide_i = clampf((a_deg - a0) / 26.0, 0.0, 1.0)
-	var speed := _speed(car)
-	var brake := float(car.get("brake"))
-	var handbrake := float(car.get("handbrake"))
 	var lock_i := 0.0
 	if speed > 3.0:
 		if handbrake > 0.2 and not wheel.is_steering:

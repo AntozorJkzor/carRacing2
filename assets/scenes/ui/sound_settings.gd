@@ -19,7 +19,8 @@ extends Control
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	UiStyle.night_sky(_background)
+	UiStyle.dress(self)
+	UiStyle.prepare_page(self, 0.46)
 	UiStyle.button(_back_button, UiStyle.RED, 20)
 	UiStyle.button(_save_button, UiStyle.AMBER, 20)
 	UiStyle.section_label_style(_title, 30)

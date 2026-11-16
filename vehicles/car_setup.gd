@@ -90,6 +90,8 @@ enum EngineLayout { INLINE, V, BOXER }
 ## Legacy single width — prefer front_/rear_wheel_width.
 @export var wheel_width: float = 0.22
 @export var wheel_inertia: float = 0.85
+## Contacts steeper than this are walls, not tire support surfaces.
+@export_range(35.0, 80.0, 1.0) var max_tire_contact_slope_deg: float = 55.0
 ## Local mounts [FL, FR, RL, RR] — rebuilt from axle fields (keep for physics / old data).
 @export var wheel_positions: Array[Vector3] = [
 	Vector3(-0.75, 0.4, -1.25),
@@ -166,20 +168,23 @@ enum EngineLayout { INLINE, V, BOXER }
 ## Tire carcass response distances in metres. Higher = more progressive breakaway.
 @export_range(0.05, 1.5, 0.05) var tire_relaxation_longitudinal: float = 0.3
 @export_range(0.05, 1.5, 0.05) var tire_relaxation_lateral: float = 0.45
+@export_range(0.05, 0.25, 0.01) var tire_peak_slip_ratio: float = 0.12
+@export_range(5.0, 18.0, 0.5) var tire_peak_slip_angle_deg: float = 10.0
+## Fraction of peak force remaining in full slide.
+@export_range(0.55, 1.0, 0.01) var tire_slide_longitudinal: float = 0.78
+@export_range(0.55, 1.0, 0.01) var tire_slide_lateral: float = 0.84
+## Slower recovery prevents the rear axle from snapping back to full grip.
+@export_range(1.0, 2.5, 0.05) var tire_regrip_relaxation_mult: float = 1.4
+## Combined slip by slip vector: wheelspin (or a locked wheel) takes lateral force away,
+## so the throttle steers the slide. 0 = friction ellipse only, 1 = full effect (snappy).
+@export_range(0.0, 1.0, 0.05) var tire_combined_slip: float = 0.0
+@export var tire_vertical_stiffness: float = 220000.0
+@export_range(0.01, 0.1, 0.005) var tire_max_deflection: float = 0.055
 @export var rolling_resistance: float = 0.015
-## Legacy compatibility only. Unloaded raycast wheels now have zero tire force.
-@export_range(0.0, 0.25) var min_load_fraction: float = 0.0
-
-@export_group("Tires Legacy")
-@export var grip_longitudinal: float = 1.2
-@export var grip_lateral: float = 1.1
-@export var grip_lateral_rear: float = 3.5
 
 @export_group("Brakes")
 @export var brake_force: float = 12000.0
 @export var handbrake_force: float = 22000.0
-## Legacy compatibility only. Rear grip loss now comes from brake lock and combined slip.
-@export_range(0.0, 1.0) var handbrake_lat_grip: float = 1.0
 ## Fraction of service brake torque on the front axle.
 @export_range(0.0, 1.0) var brake_bias_front: float = 0.65
 
@@ -215,10 +220,24 @@ enum EngineLayout { INLINE, V, BOXER }
 @export_range(0.15, 1.0, 0.05) var counter_steer_recover_rate: float = 0.32
 ## How fast steer_lock may rise/fall (1/s). Stops one-frame lock jumps.
 @export_range(1.0, 20.0, 0.5) var steer_lock_smooth: float = 6.0
+## Self-steer in a slide: the front wheels swing toward their velocity vector and
+## the steering input is added on top. Outside a slide a released wheel re-centres.
+@export var self_steer_enabled: bool = true
+@export var self_steer_torque_threshold_nm: float = 30.0
+@export var self_steer_full_torque_nm: float = 110.0
+@export_range(0.5, 3.0, 0.05) var self_steer_rate_mult: float = 1.2
+@export var self_steer_min_speed_ms: float = 4.0
+## Fraction of the front-axle slip angle the self-steer follows; 1 fully tracks velocity.
+@export_range(0.4, 1.0, 0.02) var self_steer_alignment_ratio: float = 0.72
+## Target response, 1/s. Lower values leave more room for pendulum transitions.
+@export_range(1.0, 10.0, 0.5) var self_steer_response: float = 3.5
 
 @export_group("Alignment")
 ## Кастер передней оси, °. Даёт self-centering руля и тяжесть от нагрузки на передок.
 @export_range(0.0, 10.0, 0.25) var front_caster_deg: float = 4.0
+## Геометрия Аккермана: 1 = внутреннее колесо повёрнуто сильнее внешнего,
+## 0 = колёса параллельны (дрифт-сетап, меньше скраба на большом вывороте).
+@export_range(0.0, 1.0, 0.05) var ackermann: float = 1.0
 ## Развал задней оси, ° (отрицательный = «домиком», колёса наклонены внутрь).
 ## Camber thrust добавляет боковую силу задка в повороте; крен кузова меняет его.
 @export_range(-6.0, 2.0, 0.25) var rear_camber_deg: float = -1.0
@@ -241,13 +260,14 @@ enum EngineLayout { INLINE, V, BOXER }
 
 @export_group("FWD stability")
 ## 0 = off, 1 = сильно режет тягу (движущий момент) на передней оси при большом угле увода (сохраняет Fy).
-@export_range(0.0, 1.0, 0.05) var fwd_lat_priority: float = 0.0
+## Стартовое значение — рулёжка Civic.
+@export_range(0.0, 1.0, 0.05) var fwd_lat_priority: float = 0.72
 ## |slip_angle| (deg), с которого начинается FWD lat-priority.
 @export_range(2.0, 18.0, 0.5) var fwd_slip_angle_start_deg: float = 5.0
 ## 0 = counter-steer как soft-lock, 1 = полные counter_steer_* (для FWD держать ~0.4–0.6).
-@export_range(0.15, 1.0, 0.05) var fwd_counter_steer_scale: float = 0.55
+@export_range(0.15, 1.0, 0.05) var fwd_counter_steer_scale: float = 0.5
 ## Множитель к bleed/unwind при закрытии слайда на FWD (>1 = быстрее отпускает руль).
-@export_range(0.8, 2.0, 0.05) var fwd_recover_bleed: float = 1.4
+@export_range(0.8, 2.0, 0.05) var fwd_recover_bleed: float = 1.45
 
 @export_group("Simulation")
 @export_range(1, 8) var physics_substeps: int = 4
@@ -295,11 +315,6 @@ func migrate_legacy_fields() -> void:
 		rear_damping_rebound = damping * 1.2
 		front_anti_roll = anti_roll
 		rear_anti_roll = anti_roll
-
-	# Old arcade grip numbers were ~1.1–3.5; map into mu if still at defaults.
-	if is_equal_approx(tire_mu_front, 1.55) and grip_longitudinal > 1.3:
-		tire_mu_front = clampf(grip_lateral * 0.72, 0.8, 2.4)
-		tire_mu_rear = clampf(grip_lateral_rear * 0.45, 0.8, 2.4)
 
 	ensure_axle_layout()
 	ensure_power_units()

@@ -1,0 +1,7 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" uid="uid://c3ryj87rgggjv" path="res://assets/models/cars/levin/levin_wheel.glb" id="1_mesh"]
+
+[node name="LevinWheel" type="Node3D"]
+
+[node name="Mesh" parent="." instance=ExtResource("1_mesh")]

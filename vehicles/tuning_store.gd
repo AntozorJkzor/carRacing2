@@ -6,13 +6,16 @@ signal engine_bake_progress(current: int, total: int, rpm: float, phase: String)
 
 ## Per-car debug overrides. Scene CarSetup + WheelLayout/Collision are source of truth for layout.
 const CATALOG_PATH := "res://vehicles/cars_catalog.tres"
+const TRACKS_CATALOG_PATH := "res://assets/scenes/tracks/tracks_catalog.tres"
 const LEGACY_SAVE_PATH := "user://car_tuning.cfg"
 const HANDLING_VERSION := 2
 
 var catalog: CarsCatalog
+var tracks_catalog: TracksCatalog
 var active_car_id: StringName = &"volga"
 ## Picked in the garage; the track spawns this car and puts us in the seat.
 var selected_car_id: StringName = &"ae86"
+var selected_track_id: StringName = &"empty"
 ## Working copy edited by Settings (physics fields only).
 var setup: CarSetup
 ## Runtime visual offset; does not rewrite scene node bases permanently.
@@ -29,8 +32,18 @@ var SAVE_PATH: String:
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	catalog = load(CATALOG_PATH) as CarsCatalog
+	tracks_catalog = load(TRACKS_CATALOG_PATH) as TracksCatalog
 	_reset_working_from_pack(active_car_id)
 	load_from_disk()
+
+
+func get_selected_track_scene() -> PackedScene:
+	if tracks_catalog == null:
+		return null
+	var scene := tracks_catalog.get_scene(selected_track_id)
+	if scene == null:
+		scene = tracks_catalog.get_scene(&"empty")
+	return scene
 
 
 func save_path_for(car_id: StringName) -> String:
@@ -278,8 +291,11 @@ func _write_config_to_disk() -> void:
 			"engine_sound_volume_db": setup.engine_sound_volume_db,
 		},
 		"drivetrain": drivetrain,
-		# Wheel inertia only — axle geometry / tire ISO live in pack WheelLayout.
-		"wheels": {"wheel_inertia": setup.wheel_inertia},
+		# Axle geometry / tire ISO live in pack WheelLayout.
+		"wheels": {
+			"wheel_inertia": setup.wheel_inertia,
+			"max_tire_contact_slope_deg": setup.max_tire_contact_slope_deg,
+		},
 		"suspension": {
 			"front_rest_length": setup.front_rest_length,
 			"rear_rest_length": setup.rear_rest_length,
@@ -306,10 +322,17 @@ func _write_config_to_disk() -> void:
 			"pacejka_e_lat": setup.pacejka_e_lat,
 			"tire_relaxation_longitudinal": setup.tire_relaxation_longitudinal,
 			"tire_relaxation_lateral": setup.tire_relaxation_lateral,
+			"tire_peak_slip_ratio": setup.tire_peak_slip_ratio,
+			"tire_peak_slip_angle_deg": setup.tire_peak_slip_angle_deg,
+			"tire_slide_longitudinal": setup.tire_slide_longitudinal,
+			"tire_slide_lateral": setup.tire_slide_lateral,
+			"tire_regrip_relaxation_mult": setup.tire_regrip_relaxation_mult,
+			"tire_combined_slip": setup.tire_combined_slip,
+			"tire_vertical_stiffness": setup.tire_vertical_stiffness,
+			"tire_max_deflection": setup.tire_max_deflection,
 			"rolling_resistance": setup.rolling_resistance,
 			"brake_force": setup.brake_force,
 			"handbrake_force": setup.handbrake_force,
-			"handbrake_lat_grip": setup.handbrake_lat_grip,
 			"brake_bias_front": setup.brake_bias_front,
 		},
 		"aero": {
@@ -329,6 +352,13 @@ func _write_config_to_disk() -> void:
 			"counter_steer_rate_mult": setup.counter_steer_rate_mult,
 			"counter_steer_recover_rate": setup.counter_steer_recover_rate,
 			"steer_lock_smooth": setup.steer_lock_smooth,
+			"self_steer_enabled": setup.self_steer_enabled,
+			"self_steer_torque_threshold_nm": setup.self_steer_torque_threshold_nm,
+			"self_steer_full_torque_nm": setup.self_steer_full_torque_nm,
+			"self_steer_rate_mult": setup.self_steer_rate_mult,
+			"self_steer_min_speed_ms": setup.self_steer_min_speed_ms,
+			"self_steer_alignment_ratio": setup.self_steer_alignment_ratio,
+			"self_steer_response": setup.self_steer_response,
 		},
 		"throttle": {
 			"throttle_rise_rate": setup.throttle_rise_rate,
@@ -339,6 +369,7 @@ func _write_config_to_disk() -> void:
 		"alignment": {
 			"front_caster_deg": setup.front_caster_deg,
 			"rear_camber_deg": setup.rear_camber_deg,
+			"ackermann": setup.ackermann,
 		},
 		"fwd": {
 			"fwd_lat_priority": setup.fwd_lat_priority,
@@ -821,6 +852,9 @@ func _apply_physics_cfg(target: CarSetup, cfg: ConfigFile) -> void:
 
 	# Layout geometry is pack-owned — ignore any legacy keys in user://tuning_*.cfg.
 	target.wheel_inertia = float(cfg.get_value("wheels", "wheel_inertia", target.wheel_inertia))
+	target.max_tire_contact_slope_deg = float(
+		cfg.get_value("wheels", "max_tire_contact_slope_deg", target.max_tire_contact_slope_deg)
+	)
 
 	var legacy_rest := float(cfg.get_value("suspension", "rest_length", target.rest_length))
 	var legacy_travel := float(cfg.get_value("suspension", "travel", target.travel))
@@ -846,10 +880,8 @@ func _apply_physics_cfg(target: CarSetup, cfg: ConfigFile) -> void:
 	target.damping = target.front_damping_compression
 	target.anti_roll = target.front_anti_roll
 
-	var legacy_grip_lat := float(cfg.get_value("tires", "grip_lateral", target.grip_lateral))
-	var legacy_grip_rear := float(cfg.get_value("tires", "grip_lateral_rear", target.grip_lateral_rear))
-	target.tire_mu_front = float(cfg.get_value("tires", "tire_mu_front", clampf(legacy_grip_lat * 0.72, 0.8, 2.4)))
-	target.tire_mu_rear = float(cfg.get_value("tires", "tire_mu_rear", clampf(legacy_grip_rear * 0.45, 0.8, 2.4)))
+	target.tire_mu_front = float(cfg.get_value("tires", "tire_mu_front", target.tire_mu_front))
+	target.tire_mu_rear = float(cfg.get_value("tires", "tire_mu_rear", target.tire_mu_rear))
 	target.tire_v_low = float(cfg.get_value("tires", "tire_v_low", target.tire_v_low))
 	target.pacejka_b_long = float(cfg.get_value("tires", "pacejka_b_long", target.pacejka_b_long))
 	target.pacejka_c_long = float(cfg.get_value("tires", "pacejka_c_long", target.pacejka_c_long))
@@ -863,10 +895,33 @@ func _apply_physics_cfg(target: CarSetup, cfg: ConfigFile) -> void:
 	target.tire_relaxation_lateral = float(
 		cfg.get_value("tires", "tire_relaxation_lateral", target.tire_relaxation_lateral)
 	)
+	target.tire_peak_slip_ratio = float(
+		cfg.get_value("tires", "tire_peak_slip_ratio", target.tire_peak_slip_ratio)
+	)
+	target.tire_peak_slip_angle_deg = float(
+		cfg.get_value("tires", "tire_peak_slip_angle_deg", target.tire_peak_slip_angle_deg)
+	)
+	target.tire_slide_longitudinal = float(
+		cfg.get_value("tires", "tire_slide_longitudinal", target.tire_slide_longitudinal)
+	)
+	target.tire_slide_lateral = float(
+		cfg.get_value("tires", "tire_slide_lateral", target.tire_slide_lateral)
+	)
+	target.tire_regrip_relaxation_mult = float(
+		cfg.get_value("tires", "tire_regrip_relaxation_mult", target.tire_regrip_relaxation_mult)
+	)
+	target.tire_combined_slip = float(
+		cfg.get_value("tires", "tire_combined_slip", target.tire_combined_slip)
+	)
+	target.tire_vertical_stiffness = float(
+		cfg.get_value("tires", "tire_vertical_stiffness", target.tire_vertical_stiffness)
+	)
+	target.tire_max_deflection = float(
+		cfg.get_value("tires", "tire_max_deflection", target.tire_max_deflection)
+	)
 	target.rolling_resistance = float(cfg.get_value("tires", "rolling_resistance", target.rolling_resistance))
 	target.brake_force = float(cfg.get_value("tires", "brake_force", target.brake_force))
 	target.handbrake_force = float(cfg.get_value("tires", "handbrake_force", target.handbrake_force))
-	target.handbrake_lat_grip = float(cfg.get_value("tires", "handbrake_lat_grip", target.handbrake_lat_grip))
 	target.brake_bias_front = float(cfg.get_value("tires", "brake_bias_front", target.brake_bias_front))
 
 	target.drag_coefficient = float(cfg.get_value("aero", "drag_coefficient", target.drag_coefficient))
@@ -888,6 +943,27 @@ func _apply_physics_cfg(target: CarSetup, cfg: ConfigFile) -> void:
 	target.counter_steer_rate_mult = float(cfg.get_value("steering", "counter_steer_rate_mult", target.counter_steer_rate_mult))
 	target.counter_steer_recover_rate = float(cfg.get_value("steering", "counter_steer_recover_rate", target.counter_steer_recover_rate))
 	target.steer_lock_smooth = float(cfg.get_value("steering", "steer_lock_smooth", target.steer_lock_smooth))
+	target.self_steer_enabled = bool(
+		cfg.get_value("steering", "self_steer_enabled", target.self_steer_enabled)
+	)
+	target.self_steer_torque_threshold_nm = float(
+		cfg.get_value("steering", "self_steer_torque_threshold_nm", target.self_steer_torque_threshold_nm)
+	)
+	target.self_steer_full_torque_nm = float(
+		cfg.get_value("steering", "self_steer_full_torque_nm", target.self_steer_full_torque_nm)
+	)
+	target.self_steer_rate_mult = float(
+		cfg.get_value("steering", "self_steer_rate_mult", target.self_steer_rate_mult)
+	)
+	target.self_steer_min_speed_ms = float(
+		cfg.get_value("steering", "self_steer_min_speed_ms", target.self_steer_min_speed_ms)
+	)
+	target.self_steer_alignment_ratio = float(
+		cfg.get_value("steering", "self_steer_alignment_ratio", target.self_steer_alignment_ratio)
+	)
+	target.self_steer_response = float(
+		cfg.get_value("steering", "self_steer_response", target.self_steer_response)
+	)
 	target.throttle_rise_rate = float(cfg.get_value("throttle", "throttle_rise_rate", target.throttle_rise_rate))
 	target.throttle_fall_rate = float(cfg.get_value("throttle", "throttle_fall_rate", target.throttle_fall_rate))
 	if cfg.has_section_key("assist", "drift_assist"):
@@ -908,6 +984,7 @@ func _apply_physics_cfg(target: CarSetup, cfg: ConfigFile) -> void:
 	target.fwd_recover_bleed = float(cfg.get_value("fwd", "fwd_recover_bleed", target.fwd_recover_bleed))
 	target.front_caster_deg = float(cfg.get_value("alignment", "front_caster_deg", target.front_caster_deg))
 	target.rear_camber_deg = float(cfg.get_value("alignment", "rear_camber_deg", target.rear_camber_deg))
+	target.ackermann = float(cfg.get_value("alignment", "ackermann", target.ackermann))
 	target.physics_substeps = int(cfg.get_value("simulation", "physics_substeps", target.physics_substeps))
 	target.auto_hold_gear_in_drift = bool(
 		cfg.get_value("simulation", "auto_hold_gear_in_drift", target.auto_hold_gear_in_drift)

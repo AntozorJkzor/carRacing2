@@ -1,0 +1,29 @@
+[gd_resource type="Resource" script_class="TracksCatalog" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://assets/scenes/tracks/tracks_catalog.gd" id="1_catalog"]
+[ext_resource type="Script" path="res://assets/scenes/tracks/track_definition.gd" id="2_definition"]
+[ext_resource type="PackedScene" path="res://assets/scenes/tracks/physics_test_track.tscn" id="3_mountain"]
+[ext_resource type="PackedScene" path="res://assets/scenes/tracks/empty_test_track.tscn" id="4_empty"]
+[ext_resource type="PackedScene" path="res://assets/scenes/tracks/city_track.tscn" id="5_city"]
+
+[sub_resource type="Resource" id="Track_mountain"]
+script = ExtResource("2_definition")
+id = &"mountain"
+name_key = "track.mountain"
+scene = ExtResource("3_mountain")
+
+[sub_resource type="Resource" id="Track_empty"]
+script = ExtResource("2_definition")
+id = &"empty"
+name_key = "track.empty"
+scene = ExtResource("4_empty")
+
+[sub_resource type="Resource" id="Track_city"]
+script = ExtResource("2_definition")
+id = &"city"
+name_key = "track.city"
+scene = ExtResource("5_city")
+
+[resource]
+script = ExtResource("1_catalog")
+tracks = Array[TrackDefinition]([SubResource("Track_mountain"), SubResource("Track_empty"), SubResource("Track_city")])

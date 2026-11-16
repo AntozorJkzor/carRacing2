@@ -17,11 +17,11 @@ extends Node
 
 @export_group("Night")
 @export var night_dir: Vector3 = Vector3(-0.289, 0.870, -0.400)
-@export var night_light_color: Color = Color(0.55, 0.64, 0.82)
-@export_range(0.01, 1.5, 0.01) var night_light_energy: float = 0.06
-@export_range(0.02, 2.0, 0.01) var night_sky_energy: float = 0.10
-@export_range(0.02, 1.5, 0.01) var night_ambient_energy: float = 0.10
-@export_range(0.2, 1.2, 0.05) var night_tonemap_exposure: float = 0.55
+@export var night_light_color: Color = Color(0.68, 0.76, 1.0)
+@export_range(0.01, 1.5, 0.01) var night_light_energy: float = 0.55
+@export_range(0.02, 2.0, 0.01) var night_sky_energy: float = 0.35
+@export_range(0.02, 1.5, 0.01) var night_ambient_energy: float = 0.38
+@export_range(0.2, 1.2, 0.05) var night_tonemap_exposure: float = 0.92
 
 var _sky_day: Sky
 var _sky_night: Sky
@@ -85,8 +85,8 @@ func apply() -> void:
 			env.volumetric_fog_albedo = Color(1, 1, 1)
 	if env.fog_enabled:
 		if is_night:
-			env.fog_light_color = Color(0.08, 0.11, 0.18)
-			env.fog_light_energy = 0.35
+			env.fog_light_color = Color(0.16, 0.2, 0.32)
+			env.fog_light_energy = 0.6
 		else:
 			env.fog_light_color = Color(0.62, 0.68, 0.78)
 			env.fog_light_energy = 0.85
@@ -115,10 +115,10 @@ func _make_default_sky(is_night: bool) -> Sky:
 	sky_mat.sun_angle_max = 18.0
 	sky_mat.sun_curve = 0.12
 	if is_night:
-		sky_mat.sky_top_color = Color(0.015, 0.03, 0.07)
-		sky_mat.sky_horizon_color = Color(0.05, 0.08, 0.13)
-		sky_mat.ground_bottom_color = Color(0.01, 0.01, 0.02)
-		sky_mat.ground_horizon_color = Color(0.03, 0.035, 0.05)
+		sky_mat.sky_top_color = Color(0.04, 0.07, 0.16)
+		sky_mat.sky_horizon_color = Color(0.14, 0.18, 0.3)
+		sky_mat.ground_bottom_color = Color(0.02, 0.025, 0.04)
+		sky_mat.ground_horizon_color = Color(0.08, 0.1, 0.14)
 	else:
 		sky_mat.sky_top_color = Color(0.24, 0.5, 0.95)
 		sky_mat.sky_horizon_color = Color(0.72, 0.84, 1.0)

@@ -306,6 +306,10 @@ func _update_hud() -> void:
 	lines.append("Fx=cyan  Fy=magenta  |κ|>0.2=SPIN  TC=%s" % [
 		"ON" if _car.setup.traction_control else "OFF"
 	])
+	lines.append("Self-steer: %.1f°  %s" % [
+		_car.debug_self_steer_deg,
+		"ACTIVE" if _car.debug_self_steer_active else "off",
+	])
 	var wheels = _car.get_wheels()
 	for i in wheels.size():
 		var w: Wheel = wheels[i]
@@ -314,7 +318,7 @@ func _update_hud() -> void:
 		if w.on_ground:
 			status = "SPIN" if spin else "GND"
 		lines.append(
-			"W%d δ=%.1f° κ=%.2f→%.2f α=%.1f→%.1f° Fx=%.0f Fy=%.0f Fz=%.0f ω=%.1f drv=%.0f %s"
+			"W%d δ=%.1f° κ=%.2f→%.2f α=%.1f→%.1f° Fx=%.0f Fy=%.0f Fz=%.0f R=%.3f d=%.3f ω=%.1f %s"
 			% [
 				i,
 				rad_to_deg(w.steer_angle),
@@ -325,8 +329,9 @@ func _update_hud() -> void:
 				w.long_force,
 				w.lat_force,
 				w.normal_load,
+				w.effective_radius,
+				w.tire_deflection,
 				w.angular_velocity,
-				w.drive_torque,
 				status,
 			]
 		)

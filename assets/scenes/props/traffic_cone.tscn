@@ -1,0 +1,51 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://assets/scenes/props/traffic_cone.gd" id="1_cone"]
+
+[sub_resource type="StandardMaterial3D" id="ConeMat"]
+albedo_color = Color(0.95, 0.32, 0.05, 1)
+roughness = 0.48
+
+[sub_resource type="CylinderMesh" id="ConeMesh"]
+top_radius = 0.012
+bottom_radius = 0.17
+height = 0.62
+radial_segments = 14
+material = SubResource("ConeMat")
+
+[sub_resource type="StandardMaterial3D" id="BandMat"]
+albedo_color = Color(0.96, 0.96, 0.94, 1)
+roughness = 0.4
+
+[sub_resource type="CylinderMesh" id="BandMesh"]
+top_radius = 0.1
+bottom_radius = 0.118
+height = 0.07
+radial_segments = 14
+material = SubResource("BandMat")
+
+[sub_resource type="PhysicsMaterial" id="ConePhys"]
+friction = 0.9
+bounce = 0.28
+
+[node name="TrafficCone" type="RigidBody3D"]
+collision_layer = 1
+collision_mask = 1
+mass = 0.7
+physics_material_override = SubResource("ConePhys")
+gravity_scale = 1.6
+linear_damp = 0.15
+angular_damp = 0.08
+script = ExtResource("1_cone")
+center_of_mass_mode = 1
+center_of_mass = Vector3(0, 0.36, 0)
+
+[node name="Mesh" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.31, 0)
+mesh = SubResource("ConeMesh")
+
+[node name="Band" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.38, 0)
+mesh = SubResource("BandMesh")
+
+[node name="Collision" type="CollisionShape3D" parent="."]

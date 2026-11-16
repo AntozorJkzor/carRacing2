@@ -37,6 +37,7 @@ public sealed class CarSetupCache
 	public float BrakeElsd = 0f;
 
 	public float WheelInertia = 0.85f;
+	public float MaxTireContactSlopeDeg = 55f;
 	public float FrontWheelRadius = 0.321f;
 	public float RearWheelRadius = 0.321f;
 	public float FrontWheelWidth = 0.205f;
@@ -68,12 +69,19 @@ public sealed class CarSetupCache
 	public float PacejkaELat = 0.25f;
 	public float TireRelaxationLongitudinal = 0.3f;
 	public float TireRelaxationLateral = 0.45f;
+	public float TirePeakSlipRatio = 0.12f;
+	public float TirePeakSlipAngleDeg = 10f;
+	public float TireSlideLongitudinal = 0.78f;
+	public float TireSlideLateral = 0.84f;
+	public float TireRegripRelaxationMult = 1.4f;
+	/// <summary>Slip-vector combined slip: 0 = friction ellipse only, 1 = wheelspin fully trades lateral force.</summary>
+	public float TireCombinedSlip = 0f;
+	public float TireVerticalStiffness = 220000f;
+	public float TireMaxDeflection = 0.055f;
 	public float RollingResistance = 0.015f;
-	public float MinLoadFraction;
 
 	public float BrakeForce = 12000f;
 	public float HandbrakeForce = 22000f;
-	public float HandbrakeLatGrip = 0.15f;
 	public float BrakeBiasFront = 0.65f;
 
 	public float DragCoefficient = 0.32f;
@@ -84,6 +92,8 @@ public sealed class CarSetupCache
 	public float MaxSteerAngle = 32f;
 	public float SteerSpeed = 2.4f;
 	public float FrontCasterDeg = 4f;
+	/// <summary>1 = full Ackermann steering geometry, 0 = parallel front wheels.</summary>
+	public float Ackermann = 1f;
 	public float SteerCurveMaxKmh = 140f;
 	public Curve SteerAngleCurve;
 	public float SteerSpeedRef = 22f;
@@ -94,6 +104,13 @@ public sealed class CarSetupCache
 	public float CounterSteerRateMult = 1.85f;
 	public float CounterSteerRecoverRate = 0.32f;
 	public float SteerLockSmooth = 6f;
+	public bool SelfSteerEnabled = true;
+	public float SelfSteerTorqueThresholdNm = 30f;
+	public float SelfSteerFullTorqueNm = 110f;
+	public float SelfSteerRateMult = 1.2f;
+	public float SelfSteerMinSpeedMs = 4f;
+	public float SelfSteerAlignmentRatio = 0.72f;
+	public float SelfSteerResponse = 3.5f;
 
 	public float ThrottleRiseRate = 2f;
 	public float ThrottleFallRate = 6f;
@@ -156,6 +173,7 @@ public sealed class CarSetupCache
 		BrakeElsd = Gf(setup, "brake_elsd", BrakeElsd);
 
 		WheelInertia = Gf(setup, "wheel_inertia", WheelInertia);
+		MaxTireContactSlopeDeg = Gf(setup, "max_tire_contact_slope_deg", MaxTireContactSlopeDeg);
 		FrontWheelRadius = Gf(setup, "front_wheel_radius", FrontWheelRadius);
 		RearWheelRadius = Gf(setup, "rear_wheel_radius", RearWheelRadius);
 		FrontWheelWidth = Gf(setup, "front_wheel_width", FrontWheelWidth);
@@ -189,12 +207,18 @@ public sealed class CarSetupCache
 		PacejkaELat = Gf(setup, "pacejka_e_lat", PacejkaELat);
 		TireRelaxationLongitudinal = Gf(setup, "tire_relaxation_longitudinal", TireRelaxationLongitudinal);
 		TireRelaxationLateral = Gf(setup, "tire_relaxation_lateral", TireRelaxationLateral);
+		TirePeakSlipRatio = Gf(setup, "tire_peak_slip_ratio", TirePeakSlipRatio);
+		TirePeakSlipAngleDeg = Gf(setup, "tire_peak_slip_angle_deg", TirePeakSlipAngleDeg);
+		TireSlideLongitudinal = Gf(setup, "tire_slide_longitudinal", TireSlideLongitudinal);
+		TireSlideLateral = Gf(setup, "tire_slide_lateral", TireSlideLateral);
+		TireRegripRelaxationMult = Gf(setup, "tire_regrip_relaxation_mult", TireRegripRelaxationMult);
+		TireCombinedSlip = Gf(setup, "tire_combined_slip", TireCombinedSlip);
+		TireVerticalStiffness = Gf(setup, "tire_vertical_stiffness", TireVerticalStiffness);
+		TireMaxDeflection = Gf(setup, "tire_max_deflection", TireMaxDeflection);
 		RollingResistance = Gf(setup, "rolling_resistance", RollingResistance);
-		MinLoadFraction = Gf(setup, "min_load_fraction", MinLoadFraction);
 
 		BrakeForce = Gf(setup, "brake_force", BrakeForce);
 		HandbrakeForce = Gf(setup, "handbrake_force", HandbrakeForce);
-		HandbrakeLatGrip = Gf(setup, "handbrake_lat_grip", HandbrakeLatGrip);
 		BrakeBiasFront = Gf(setup, "brake_bias_front", BrakeBiasFront);
 
 		DragCoefficient = Gf(setup, "drag_coefficient", DragCoefficient);
@@ -205,6 +229,7 @@ public sealed class CarSetupCache
 		MaxSteerAngle = Gf(setup, "max_steer_angle", MaxSteerAngle);
 		SteerSpeed = Gf(setup, "steer_speed", SteerSpeed);
 		FrontCasterDeg = Gf(setup, "front_caster_deg", FrontCasterDeg);
+		Ackermann = Gf(setup, "ackermann", Ackermann);
 		SteerCurveMaxKmh = Gf(setup, "steer_curve_max_kmh", SteerCurveMaxKmh);
 		SteerAngleCurve = setup.Get("steer_angle_curve").AsGodotObject() as Curve;
 		SteerSpeedRef = Gf(setup, "steer_speed_ref", SteerSpeedRef);
@@ -215,6 +240,13 @@ public sealed class CarSetupCache
 		CounterSteerRateMult = Gf(setup, "counter_steer_rate_mult", CounterSteerRateMult);
 		CounterSteerRecoverRate = Gf(setup, "counter_steer_recover_rate", CounterSteerRecoverRate);
 		SteerLockSmooth = Gf(setup, "steer_lock_smooth", SteerLockSmooth);
+		SelfSteerEnabled = Gb(setup, "self_steer_enabled", SelfSteerEnabled);
+		SelfSteerTorqueThresholdNm = Gf(setup, "self_steer_torque_threshold_nm", SelfSteerTorqueThresholdNm);
+		SelfSteerFullTorqueNm = Gf(setup, "self_steer_full_torque_nm", SelfSteerFullTorqueNm);
+		SelfSteerRateMult = Gf(setup, "self_steer_rate_mult", SelfSteerRateMult);
+		SelfSteerMinSpeedMs = Gf(setup, "self_steer_min_speed_ms", SelfSteerMinSpeedMs);
+		SelfSteerAlignmentRatio = Gf(setup, "self_steer_alignment_ratio", SelfSteerAlignmentRatio);
+		SelfSteerResponse = Gf(setup, "self_steer_response", SelfSteerResponse);
 
 		ThrottleRiseRate = Gf(setup, "throttle_rise_rate", ThrottleRiseRate);
 		ThrottleFallRate = Gf(setup, "throttle_fall_rate", ThrottleFallRate);

@@ -75,6 +75,13 @@ func _profiled_physics_process(delta: float) -> void:
 	if wheels.is_empty():
 		return
 
+	# Asleep or frozen, the contact points stay in world space. Rewriting
+	# hub.global_transform from them pins the wheels while a parent (the garage
+	# podium) spins the body. The last simulated frame already stored the
+	# settled pose in local space, and that pose rotates with the car.
+	if (_car.sleeping or _car.freeze) and not _car.scripted_motion:
+		return
+
 	var radius = maxf(_car.setup.get_wheel_radius(0), 0.05)
 	for i in wheels.size():
 		var wheel: Wheel = wheels[i]
@@ -90,7 +97,7 @@ func _profiled_physics_process(delta: float) -> void:
 			up = wheel.up
 			forward = wheel.forward
 			right = wheel.right
-			center_world = wheel.hit_point + up * radius
+			center_world = wheel.hit_point + up * maxf(wheel.effective_radius, radius * 0.75)
 		else:
 			up = _car.global_transform.basis.y.normalized()
 			var steer_basis = _car.global_transform.basis.rotated(up, wheel.steer_angle)
@@ -104,6 +111,8 @@ func _profiled_physics_process(delta: float) -> void:
 		# Hub faces the wheel plane (steer + camber from contact).
 		var basis = Basis(right, up, -forward).orthonormalized()
 		hub.global_transform = Transform3D(basis, center_world)
+		var squash := clampf(wheel.tire_deflection / radius, 0.0, 0.25)
+		hub.scale = Vector3(1.0 + squash * 0.12, 1.0 - squash, 1.0)
 
 		_spin_angle[i] = wrapf(
 			_spin_angle[i] + wheel.angular_velocity * delta,
@@ -136,7 +145,7 @@ func _rebuild() -> void:
 		var local_x = _car.setup.wheel_positions[i].x
 		# Flip outward face with 180° yaw (not scale.x — negative scale reverses spin).
 		var yaw_flip = 0.0
-		if mirror_right and local_x < 0.0:
+		if mirror_right and local_x > 0.0:
 			yaw_flip = 180.0
 		## Prefer live exports (WheelLayout syncs these); fall back to CarSetup.
 		var scale_v: float = front_mesh_scale if i < 2 else rear_mesh_scale

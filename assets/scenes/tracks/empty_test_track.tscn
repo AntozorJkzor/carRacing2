@@ -1,0 +1,186 @@
+[gd_scene load_steps=16 format=3]
+
+[ext_resource type="Script" path="res://assets/scenes/tracks/physics_test_track.gd" id="1_track"]
+[ext_resource type="PackedScene" path="res://assets/scenes/cars/ae86/ae86.tscn" id="2_car"]
+[ext_resource type="Script" path="res://vehicles/follow_camera.gd" id="3_camera"]
+[ext_resource type="Script" path="res://assets/scenes/tracks/hud.gd" id="4_hud"]
+[ext_resource type="Script" path="res://rendering/day_cycle.gd" id="5_day"]
+[ext_resource type="Script" path="res://rendering/skid_mark_baker.gd" id="6_skid"]
+[ext_resource type="Texture2D" path="res://assets/textures/ground/asphalt_color.jpg" id="7_albedo"]
+[ext_resource type="Texture2D" path="res://assets/textures/ground/asphalt_normal.jpg" id="8_normal"]
+[ext_resource type="Texture2D" path="res://assets/textures/ground/asphalt_roughness.jpg" id="9_rough"]
+[ext_resource type="Script" path="res://assets/scenes/tracks/empty_pad_dressing.gd" id="10_dress"]
+
+[sub_resource type="ProceduralSkyMaterial" id="SkyMaterial"]
+sky_top_color = Color(0.2, 0.42, 0.72, 1)
+sky_horizon_color = Color(0.68, 0.8, 0.93, 1)
+ground_bottom_color = Color(0.12, 0.13, 0.15, 1)
+ground_horizon_color = Color(0.55, 0.61, 0.68, 1)
+
+[sub_resource type="Sky" id="Sky"]
+sky_material = SubResource("SkyMaterial")
+
+[sub_resource type="Environment" id="Environment"]
+background_mode = 2
+sky = SubResource("Sky")
+ambient_light_source = 3
+ambient_light_color = Color(0.72, 0.78, 0.88, 1)
+ambient_light_energy = 0.65
+reflected_light_source = 2
+tonemap_mode = 2
+
+[sub_resource type="StandardMaterial3D" id="GroundMaterial"]
+albedo_color = Color(0.62, 0.62, 0.64, 1)
+albedo_texture = ExtResource("7_albedo")
+roughness_texture = ExtResource("9_rough")
+normal_enabled = true
+normal_scale = 0.45
+normal_texture = ExtResource("8_normal")
+uv1_scale = Vector3(200, 200, 1)
+texture_filter = 3
+
+[sub_resource type="PlaneMesh" id="GroundMesh"]
+size = Vector2(1000, 1000)
+material = SubResource("GroundMaterial")
+
+[sub_resource type="BoxShape3D" id="GroundCollision"]
+size = Vector3(1000, 1, 1000)
+
+[sub_resource type="StyleBoxFlat" id="Panel"]
+bg_color = Color(0.03, 0.045, 0.08, 0.85)
+border_color = Color(0.82, 0.48, 0.17, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+content_margin_left = 14.0
+content_margin_top = 10.0
+content_margin_right = 14.0
+content_margin_bottom = 10.0
+
+[node name="EmptyTestTrack" type="Node3D"]
+script = ExtResource("1_track")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+rotation_degrees = Vector3(-52, -28, 0)
+light_color = Color(1, 0.96, 0.88, 1)
+light_energy = 1.25
+shadow_enabled = true
+directional_shadow_max_distance = 120.0
+
+[node name="Ground" type="StaticBody3D" parent="."]
+collision_layer = 1
+collision_mask = 1
+
+[node name="Plane" type="MeshInstance3D" parent="Ground"]
+mesh = SubResource("GroundMesh")
+
+[node name="Collision" type="CollisionShape3D" parent="Ground"]
+position = Vector3(0, -0.5, 0)
+shape = SubResource("GroundCollision")
+
+[node name="SkidMarkBaker" type="Node" parent="."]
+script = ExtResource("6_skid")
+ground_mesh_path = NodePath("../Ground/Plane")
+
+[node name="Car" parent="." instance=ExtResource("2_car")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.55, 0)
+
+[node name="FollowCamera" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 6, 10)
+fov = 72.0
+far = 2000.0
+script = ExtResource("3_camera")
+target_path = NodePath("../Car")
+
+[node name="HUD" type="CanvasLayer" parent="."]
+script = ExtResource("4_hud")
+car_path = NodePath("../Car")
+
+[node name="Telemetry" type="PanelContainer" parent="HUD"]
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -220.0
+offset_top = 16.0
+offset_right = -16.0
+offset_bottom = 130.0
+grow_horizontal = 0
+theme_override_styles/panel = SubResource("Panel")
+
+[node name="VBox" type="VBoxContainer" parent="HUD/Telemetry"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="SpeedLabel" type="Label" parent="HUD/Telemetry/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.95, 0.96, 0.98, 1)
+theme_override_font_sizes/font_size = 28
+text = "0 km/h"
+horizontal_alignment = 2
+
+[node name="RpmLabel" type="Label" parent="HUD/Telemetry/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.75, 0.8, 0.88, 1)
+theme_override_font_sizes/font_size = 18
+text = "800 rpm"
+horizontal_alignment = 2
+
+[node name="GearRow" type="HBoxContainer" parent="HUD/Telemetry/VBox"]
+layout_mode = 2
+alignment = 2
+
+[node name="GearCaption" type="Label" parent="HUD/Telemetry/VBox/GearRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.65, 0.7, 0.78, 1)
+theme_override_font_sizes/font_size = 16
+text = "Gear"
+
+[node name="GearLabel" type="Label" parent="HUD/Telemetry/VBox/GearRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.85, 0.35, 1)
+theme_override_font_sizes/font_size = 22
+text = "1"
+
+[node name="Hint" type="PanelContainer" parent="HUD"]
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -300.0
+offset_top = -64.0
+offset_right = 300.0
+offset_bottom = -16.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_styles/panel = SubResource("Panel")
+
+[node name="HintLabel" type="Label" parent="HUD/Hint"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(0.9, 0.92, 0.95, 1)
+theme_override_font_sizes/font_size = 14
+text = "W/S gas & brake  A/D steer  Space handbrake  T reset  F3 tires  F4 telemetry"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="DayCycle" type="Node" parent="."]
+script = ExtResource("5_day")
+
+[node name="Dressing" type="Node3D" parent="."]
+script = ExtResource("10_dress")

@@ -2,17 +2,16 @@ extends CanvasLayer
 
 const TuningParts := preload("res://vehicles/tuning_parts.gd")
 
-## Garage tuning panel — retro JDM gauge-cluster style (80s-90s Toyota):
-## amber backlit labels, dark dial faces, green LCD readouts, chrome rings.
+## Bottom sheet over the showroom: category tabs and four level cards.
 
-const AMBER := Color(1.0, 0.63, 0.24)
-const AMBER_DIM := Color(0.85, 0.5, 0.16)
-const DIAL_BG := Color(0.043, 0.051, 0.063)
-const DIAL_FACE := Color(0.086, 0.098, 0.114)
-const LCD_GREEN := Color(0.55, 0.95, 0.6)
-const INK := Color(0.06, 0.07, 0.08)
+const AMBER := UiStyle.AMBER
+const AMBER_DIM := UiStyle.AMBER_DIM
+const DIAL_BG := UiStyle.NIGHT_TOP
+const DIAL_FACE := UiStyle.PANEL_FACE
+const LCD_GREEN := UiStyle.LCD_GREEN
+const INK := UiStyle.INK
 
-var _category_buttons: Dictionary = {}
+var _tab_bar: HBoxContainer
 var _level_cards: Array[Button] = []
 var _active_category: String = "engine"
 
@@ -41,88 +40,80 @@ func close_panel() -> void:
 func _build() -> void:
 	var dim := ColorRect.new()
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
-	dim.color = Color(0.01, 0.012, 0.016, 0.72)
+	dim.color = Color(0.005, 0.008, 0.016, 0.28)
+	dim.gui_input.connect(_on_dim_input)
 	add_child(dim)
 
 	_root = PanelContainer.new()
-	_root.set_anchors_preset(Control.PRESET_CENTER)
-	_root.offset_left = -560.0
-	_root.offset_top = -330.0
-	_root.offset_right = 560.0
-	_root.offset_bottom = 330.0
+	_root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_root.anchor_top = 0.52
+	_root.offset_left = 36.0
+	_root.offset_top = 0.0
+	_root.offset_right = -36.0
+	_root.offset_bottom = 0.0
+	UiStyle.dress(_root)
 	_root.add_theme_stylebox_override("panel", _chrome_panel())
 	add_child(_root)
 
-	var layout := HBoxContainer.new()
-	layout.add_theme_constant_override("separation", 18)
+	var layout := VBoxContainer.new()
+	layout.add_theme_constant_override("separation", 10)
 	_root.add_child(layout)
 
-	# Left: category stack, like a column of gauge pods.
-	var left := VBoxContainer.new()
-	left.custom_minimum_size = Vector2(230.0, 0.0)
-	left.add_theme_constant_override("separation", 8)
-	layout.add_child(left)
-
-	_title = _label(Lang.t("garage.tuning"), 26, AMBER, HORIZONTAL_ALIGNMENT_CENTER)
-	left.add_child(_title)
-	_subtitle = _label("", 14, LCD_GREEN, HORIZONTAL_ALIGNMENT_CENTER)
-	left.add_child(_subtitle)
-
-	for cat: String in TuningParts.CATEGORIES:
-		var b := Button.new()
-		b.text = Lang.t("part.%s" % cat)
-		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		b.add_theme_font_size_override("font_size", 18)
-		b.add_theme_color_override("font_color", AMBER)
-		b.add_theme_color_override("font_hover_color", Color(1.0, 0.8, 0.5))
-		b.add_theme_color_override("font_pressed_color", INK)
-		b.add_theme_stylebox_override("normal", _pod_style(DIAL_FACE, Color(0.2, 0.22, 0.26)))
-		b.add_theme_stylebox_override("hover", _pod_style(Color(0.12, 0.13, 0.16), AMBER_DIM))
-		b.add_theme_stylebox_override("pressed", _pod_style(AMBER, AMBER))
-		b.pressed.connect(_on_category.bind(cat))
-		left.add_child(b)
-		_category_buttons[cat] = b
-
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 16)
+	layout.add_child(head)
+	_title = _label(Lang.t("garage.tuning"), 26, UiStyle.CHROME, HORIZONTAL_ALIGNMENT_LEFT)
+	head.add_child(_title)
+	_subtitle = _label("", 15, UiStyle.MUTED, HORIZONTAL_ALIGNMENT_LEFT)
+	_subtitle.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	head.add_child(_subtitle)
+	var gap := Control.new()
+	gap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(gap)
 	var back := Button.new()
 	back.text = Lang.t("tuning.back")
-	back.add_theme_font_size_override("font_size", 16)
-	back.add_theme_color_override("font_color", AMBER_DIM)
-	back.add_theme_stylebox_override("normal", _pod_style(DIAL_BG, Color(0.2, 0.22, 0.26)))
-	back.add_theme_stylebox_override("hover", _pod_style(Color(0.12, 0.13, 0.16), AMBER))
 	back.pressed.connect(close_panel)
-	left.add_child(back)
+	head.add_child(back)
+	UiStyle.button(back, UiStyle.RED, 16)
+	back.size_flags_horizontal = Control.SIZE_SHRINK_END
 
-	# Right: level cards row + stats.
-	var right := VBoxContainer.new()
-	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	right.add_theme_constant_override("separation", 14)
-	layout.add_child(right)
+	_tab_bar = HBoxContainer.new()
+	layout.add_child(_tab_bar)
 
-	_level_desc = _label("", 20, Color(0.92, 0.93, 0.95), HORIZONTAL_ALIGNMENT_CENTER)
-	right.add_child(_level_desc)
+	_level_desc = _label("", 16, UiStyle.CHROME, HORIZONTAL_ALIGNMENT_LEFT)
+	layout.add_child(_level_desc)
 
 	var cards := HBoxContainer.new()
 	cards.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	cards.add_theme_constant_override("separation", 12)
-	right.add_child(cards)
+	cards.add_theme_constant_override("separation", 14)
+	layout.add_child(cards)
 	for level in 4:
 		var card := Button.new()
 		card.text = ""
 		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		card.custom_minimum_size = Vector2(0.0, 150.0)
-		card.add_theme_font_size_override("font_size", 15)
-		card.add_theme_color_override("font_color", AMBER)
-		card.add_theme_color_override("font_hover_color", Color(1.0, 0.8, 0.5))
-		card.add_theme_color_override("font_pressed_color", INK)
-		card.add_theme_stylebox_override("normal", _pod_style(DIAL_FACE, Color(0.2, 0.22, 0.26)))
-		card.add_theme_stylebox_override("hover", _pod_style(Color(0.12, 0.13, 0.16), AMBER_DIM))
-		card.add_theme_stylebox_override("pressed", _pod_style(AMBER, Color(1.0, 0.85, 0.5)))
+		card.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		card.custom_minimum_size = Vector2(0.0, 120.0)
+		card.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		card.alignment = HORIZONTAL_ALIGNMENT_CENTER
+		card.add_theme_font_size_override("font_size", 16)
+		card.add_theme_color_override("font_color", UiStyle.CHROME)
+		card.add_theme_color_override("font_hover_color", UiStyle.AMBER_HOT)
+		card.add_theme_color_override("font_pressed_color", UiStyle.CHROME)
+		card.add_theme_stylebox_override("normal", _card_style(false))
+		card.add_theme_stylebox_override("hover", _card_style(false, true))
+		card.add_theme_stylebox_override("pressed", _card_style(true))
 		card.pressed.connect(_on_level.bind(level))
 		cards.add_child(card)
 		_level_cards.append(card)
 
-	_stat_line = _label("", 15, LCD_GREEN, HORIZONTAL_ALIGNMENT_CENTER)
-	right.add_child(_stat_line)
+	_stat_line = _label("", 14, LCD_GREEN, HORIZONTAL_ALIGNMENT_LEFT)
+	layout.add_child(_stat_line)
+
+
+func _on_dim_input(event: InputEvent) -> void:
+	var mouse := event as InputEventMouseButton
+	if mouse != null and mouse.pressed and mouse.button_index == MOUSE_BUTTON_LEFT:
+		close_panel()
 
 
 static func _label(text: String, size: int, color: Color, align: int) -> Label:
@@ -131,40 +122,37 @@ static func _label(text: String, size: int, color: Color, align: int) -> Label:
 	l.horizontal_alignment = align
 	l.add_theme_font_size_override("font_size", size)
 	l.add_theme_color_override("font_color", color)
-	l.add_theme_color_override("font_shadow_color", Color(color.r, color.g, color.b, 0.35))
-	l.add_theme_constant_override("shadow_offset_x", 0)
-	l.add_theme_constant_override("shadow_offset_y", 0)
-	l.add_theme_constant_override("shadow_size", 6)
+	l.add_theme_constant_override("outline_size", 0)
+	l.add_theme_constant_override("shadow_size", 0)
 	return l
 
 
 static func _chrome_panel() -> StyleBoxFlat:
 	var s := StyleBoxFlat.new()
-	s.bg_color = DIAL_BG
-	s.border_color = AMBER_DIM
-	s.set_border_width_all(3)
-	s.corner_radius_top_left = 18
-	s.corner_radius_top_right = 18
-	s.corner_radius_bottom_right = 18
-	s.corner_radius_bottom_left = 18
-	s.shadow_color = Color(AMBER.r, AMBER.g, AMBER.b, 0.22)
-	s.shadow_size = 18
+	s.bg_color = Color(0.012, 0.016, 0.03, 0.9)
+	s.border_color = Color(1, 1, 1, 0.1)
+	s.set_border_width_all(1)
+	s.set_corner_radius_all(20)
+	s.shadow_color = Color(0, 0, 0, 0.55)
+	s.shadow_size = 28
+	s.content_margin_left = 22.0
+	s.content_margin_top = 20.0
+	s.content_margin_right = 22.0
+	s.content_margin_bottom = 20.0
 	return s
 
 
-static func _pod_style(bg: Color, border: Color) -> StyleBoxFlat:
+static func _card_style(on: bool, hover: bool = false) -> StyleBoxFlat:
 	var s := StyleBoxFlat.new()
-	s.bg_color = bg
-	s.border_color = border
-	s.set_border_width_all(2)
-	s.corner_radius_top_left = 10
-	s.corner_radius_top_right = 10
-	s.corner_radius_bottom_right = 10
-	s.corner_radius_bottom_left = 10
-	s.content_margin_left = 14.0
-	s.content_margin_top = 10.0
-	s.content_margin_right = 14.0
-	s.content_margin_bottom = 10.0
+	s.bg_color = Color(1, 0.62, 0.22, 0.14) if on else Color(1, 1, 1, 0.07 if hover else 0.035)
+	s.border_color = AMBER if on or hover else Color(1, 1, 1, 0.08)
+	s.set_border_width_all(1)
+	s.border_width_bottom = 2 if on else 1
+	s.set_corner_radius_all(14)
+	s.content_margin_left = 16.0
+	s.content_margin_top = 18.0
+	s.content_margin_right = 16.0
+	s.content_margin_bottom = 18.0
 	return s
 
 
@@ -175,18 +163,29 @@ func _refresh_all() -> void:
 
 
 func _refresh_categories() -> void:
-	for cat: String in _category_buttons:
+	var entries: Array = []
+	for cat: String in TuningParts.CATEGORIES:
 		var level := int(TuningStore.parts_levels.get(cat, 0))
 		var pips := ""
 		for i in 3:
 			pips += "●" if i < level else "○"
-		var b: Button = _category_buttons[cat]
-		b.text = "%s   %s" % [Lang.t("part.%s" % cat), pips]
+		entries.append({
+			"id": cat,
+			"text": "%s  %s" % [Lang.t("part.%s" % cat), pips],
+		})
+	if _tab_bar.get_child_count() != entries.size():
+		UiStyle.fill_tabs(_tab_bar, entries, _active_category, _on_category)
+		return
+	for i in entries.size():
+		var b := _tab_bar.get_child(i) as Button
+		b.text = String(entries[i]["text"])
+		UiStyle._paint_tab(b, String(entries[i]["id"]) == _active_category)
 
 
 func _refresh_levels() -> void:
-	_level_desc.text = Lang.t("part.%s" % _active_category)
 	var selected := int(TuningStore.parts_levels.get(_active_category, 0))
+	var flavor := TuningParts.level_desc(_active_category, selected)
+	_level_desc.text = "" if flavor.begins_with("partdesc.") else flavor
 	for level in 4:
 		var card: Button = _level_cards[level]
 		card.text = "%s\n\n%s" % [
@@ -194,17 +193,15 @@ func _refresh_levels() -> void:
 			TuningParts.stat_line(_active_category, level),
 		]
 		var is_installed := level == selected
-		card.add_theme_color_override("font_color", INK if is_installed else AMBER)
-		card.add_theme_stylebox_override("normal", _pod_style(
-			AMBER if is_installed else DIAL_FACE,
-			Color(1.0, 0.85, 0.5) if is_installed else Color(0.2, 0.22, 0.26),
-		))
+		card.add_theme_color_override("font_color", UiStyle.AMBER_HOT if is_installed else UiStyle.CHROME)
+		card.add_theme_stylebox_override("normal", _card_style(is_installed))
 	var cur := TuningParts.level_label(_active_category, selected)
 	_stat_line.text = "%s: %s" % [Lang.t("part.%s" % _active_category), cur]
 
 
 func _on_category(cat: String) -> void:
 	_active_category = cat
+	_refresh_categories()
 	_refresh_levels()
 
 

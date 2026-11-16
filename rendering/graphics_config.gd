@@ -10,7 +10,7 @@ enum UpscaleMode { BILINEAR = 0, FSR1 = 1, FSR2 = 2 }
 enum MsaaMode { OFF = 0, X2 = 1, X4 = 2, X8 = 3 }
 enum ShadowQuality { LOW = 0, MEDIUM = 1, HIGH = 2, ULTRA = 3 }
 
-const LIGHTING_REV := 3
+const LIGHTING_REV := 4
 
 static var preset: int = Preset.HIGH
 static var render_scale: float = 1.0
@@ -31,8 +31,9 @@ static var use_aces_tonemap: bool = true
 static var shadow_quality: int = ShadowQuality.HIGH
 static var fullscreen: bool = false
 static var vsync: bool = true
-static var night: bool = true
+static var night: bool = false
 static var tire_smoke_enabled: bool = true
+static var vhs_enabled: bool = true
 
 
 static func load_from_disk() -> void:
@@ -61,9 +62,12 @@ static func load_from_disk() -> void:
 	vsync = bool(cfg.get_value("graphics", "vsync", vsync))
 	night = bool(cfg.get_value("graphics", "night", night))
 	tire_smoke_enabled = bool(cfg.get_value("graphics", "tire_smoke_enabled", tire_smoke_enabled))
+	vhs_enabled = bool(cfg.get_value("graphics", "vhs_enabled", vhs_enabled))
 	var rev := int(cfg.get_value("graphics", "lighting_rev", 0))
 	if rev < LIGHTING_REV:
 		# Older saves turned on screen-space effects, 4-cascade shadows, FSR2/TAA.
+		# Rev 4: day is the default. A saved night flag from the old default is cleared once.
+		night = false
 		ssao_enabled = false
 		ssil_enabled = false
 		ssr_enabled = false
@@ -103,6 +107,7 @@ static func save_to_disk() -> void:
 	cfg.set_value("graphics", "vsync", vsync)
 	cfg.set_value("graphics", "night", night)
 	cfg.set_value("graphics", "tire_smoke_enabled", tire_smoke_enabled)
+	cfg.set_value("graphics", "vhs_enabled", vhs_enabled)
 	cfg.set_value("graphics", "lighting_rev", LIGHTING_REV)
 	cfg.save(SAVE_PATH)
 
@@ -195,6 +200,7 @@ static func reset_to_defaults() -> void:
 	apply_preset(Preset.HIGH)
 	fullscreen = false
 	vsync = true
+	vhs_enabled = true
 
 
 static func apply_all(tree: SceneTree = null) -> void:
@@ -207,6 +213,9 @@ static func apply_all(tree: SceneTree = null) -> void:
 	_apply_viewport(t.root)
 	_apply_project_shadows()
 	_apply_world(t.current_scene)
+	var vhs := t.root.get_node_or_null("VhsOverlay")
+	if vhs != null and vhs.has_method("apply"):
+		vhs.call("apply")
 
 
 static func _apply_window() -> void:
@@ -308,8 +317,8 @@ static func apply_environment(env: Environment) -> void:
 	env.volumetric_fog_enabled = volumetric_fog_enabled
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
 	if night:
-		env.ambient_light_energy = minf(env.ambient_light_energy, 0.16)
-		env.tonemap_exposure = minf(env.tonemap_exposure, 0.65)
+		env.ambient_light_energy = minf(env.ambient_light_energy, 0.45)
+		env.tonemap_exposure = minf(env.tonemap_exposure, 1.0)
 		env.glow_intensity = minf(glow_intensity, 0.10)
 	else:
 		env.ambient_light_energy = maxf(env.ambient_light_energy, 0.75)

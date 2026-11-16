@@ -15,11 +15,22 @@ var _suppress: bool = false
 var _checkboxes: Dictionary = {}
 var _sliders: Dictionary = {}
 var _options: Dictionary = {}
+var _tab_bar: HBoxContainer
+var _gfx_tab: String = "scaling"
+
+const _GFX_TABS: Array[Dictionary] = [
+	{"id": "scaling", "tkey": "gfx.tab.scaling"},
+	{"id": "lighting", "tkey": "gfx.tab.lighting"},
+	{"id": "world", "tkey": "gfx.tab.world"},
+	{"id": "display", "tkey": "gfx.tab.display"},
+]
 
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	UiStyle.night_sky(_background)
+	UiStyle.dress(self)
+	UiStyle.prepare_page(self, 0.52)
+	_ensure_tabs()
 	UiStyle.button(_back_button, UiStyle.RED, 18)
 	UiStyle.button(_save_button, UiStyle.AMBER, 18)
 	UiStyle.button(_reset_button, UiStyle.RED, 18)
@@ -32,7 +43,6 @@ func _ready() -> void:
 	_preset_option.item_selected.connect(_on_preset_selected)
 	Lang.language_changed.connect(_refresh_language)
 	_refresh_language()
-	_rebuild_ui()
 	_sync_preset_option()
 	_status.text = Lang.t("gfx.status_unstable")
 	_back_button.grab_focus()
@@ -40,6 +50,10 @@ func _ready() -> void:
 
 func _refresh_language() -> void:
 	_title.text = Lang.t("gfx.title")
+	var preset_label := _preset_option.get_parent().get_node_or_null("PresetLabel") as Label
+	if preset_label != null:
+		preset_label.text = Lang.t("gfx.preset")
+		UiStyle.lcd_label_style(preset_label, 14)
 	_back_button.text = Lang.t("common.back")
 	_save_button.text = Lang.t("common.save")
 	_reset_button.text = Lang.t("common.reset")
@@ -50,6 +64,7 @@ func _refresh_language() -> void:
 	_preset_option.add_item(Lang.t("gfx.high"), GraphicsConfig.Preset.HIGH)
 	_preset_option.add_item(Lang.t("gfx.ultra"), GraphicsConfig.Preset.ULTRA)
 	_status.text = Lang.t("gfx.status_unstable")
+	_refresh_tabs()
 	_rebuild_ui()
 	_sync_preset_option()
 
@@ -61,6 +76,18 @@ func _rebuild_ui() -> void:
 	_sliders.clear()
 	_options.clear()
 
+	match _gfx_tab:
+		"lighting":
+			_build_lighting()
+		"world":
+			_build_world()
+		"display":
+			_build_display()
+		_:
+			_build_scaling()
+
+
+func _build_scaling() -> void:
 	_add_section(Lang.t("gfx.sec.scaling"))
 	_add_slider("render_scale", Lang.t("gfx.render_scale"), 0.5, 1.0, 0.05, GraphicsConfig.render_scale)
 	_add_option("upscale_mode", Lang.t("gfx.upscale_mode"), [
@@ -76,6 +103,7 @@ func _rebuild_ui() -> void:
 	_add_check("use_taa", Lang.t("gfx.taa"), GraphicsConfig.use_taa)
 	_add_check("use_fxaa", Lang.t("gfx.fxaa"), GraphicsConfig.use_fxaa)
 
+func _build_lighting() -> void:
 	_add_section(Lang.t("gfx.sec.lighting"))
 	_add_check("glow_enabled", Lang.t("gfx.glow_enabled"), GraphicsConfig.glow_enabled)
 	_add_slider("glow_intensity", Lang.t("gfx.glow_intensity"), 0.05, 1.5, 0.05, GraphicsConfig.glow_intensity)
@@ -93,13 +121,41 @@ func _rebuild_ui() -> void:
 		[Lang.t("gfx.ultra"), GraphicsConfig.ShadowQuality.ULTRA],
 	], GraphicsConfig.shadow_quality)
 
+func _build_world() -> void:
 	_add_section(Lang.t("gfx.sec.world"))
 	_add_check("night", Lang.t("gfx.night"), GraphicsConfig.night)
 	_add_check("tire_smoke_enabled", Lang.t("gfx.tire_smoke"), GraphicsConfig.tire_smoke_enabled)
 
+func _build_display() -> void:
 	_add_section(Lang.t("gfx.sec.display"))
+	_add_check("vhs_enabled", Lang.t("gfx.vhs"), GraphicsConfig.vhs_enabled)
 	_add_check("fullscreen", Lang.t("gfx.fullscreen"), GraphicsConfig.fullscreen)
 	_add_check("vsync", Lang.t("gfx.vsync"), GraphicsConfig.vsync)
+
+
+func _ensure_tabs() -> void:
+	if _tab_bar != null:
+		return
+	var panel := _list.get_parent().get_parent()
+	_tab_bar = HBoxContainer.new()
+	panel.get_parent().add_child(_tab_bar)
+	panel.get_parent().move_child(_tab_bar, panel.get_index())
+
+
+func _refresh_tabs() -> void:
+	_ensure_tabs()
+	var entries: Array = []
+	for tab in _GFX_TABS:
+		entries.append({"id": tab["id"], "text": Lang.t(String(tab["tkey"]))})
+	UiStyle.fill_tabs(_tab_bar, entries, _gfx_tab, _on_gfx_tab)
+
+
+func _on_gfx_tab(id: String) -> void:
+	if id == _gfx_tab:
+		return
+	_gfx_tab = id
+	_refresh_tabs()
+	_rebuild_ui()
 
 
 func _sync_preset_option() -> void:
@@ -230,6 +286,10 @@ func _on_check(key: String, on: bool) -> void:
 			return
 		"tire_smoke_enabled":
 			GraphicsConfig.tire_smoke_enabled = on
+		"vhs_enabled":
+			GraphicsConfig.vhs_enabled = on
+			GraphicsConfig.apply_all(get_tree())
+			return
 	GraphicsConfig.mark_custom()
 	_sync_preset_option()
 	GraphicsConfig.apply_all(get_tree())

@@ -28,6 +28,11 @@ public partial class Wheel : RefCounted
 	public float filtered_slip_ratio { get; set; }
 	public float filtered_slip_angle { get; set; }
 	public float normal_load { get; set; }
+	public float effective_radius { get; set; } = 0.32f;
+	public float tire_deflection { get; set; }
+	public float contact_time { get; set; }
+	public float longitudinal_speed { get; set; }
+	public float lateral_speed { get; set; }
 
 	public Vector3 forward { get; set; } = Vector3.Forward;
 	public Vector3 right { get; set; } = Vector3.Right;

@@ -1,0 +1,226 @@
+[gd_scene format=3 uid="uid://dghj706oe3yoi"]
+
+[ext_resource type="Script" uid="uid://1ru6riksi846" path="res://assets/scenes/tracks/physics_test_track.gd" id="1_track"]
+[ext_resource type="PackedScene" uid="uid://b0wn10mlu6els" path="res://assets/scenes/tracks/city.tscn" id="2_city"]
+[ext_resource type="PackedScene" uid="uid://dyruflh6qcef5" path="res://assets/scenes/cars/ae86/ae86.tscn" id="3_car"]
+[ext_resource type="Script" uid="uid://b6kalqnamm3fi" path="res://vehicles/follow_camera.gd" id="4_cam"]
+[ext_resource type="Script" uid="uid://dkgl45y64oxb1" path="res://assets/scenes/tracks/hud.gd" id="5_hud"]
+[ext_resource type="Script" uid="uid://dqjvsw6cml4bd" path="res://assets/scenes/tracks/minimap.gd" id="6_minimap"]
+[ext_resource type="Script" uid="uid://bhgb7mbvcyyk7" path="res://assets/scenes/tracks/minimap_camera.gd" id="7_minimap_cam"]
+[ext_resource type="Script" uid="uid://dfoj1vbwvwfkh" path="res://assets/scenes/tracks/minimap_marker.gd" id="8_minimap_marker"]
+[ext_resource type="Script" uid="uid://ds3s6465ms82l" path="res://rendering/day_cycle.gd" id="9_day"]
+[ext_resource type="Script" uid="uid://c2xoo6npae3e7" path="res://rendering/skid_mark_baker.gd" id="10_skid"]
+[ext_resource type="Script" uid="uid://c6wpqte6hcbpt" path="res://assets/scenes/tracks/race_manager.gd" id="11_race"]
+
+[sub_resource type="ProceduralSkyMaterial" id="SkyMat"]
+sky_top_color = Color(0.28, 0.52, 0.92, 1)
+sky_horizon_color = Color(0.75, 0.84, 0.96, 1)
+ground_bottom_color = Color(0.16, 0.17, 0.2, 1)
+ground_horizon_color = Color(0.6, 0.66, 0.74, 1)
+sun_angle_max = 18.0
+sun_curve = 0.12
+
+[sub_resource type="Sky" id="Sky"]
+sky_material = SubResource("SkyMat")
+process_mode = 2
+
+[sub_resource type="Environment" id="EnvMain"]
+background_mode = 2
+sky = SubResource("Sky")
+ambient_light_source = 3
+ambient_light_color = Color(0.72, 0.76, 0.86, 1)
+reflected_light_source = 2
+tonemap_mode = 2
+glow_enabled = true
+glow_intensity = 0.22
+fog_enabled = true
+fog_light_color = Color(0.78, 0.84, 0.94, 1)
+fog_density = 0.001
+fog_sky_affect = 0.5
+
+[sub_resource type="StyleBoxFlat" id="StyleMinimap"]
+bg_color = Color(0.03, 0.05, 0.09, 0.8)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.82, 0.48, 0.17, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="Environment" id="EnvMinimap"]
+background_mode = 1
+background_color = Color(0.4, 0.42, 0.46, 1)
+ambient_light_source = 2
+ambient_light_color = Color(1, 1, 1, 1)
+ambient_light_energy = 1.35
+
+[sub_resource type="StyleBoxFlat" id="StylePanel"]
+content_margin_left = 14.0
+content_margin_top = 10.0
+content_margin_right = 14.0
+content_margin_bottom = 10.0
+bg_color = Color(0.03, 0.045, 0.08, 0.85)
+border_color = Color(0.82, 0.48, 0.17, 1)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+
+[node name="CityTrack" type="Node3D" unique_id=1878602480]
+script = ExtResource("1_track")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=276376838]
+environment = SubResource("EnvMain")
+
+[node name="Sun" type="DirectionalLight3D" parent="." unique_id=632030837]
+transform = Transform3D(-0.81, 0.263, -0.524, 0, 0.894, 0.449, 0.586, 0.364, -0.724, 20, 40, -30)
+light_color = Color(1, 0.96, 0.88, 1)
+light_energy = 1.35
+shadow_enabled = true
+shadow_bias = 0.2
+shadow_normal_bias = 4.0
+directional_shadow_mode = 1
+directional_shadow_max_distance = 120.0
+
+[node name="City" parent="." unique_id=154318966 instance=ExtResource("2_city")]
+transform = Transform3D(2.5, 0, 0, 0, 2.5, 0, 0, 0, 2.5, 0, 0, 0)
+
+[node name="SkidMarkBaker" type="Node" parent="." unique_id=972791710]
+script = ExtResource("10_skid")
+ground_mesh_path = NodePath("../City/Model/buildings")
+
+[node name="Car" parent="." unique_id=1469798301 instance=ExtResource("3_car")]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 0, 0.1, -2.249)
+
+[node name="FollowCamera" type="Camera3D" parent="." unique_id=2099074891]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 8, 12)
+fov = 72.0
+far = 800.0
+script = ExtResource("4_cam")
+target_path = NodePath("../Car")
+
+[node name="RaceManager" type="Node3D" parent="." unique_id=1645753275]
+script = ExtResource("11_race")
+
+[node name="HUD" type="CanvasLayer" parent="." unique_id=5448295]
+script = ExtResource("5_hud")
+car_path = NodePath("../Car")
+
+[node name="Minimap" type="PanelContainer" parent="HUD" unique_id=1645838337]
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 16.0
+offset_top = -196.0
+offset_right = 196.0
+offset_bottom = -16.0
+grow_vertical = 0
+theme_override_styles/panel = SubResource("StyleMinimap")
+script = ExtResource("6_minimap")
+
+[node name="MapFrame" type="Control" parent="HUD/Minimap" unique_id=999382760]
+custom_minimum_size = Vector2(168, 168)
+layout_mode = 2
+
+[node name="SubViewportContainer" type="SubViewportContainer" parent="HUD/Minimap/MapFrame" unique_id=1863211874]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+stretch = true
+
+[node name="SubViewport" type="SubViewport" parent="HUD/Minimap/MapFrame/SubViewportContainer" unique_id=704606370]
+handle_input_locally = false
+mesh_lod_threshold = 4.0
+anisotropic_filtering_level = 0
+positional_shadow_atlas_size = 0
+size = Vector2i(176, 176)
+render_target_update_mode = 4
+
+[node name="MinimapCamera" type="Camera3D" parent="HUD/Minimap/MapFrame/SubViewportContainer/SubViewport" unique_id=590366835]
+cull_mask = 524285
+environment = SubResource("EnvMinimap")
+script = ExtResource("7_minimap_cam")
+
+[node name="MarkerOverlay" type="Control" parent="HUD/Minimap/MapFrame" unique_id=1178927017]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("8_minimap_marker")
+
+[node name="Telemetry" type="PanelContainer" parent="HUD" unique_id=292303877]
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -220.0
+offset_top = 16.0
+offset_right = -16.0
+offset_bottom = 130.0
+grow_horizontal = 0
+theme_override_styles/panel = SubResource("StylePanel")
+
+[node name="VBox" type="VBoxContainer" parent="HUD/Telemetry" unique_id=1517944057]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="SpeedLabel" type="Label" parent="HUD/Telemetry/VBox" unique_id=1398540233]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.95, 0.96, 0.98, 1)
+theme_override_font_sizes/font_size = 28
+text = "0 km/h"
+horizontal_alignment = 2
+
+[node name="RpmLabel" type="Label" parent="HUD/Telemetry/VBox" unique_id=1769257782]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.75, 0.8, 0.88, 1)
+theme_override_font_sizes/font_size = 18
+text = "800 rpm"
+horizontal_alignment = 2
+
+[node name="GearRow" type="HBoxContainer" parent="HUD/Telemetry/VBox" unique_id=1988275253]
+layout_mode = 2
+alignment = 2
+
+[node name="GearCaption" type="Label" parent="HUD/Telemetry/VBox/GearRow" unique_id=1309085687]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.65, 0.7, 0.78, 1)
+theme_override_font_sizes/font_size = 16
+text = "Gear"
+
+[node name="GearLabel" type="Label" parent="HUD/Telemetry/VBox/GearRow" unique_id=1364055548]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.85, 0.35, 1)
+theme_override_font_sizes/font_size = 22
+text = "1"
+
+[node name="Hint" type="PanelContainer" parent="HUD" unique_id=1289179702]
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 208.0
+offset_top = -72.0
+offset_right = 672.0
+offset_bottom = -16.0
+grow_vertical = 0
+theme_override_styles/panel = SubResource("StylePanel")
+
+[node name="HintLabel" type="Label" parent="HUD/Hint" unique_id=856005493]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.9, 0.92, 0.95, 1)
+theme_override_font_sizes/font_size = 14
+text = "W/S gas & brake  A/D steer  Space handbrake  R/Q gear up/down  P auto/manual  T reset car  L lights  N night  map +/-  F3  F4 frame  Esc menu"
+
+[node name="DayCycle" type="Node" parent="." unique_id=2032724619]
+script = ExtResource("9_day")

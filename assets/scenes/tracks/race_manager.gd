@@ -136,7 +136,7 @@ func _rebuild() -> void:
 		var local_x = _car.setup.wheel_positions[i].x
 		# Flip outward face with 180° yaw (not scale.x — negative scale reverses spin).
 		var yaw_flip = 0.0
-		if mirror_right and local_x < 0.0:
+		if mirror_right and local_x > 0.0:
 			yaw_flip = 180.0
 		## Prefer live exports (WheelLayout syncs these); fall back to CarSetup.
 		var scale_v: float = front_mesh_scale if i < 2 else rear_mesh_scale

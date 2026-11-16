@@ -16,7 +16,17 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	GraphicsConfig.load_from_disk()
 	GraphicsConfig.apply_all(get_tree())
-	UiStyle.night_sky(_background)
+	UiStyle.dress(self)
+	UiStyle.mount_art(self, 0.16)
+	var panel := $Center/Panel as PanelContainer
+	var row := panel.get_node("VBox/LanguageRow") as HBoxContainer
+	row.alignment = BoxContainer.ALIGNMENT_BEGIN
+	var mark := UiStyle.logo_mark(380)
+	mark.name = "LogoBlock"
+	var box := panel.get_node("VBox")
+	box.add_child(mark)
+	box.move_child(mark, 0)
+	UiStyle.dock_left(panel, 76.0, 0.4, true)
 	if not SettingsNav.is_overlay(self):
 		GameAudio.restart_music()
 	_car_button.pressed.connect(_on_car)
@@ -34,7 +44,8 @@ func _ready() -> void:
 
 func _refresh_language() -> void:
 	_title.text = Lang.t("hub.title")
-	UiStyle.section_label_style(_title, 34)
+	_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	UiStyle.section_label_style(_title, 32)
 	UiStyle.button(_car_button, UiStyle.AMBER, 22)
 	UiStyle.button(_sound_button, UiStyle.AMBER, 22)
 	UiStyle.button(_graphics_button, UiStyle.AMBER, 22)

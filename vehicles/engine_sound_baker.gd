@@ -484,6 +484,7 @@ static func promote_bake_dir(tmp_dir: String, out_dir: String) -> bool:
 static func _promote_bake_dir(tmp_dir: String, out_dir: String) -> bool:
 	if tmp_dir.is_empty() or out_dir.is_empty():
 		return false
+	invalidate_cache(out_dir)
 	clear_dir(out_dir)
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(out_dir))
 	var dir := DirAccess.open(tmp_dir)
@@ -519,10 +520,36 @@ static func user_fingerprint(car_id: StringName) -> String:
 	return str(meta.get_value("bake", "fingerprint", ""))
 
 
+## car-id / folder → {mtime, banks}. Bake promote erases the entry; otherwise a
+## rebake inside the same second would keep the previous streams.
+static var _dir_cache: Dictionary = {}
+
+
+static func invalidate_cache(out_dir: String = "") -> void:
+	if out_dir.is_empty():
+		_dir_cache.clear()
+	else:
+		_dir_cache.erase(out_dir)
+
+
 ## Load a folder of per-RPM chunks: meta.cfg + rpm_XXXX.tres (250 rpm ladder).
 static func load_dir(out_dir: String) -> Dictionary:
 	if out_dir.is_empty():
 		return {}
+	var meta_path := out_dir.path_join("meta.cfg")
+	var mtime := int(FileAccess.get_modified_time(meta_path))
+	if _dir_cache.has(out_dir):
+		var cached: Dictionary = _dir_cache[out_dir]
+		if int(cached.get("mtime", -1)) == mtime and mtime != 0:
+			return (cached["banks"] as Dictionary).duplicate()
+	var banks := _load_dir_uncached(out_dir)
+	if not banks.is_empty():
+		_dir_cache[out_dir] = {"mtime": mtime, "banks": banks}
+		return banks.duplicate()
+	return banks
+
+
+static func _load_dir_uncached(out_dir: String) -> Dictionary:
 	var meta := ConfigFile.new()
 	var meta_path := out_dir.path_join("meta.cfg")
 	if meta.load(meta_path) != OK:

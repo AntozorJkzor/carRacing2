@@ -25,7 +25,7 @@ public partial class CarController
 
 	void RunPhysics(double delta)
 	{
-		if (setup == null)
+		if (scripted_motion || setup == null)
 			return;
 		RefreshSetupCache();
 		if (!_bodyApplied)
@@ -38,6 +38,10 @@ public partial class CarController
 		steering = Mathf.Clamp(steering, -1.0f, 1.0f);
 
 		UpdateThrottleResponse(dtFrame);
+		UpdateAutoHold();
+		UpdateRestState(dtFrame);
+		if (Sleeping)
+			return;
 
 		if (_shiftTimer > 0.0f)
 			_shiftTimer = Mathf.Max(_shiftTimer - dtFrame, 0.0f);
@@ -69,6 +73,63 @@ public partial class CarController
 	}
 
 	private float _wheelbase = 2.6f;
+
+	private void UpdateAutoHold()
+	{
+		float speed = Mathf.Abs(LinearVelocity.Dot(-GlobalTransform.Basis.Z));
+		_brakeStop = brake > 0.1f && throttle < 0.05f && speed < 10.0f / 3.6f;
+		bool planted = false;
+		foreach (var wheel in _wheels)
+			planted |= wheel.on_ground;
+		bool stationary = throttle < 0.05f && brake < 0.05f && handbrake < 0.05f && speed < 0.25f && planted;
+		if ((_brakeStop && speed < 0.35f) || stationary)
+			_autoHold = true;
+		if (throttle > 0.05f || (speed > 2.0f && brake < 0.05f))
+			_autoHold = false;
+		// Creep auto-brake: rolling at walking pace with no pedals — stop the
+		// car instead of letting idle torque push it along at ~8 km/h forever.
+		_creepBrake = throttle < 0.05f && brake < 0.05f && handbrake < 0.05f
+			&& speed > 0.25f && speed < 3.2f && planted;
+	}
+
+	private void UpdateRestState(float dt)
+	{
+		bool canRest = _autoHold
+			&& throttle < 0.05f
+			&& handbrake < 0.05f
+			&& LinearVelocity.Length() < 0.15f
+			&& AngularVelocity.Length() < 0.12f;
+		if (!canRest)
+		{
+			_restTime = 0.0f;
+			if (Sleeping)
+				Sleeping = false;
+			if (CanSleep)
+				CanSleep = false;
+			return;
+		}
+		_restTime += dt;
+		if (_restTime < 0.25f || Sleeping)
+			return;
+		foreach (var wheel in _wheels)
+		{
+			wheel.angular_velocity = 0.0f;
+			wheel.drive_torque = 0.0f;
+			wheel.brake_torque = 0.0f;
+			wheel.slip_ratio = 0.0f;
+			wheel.slip_angle = 0.0f;
+			wheel.filtered_slip_ratio = 0.0f;
+			wheel.filtered_slip_angle = 0.0f;
+			wheel.long_force = 0.0f;
+			wheel.lat_force = 0.0f;
+		}
+		// Freeze the body for real: zero residual drift, then let the engine
+		// sleep it (CanSleep is false while driving, see _Ready).
+		LinearVelocity = Vector3.Zero;
+		AngularVelocity = Vector3.Zero;
+		CanSleep = true;
+		Sleeping = true;
+	}
 
 	private void PhysicsSubstep(float dt, float forceScale)
 	{
@@ -194,68 +255,49 @@ public partial class CarController
 			return;
 
 		float groundRpm = EstimateGroundTransmissionRpm(current_gear);
-		float nextGround = 0.0f;
-		if (current_gear < maxGear)
-			nextGround = EstimateGroundTransmissionRpm(current_gear + 1);
+		float nextGround = current_gear < maxGear ? EstimateGroundTransmissionRpm(current_gear + 1) : 0.0f;
 		float drivenSlip = MaxDrivenSlipRatio();
-		bool spinning = drivenSlip > 0.35f;
-		bool drifting =
+		bool driftHold =
 			_c.AutoHoldGearInDrift
-			&& Mathf.Abs(forwardSpeed) > 8.0f
-			&& (handbrake > 0.1f
-				|| (Mathf.Abs(debug_body_slip_deg) > 10.0f && throttle > 0.15f));
+			&& _c.DriveType != 0
+			&& Mathf.Abs(forwardSpeed) > 7.0f
+			&& (handbrake > 0.05f
+				|| (throttle > 0.18f
+					&& (Mathf.Abs(debug_body_slip_deg) > 7.0f
+						|| (drivenSlip > 0.22f && Mathf.Abs(steering) > 0.12f))));
+		if (driftHold)
+			return;
 
-		float shiftRpm = engine_rpm;
-		if (clutch < 0.9f || Mathf.Abs(debug_clutch_slip_w) > 40.0f)
-			shiftRpm = debug_est_rpm_cur;
-
-		float upFrac = throttle > 0.5f ? 0.72f : 0.62f;
+		float pedal = Mathf.Clamp(_throttleCmd, 0.0f, 1.0f);
 		bool wantUp = false;
-		if (current_gear < maxGear && throttle > 0.08f)
+		if (current_gear < maxGear && pedal > 0.06f)
 		{
-			bool roadReady = groundRpm >= _c.MaxRpm * upFrac;
-			bool limiterEscape =
-				engine_rpm >= _c.MaxRpm * 0.94f
-				&& groundRpm >= _c.MaxRpm * 0.42f;
-			if (roadReady || limiterEscape)
-			{
-				if (nextGround >= _c.IdleRpm * 1.15f)
-					wantUp = true;
-			}
+			float upFrac = Mathf.Lerp(0.62f, 0.86f, pedal);
+			wantUp = groundRpm >= _c.MaxRpm * upFrac && nextGround >= _c.IdleRpm * 1.05f;
 		}
 
 		bool wantDown = false;
 		if (current_gear > 1)
 		{
-			if (shiftRpm <= _c.MaxRpm * 0.38f && throttle < 0.7f)
-				wantDown = true;
-			else if (throttle > 0.9f && shiftRpm < _c.MaxRpm * 0.55f)
+			wantDown = groundRpm <= _c.MaxRpm * 0.32f && pedal < 0.7f;
+			if (!wantDown && pedal > 0.82f && groundRpm < _c.MaxRpm * 0.48f)
 			{
-				float rpmIfDown = EstimateTransmissionRpm(current_gear - 1);
-				if (rpmIfDown > 0.0f && rpmIfDown < _c.MaxRpm * 0.9f)
-					wantDown = true;
+				float lowerRpm = EstimateGroundTransmissionRpm(current_gear - 1);
+				wantDown = lowerRpm > _c.IdleRpm && lowerRpm < _c.MaxRpm * 0.88f;
 			}
-			if (spinning && throttle > 0.5f)
-				wantDown = false;
 		}
 
-		if (drifting)
-		{
-			wantUp = false;
-			wantDown = false;
-		}
 		debug_want_up = wantUp ? 1 : 0;
 		debug_want_down = wantDown ? 1 : 0;
-
 		if (wantUp && !wantDown)
 		{
 			AutoSetGear(current_gear + 1);
-			_autoShiftCooldown = 0.55f;
+			_autoShiftCooldown = 0.16f;
 		}
 		else if (wantDown && !wantUp)
 		{
 			AutoSetGear(current_gear - 1);
-			_autoShiftCooldown = 0.5f;
+			_autoShiftCooldown = 0.2f;
 		}
 	}
 
@@ -371,6 +413,10 @@ public partial class CarController
 		bool closing = yawRate * beta < -0.05f;
 		bool opening = yawRate * beta > 0.05f;
 
+		// Rack limit while sliding: the counter-steer cap, not the speed soft-lock.
+		float driftLock = Mathf.Clamp(
+			Mathf.Lerp(baseLock, _c.CounterSteerLockMax, csScale), baseLock, 1.0f);
+
 		if (countering)
 		{
 			float slipT = Mathf.Clamp((absBeta - slipEnter) / Mathf.DegToRad(22.0f), 0.0f, 1.0f);
@@ -381,9 +427,7 @@ public partial class CarController
 				float bleedHi = isFwd ? 0.15f / recoverBleed : 0.15f;
 				slipT *= Mathf.Lerp(bleedLo, Mathf.Max(bleedHi, 0.05f), closeStrength);
 			}
-			float lockCap = Mathf.Lerp(baseLock, _c.CounterSteerLockMax, csScale);
-			float boostLock = Mathf.Clamp(lockCap, baseLock, 1.0f);
-			lockDesired = Mathf.Lerp(baseLock, boostLock, slipT);
+			lockDesired = Mathf.Lerp(baseLock, driftLock, slipT);
 		}
 
 		float lockW = Mathf.Clamp(_c.SteerLockSmooth * delta, 0.0f, 1.0f);
@@ -397,8 +441,41 @@ public partial class CarController
 		float gamma = Mathf.Max(_c.SteerInputGamma, 1.0f);
 		float shaped = Mathf.Sign(raw) * Mathf.Pow(Mathf.Abs(raw), gamma);
 
-		float maxAngle = Mathf.DegToRad(_c.MaxSteerAngle) * lockF;
-		float target = shaped * maxAngle;
+		// Drift gate: the body is actually sliding (rear tires broke loose)
+		// and the car is rolling forward. Straight-line wheelspin doesn't move
+		// the body slip angle, and neither does normal cornering, so this only
+		// fires on a real занос. Hysteresis + blend avoid flicker at the edge.
+		// The handbrake stays inside the gate: it is how most slides start.
+		{
+			float gateDeg = 9.0f;
+			if (_steerDriftBlend > 0.5f)
+				gateDeg = 6.0f;
+			else if (raw * beta > 0.0f && Mathf.Abs(raw) >= 0.08f)
+				// Input held into the turn: a car plowing at the grip limit sits
+				// a few degrees past the tire's peak slip angle with both axles
+				// loaded. Stay out until the body is clearly beyond that.
+				gateDeg = Mathf.Max(gateDeg, _c.TirePeakSlipAngleDeg + 6.0f);
+			bool sliding = brake < 0.1f
+				&& vLong > 1.0f
+				&& speedMs > Mathf.Max(_c.SelfSteerMinSpeedMs, 1.0f)
+				&& absBeta > Mathf.DegToRad(gateDeg);
+			_steerDriftBlend = Mathf.MoveToward(
+				_steerDriftBlend, sliding ? 1.0f : 0.0f, delta / 0.12f);
+		}
+
+		// Self-steer: in a slide the caster trail swings the front wheels toward
+		// their own velocity vector. Player input rides on top of that angle
+		// instead of replacing it. Outside a slide the blend is 0 and the rack
+		// follows the input alone.
+		bool selfSteer = _c.SelfSteerEnabled && _wheels.Count >= 2;
+		bool released = selfSteer && Mathf.Abs(raw) < 0.08f;
+		float align = selfSteer ? SelfSteerAngle(forward, right) * csScale * _steerDriftBlend : 0.0f;
+
+		float maxSteerRad = Mathf.DegToRad(_c.MaxSteerAngle);
+		float maxAngle = maxSteerRad * lockF;
+		float rackMax = maxSteerRad * Mathf.Lerp(lockF, Mathf.Max(lockF, driftLock), _steerDriftBlend);
+		float inputAngle = released ? 0.0f : shaped * maxAngle;
+		float target = Mathf.Clamp(align + inputAngle, -rackMax, rackMax);
 
 		float rateT = Mathf.Clamp(speedMs / Mathf.Max(_c.SteerSpeedRef, 1.0f), 0.0f, 1.0f);
 		float rateF = Mathf.Lerp(1.0f, _c.SteerHighSpeedFactor, rateT);
@@ -417,6 +494,7 @@ public partial class CarController
 
 		// Caster: mechanical trail converts front lateral load into an aligning
 		// torque — self-centering when the input is released, heavier wheel under load.
+		// Both effects fade out in a slide, where the free rack sets the pace.
 		float casterRad = Mathf.DegToRad(Mathf.Clamp(_c.FrontCasterDeg, 0.0f, 12.0f));
 		float casterN = Mathf.Tan(casterRad) * Mathf.Max(_c.GetWheelRadius(0), 0.1f) / 0.07f;
 		if (casterN > 0.001f)
@@ -426,17 +504,48 @@ public partial class CarController
 				fyFront = Mathf.Abs(_wheels[0].lat_force) + Mathf.Abs(_wheels[1].lat_force);
 			float loadFrac = Mathf.Clamp(fyFront / Mathf.Max(_c.Mass * 9.81f * 0.5f, 1.0f), 0.0f, 1.0f);
 			if (Mathf.Abs(raw) < 0.08f)
-				rate *= 1.0f + 2.5f * casterN * (0.3f + 0.7f * loadFrac);
+				rate *= Mathf.Lerp(
+					1.0f + 2.5f * casterN * (0.3f + 0.7f * loadFrac),
+					1.0f,
+					_steerDriftBlend);
 			else
-				rate /= 1.0f + 1.1f * casterN * loadFrac;
+				rate /= 1.0f + 1.1f * casterN * loadFrac * (1.0f - _steerDriftBlend);
+		}
+
+		if (selfSteer)
+		{
+			// The free rack is not slowed by the high-speed input damping: it has
+			// to keep up with the velocity vector or it lags into a pendulum.
+			float freeRate = Mathf.Max(_c.SteerSpeed, 0.1f) * Mathf.Max(_c.SelfSteerRateMult, 0.1f);
+			if (released)
+				// Grip: arcade snap back to center the moment the input is released.
+				rate = Mathf.Max(rate, freeRate * Mathf.Lerp(1.5f, 1.0f, _steerDriftBlend));
+			else
+				rate = Mathf.Max(rate, freeRate * _steerDriftBlend);
 		}
 
 		_currentSteer = Mathf.MoveToward(_currentSteer, target, rate * delta);
 		debug_steer_rad = _currentSteer;
 		debug_steer_lock = lockF;
 		debug_steer_target = target;
+		debug_self_steer_deg = Mathf.RadToDeg(align);
+		debug_self_steer_active = selfSteer && _steerDriftBlend > 0.01f;
 		for (int i = 0; i < _wheels.Count; i++)
 			_wheels[i].steer_angle = GetWheelSteerAngle(i);
+	}
+
+	/// <summary>
+	/// Steer angle that points the front wheels along the velocity of the front
+	/// axle. That velocity already contains the yaw rate, so the angle leads the
+	/// body slip angle instead of trailing it and needs no extra filtering.
+	/// </summary>
+	private float SelfSteerAngle(Vector3 forward, Vector3 right)
+	{
+		Vector3 axleLocal = (_wheels[0].local_origin + _wheels[1].local_origin) * 0.5f;
+		Vector3 axleVelocity = VelocityAtPoint(ToGlobal(axleLocal));
+		float betaFront = Mathf.Atan2(
+			axleVelocity.Dot(right), Mathf.Max(axleVelocity.Dot(forward), 0.8f));
+		return -betaFront * Mathf.Clamp(_c.SelfSteerAlignmentRatio, 0.0f, 1.0f);
 	}
 
 	private float GetWheelSteerAngle(int index)
@@ -454,35 +563,73 @@ public partial class CarController
 		bool inner = leftTurn == leftWheel;
 		float halfTrack = track * 0.5f;
 		float radius = inner ? turnRadius - halfTrack : turnRadius + halfTrack;
-		return Mathf.Sign(steer) * Mathf.Atan(_wheelbase / Mathf.Max(radius, 0.35f));
+		float ackermann = Mathf.Sign(steer) * Mathf.Atan(_wheelbase / Mathf.Max(radius, 0.35f));
+		// 1 = full Ackermann geometry, 0 = parallel steer (drift setups).
+		return Mathf.Lerp(steer, ackermann, Mathf.Clamp(_c.Ackermann, 0.0f, 1.0f));
 	}
 
 	private void UpdateClutch(float dt)
 	{
 		if (setup == null)
 			return;
-		if (current_gear == 0 || _shiftTimer > 0.0f)
+		float speed = Mathf.Abs(LinearVelocity.Dot(-GlobalTransform.Basis.Z));
+		// Handbrake on a driven rear axle opens the clutch (drift handbrake):
+		// locked rear wheels would otherwise drag the engine down to a stall,
+		// leaving nothing to hold the slide with once the lever is released.
+		bool handbrakeDeclutch = handbrake > 0.3f && _c.DriveType != 0;
+		if (current_gear == 0 || _shiftTimer > 0.0f || _brakeStop || _autoHold || handbrakeDeclutch)
 		{
 			clutch = 0.0f;
-			_clutchEngageTimer = _c.ClutchEngageTime;
+			_clutchEngageTimer = 0.0f;
+			_launchEngage = 0.0f;
 			return;
 		}
+
+		// Standing still: the clutch stays open, so no driveline torque reaches
+		// the wheels. At v≈0 the tires produce no lateral force and the yaw
+		// assists are off, so any torque asymmetry (open diff, anti-roll,
+		// suspension jitter) rocks the car back and forth with no damping.
+		const float standstillSpeed = 0.5f;
+		if (speed < standstillSpeed)
+		{
+			if (throttle < 0.05f)
+			{
+				clutch = 0.0f;
+				_clutchEngageTimer = 0.0f;
+				_launchEngage = 0.0f;
+				return;
+			}
+			// Gas from rest: engage progressively, like easing off a real pedal,
+			// instead of slamming full clutch torque into stationary wheels.
+			float launchTime = Mathf.Clamp(_c.ClutchEngageTime * 3.0f, 0.3f, 0.5f);
+			_launchEngage = Mathf.MoveToward(_launchEngage, 1.0f, dt / launchTime);
+			clutch = _launchEngage;
+			return;
+		}
+
+		float baseClutch;
 		if (_clutchEngageTimer > 0.0f)
 		{
 			_clutchEngageTimer = Mathf.Max(_clutchEngageTimer - dt, 0.0f);
-			float engage = _c.ClutchEngageTime;
-			clutch = engage <= 0.001f ? 1.0f : 1.0f - (_clutchEngageTimer / engage);
+			float engage = Mathf.Clamp(_c.ClutchEngageTime * 0.55f, 0.05f, 0.1f);
+			baseClutch = 1.0f - (_clutchEngageTimer / engage);
 		}
 		else
-			clutch = 1.0f;
+			baseClutch = 1.0f;
+
+		// Below ~2 m/s the clutch can still only pass a fraction of its torque,
+		// fading the launch bite out smoothly instead of snapping to full lock.
+		float speedRamp = Mathf.Clamp((speed - standstillSpeed) / 1.5f, 0.0f, 1.0f);
+		_launchEngage = Mathf.Max(_launchEngage, speedRamp);
+		clutch = Mathf.Max(baseClutch * speedRamp, _launchEngage);
 	}
 
 	private void UpdateSuspension(float dt, float forceScale)
 	{
 		var space = GetWorld3D().DirectSpaceState;
-		var exclude = new Array<Rid> { GetRid() };
 		float maxForce = _c.Mass * 9.81f * 4.5f;
 		float safeDt = Mathf.Max(dt, 0.0001f);
+		float minGroundDot = Mathf.Cos(Mathf.DegToRad(Mathf.Clamp(_c.MaxTireContactSlopeDeg, 35.0f, 80.0f)));
 
 		for (int i = 0; i < _wheels.Count; i++)
 		{
@@ -497,23 +644,42 @@ public partial class CarController
 			Vector3 originWorld = ToGlobal(wheel.local_origin);
 			Vector3 up = GlobalTransform.Basis.Y.Normalized();
 			Vector3 down = -up;
+			var exclude = new Array<Rid> { GetRid() };
 			var query = PhysicsRayQueryParameters3D.Create(originWorld, originWorld + down * rayLength);
 			query.Exclude = exclude;
 			query.CollideWithAreas = false;
 			query.CollideWithBodies = true;
 
 			var hit = space.IntersectRay(query);
-			if (hit.Count == 0)
+			bool validGround = false;
+			for (int attempt = 0; attempt < 3 && hit.Count > 0; attempt++)
+			{
+				Vector3 normal = ((Vector3)hit["normal"]).Normalized();
+				if (normal.Dot(up) >= minGroundDot)
+				{
+					validGround = true;
+					break;
+				}
+				var collider = hit["collider"].AsGodotObject() as CollisionObject3D;
+				if (collider == null)
+					break;
+				exclude.Add(collider.GetRid());
+				query.Exclude = exclude;
+				hit = space.IntersectRay(query);
+			}
+			if (!validGround)
 			{
 				wheel.on_ground = false;
 				wheel.compression = 0.0f;
 				wheel.suspension_length = rayLength;
 				wheel.normal_load = 0.0f;
+				wheel.contact_time = 0.0f;
 				_prevLengths[i] = rayLength;
 				continue;
 			}
 
 			wheel.on_ground = true;
+			wheel.contact_time += dt;
 			wheel.hit_point = (Vector3)hit["position"];
 			wheel.hit_normal = ((Vector3)hit["normal"]).Normalized();
 			float springLength = originWorld.DistanceTo(wheel.hit_point);
@@ -620,6 +786,14 @@ public partial class CarController
 			effectiveThrottle = 0.0f;
 		else if (throttle < 0.05f)
 			effectiveThrottle = 0.0f;
+		if (_shiftTimer > 0.0f && _shiftDirection > 0)
+			effectiveThrottle = Mathf.Min(effectiveThrottle, 0.06f);
+		else if (_shiftTimer > 0.0f && _shiftDirection < 0)
+		{
+			float targetRpm = EstimateGroundTransmissionRpm(current_gear);
+			float blip = Mathf.Clamp((targetRpm - engine_rpm) / 1400.0f, 0.0f, 1.0f) * 0.65f;
+			effectiveThrottle = Mathf.Max(effectiveThrottle, blip);
+		}
 		debug_eff_throttle = effectiveThrottle;
 
 		float combustion = _c.GetEngineTorque(engine_rpm) * effectiveThrottle;
@@ -635,7 +809,7 @@ public partial class CarController
 		if (_c.NosPowerAdd > 0.5f && _throttleCmd > 0.85f && !_revLimiterCut)
 			combustion += _c.NosPowerAdd * 745.7f / Mathf.Max(engineOmega, 10.0f);
 		float engineFriction = 12.0f + 0.004f * engine_rpm;
-		if (throttle < 0.05f)
+		if (throttle < 0.05f && effectiveThrottle < 0.01f)
 		{
 			float coast = _c.EngineCoastFrictionScale;
 			engineFriction += coast * (14.0f + 0.018f * engine_rpm);
@@ -659,7 +833,14 @@ public partial class CarController
 			slipW = engineOmega - transOmega;
 			float maxT = clutch * _c.ClutchMaxTorque;
 			const float lockBand = 40.0f;
-			if (clutch >= 0.95f && Mathf.Abs(slipW) < lockBand)
+			if (throttle < 0.05f)
+			{
+				// Coast: gentle proportional clutch torque only. The locked-branch
+				// sync + engine lerp limit-cycles at idle slip speeds and rocks
+				// the car back and forth (the 0-1-0 km/h standstill shake).
+				clutchTorque = Mathf.Clamp(slipW * 12.0f, -60.0f, 60.0f);
+			}
+			else if (clutch >= 0.95f && Mathf.Abs(slipW) < lockBand)
 			{
 				float sync = Mathf.Clamp(slipW * 28.0f, -maxT * 0.25f, maxT * 0.25f);
 				clutchTorque = Mathf.Clamp(combustion + sync, -maxT, maxT);
@@ -668,8 +849,6 @@ public partial class CarController
 				engineOmega = Mathf.Lerp(engineOmega, transOmega, Mathf.Clamp(10.0f * dt, 0.0f, 1.0f));
 				slipW = engineOmega - transOmega;
 			}
-			else if (throttle < 0.05f)
-				clutchTorque = Mathf.Clamp(slipW * 12.0f, -60.0f, 60.0f);
 			else
 			{
 				float slipLimit = maxT * Mathf.Clamp(Mathf.Max(_throttleCmd, throttle), 0.15f, 1.0f);
@@ -702,6 +881,10 @@ public partial class CarController
 			if (!wheel.is_steering)
 				hb = _c.HandbrakeForce * handbrake * 0.5f;
 			wheel.brake_torque = service + hb;
+			if (_autoHold)
+				wheel.brake_torque = Mathf.Max(wheel.brake_torque, Mathf.Max(900.0f, _c.Mass * 0.7f));
+			if (_creepBrake)
+				wheel.brake_torque = Mathf.Max(wheel.brake_torque, _c.Mass * 0.5f);
 		}
 
 		float driveline = 0.0f;
@@ -709,14 +892,10 @@ public partial class CarController
 			driveline = clutchTorque * gearRatio * _c.FinalDrive;
 
 		float horizSpeed = new Vector3(LinearVelocity.X, 0.0f, LinearVelocity.Z).Length();
-		bool parked =
-			throttle < 0.05f
-			&& brake < 0.05f
-			&& handbrake < 0.05f
-			&& horizSpeed < 1.25f
-			&& Mathf.Abs(LinearVelocity.Y) < 0.6f
-			&& IsPlanted();
-		if (parked)
+		bool noDriverInput = throttle < 0.05f && brake < 0.05f && handbrake < 0.05f;
+		bool cutDrive = _brakeStop || _autoHold
+			|| (noDriverInput && horizSpeed < 1.25f && Mathf.Abs(AverageDrivenOmega()) < 3.0f);
+		if (cutDrive)
 		{
 			driveline = 0.0f;
 			clutchTorque = 0.0f;
@@ -735,8 +914,6 @@ public partial class CarController
 		ApplyFwdLatPriorityTorque();
 		ApplyBrakeElsd();
 		UpdateSpinDebug();
-		if (parked)
-			SettleParked(dt);
 	}
 
 	private bool UpdateRevLimiterCut(float rpm)
@@ -750,40 +927,6 @@ public partial class CarController
 		if (rpm <= cutLow)
 			return false;
 		return _revLimiterCut;
-	}
-
-	private bool IsPlanted()
-	{
-		int grounded = 0;
-		foreach (var wheel in _wheels)
-		{
-			if (wheel.on_ground)
-				grounded++;
-		}
-		return grounded >= 2;
-	}
-
-	private void SettleParked(float dt)
-	{
-		float damp = Mathf.Clamp(12.0f * dt, 0.0f, 1.0f);
-		Vector3 v = LinearVelocity;
-		v.X = Mathf.Lerp(v.X, 0.0f, damp);
-		v.Z = Mathf.Lerp(v.Z, 0.0f, damp);
-		if (Mathf.Abs(v.Y) < 0.35f)
-			v.Y = Mathf.Lerp(v.Y, 0.0f, damp);
-		LinearVelocity = v;
-		AngularVelocity = AngularVelocity.Lerp(Vector3.Zero, damp);
-		if (new Vector3(v.X, 0.0f, v.Z).Length() < 0.08f && Mathf.Abs(v.Y) < 0.08f)
-		{
-			LinearVelocity = Vector3.Zero;
-			AngularVelocity = Vector3.Zero;
-		}
-		foreach (var wheel in _wheels)
-		{
-			wheel.angular_velocity = Mathf.MoveToward(wheel.angular_velocity, 0.0f, 40.0f * dt);
-			wheel.drive_torque = 0.0f;
-			wheel.brake_torque = 0.0f;
-		}
 	}
 
 	private void AssignDriveTorques(float drivelineTorque)
@@ -918,8 +1061,18 @@ public partial class CarController
 		float dOmega = left.angular_velocity - right.angular_velocity;
 		if (Mathf.Abs(dOmega) < 0.8f)
 			return;
-		float strength = _c.BrakeElsd;
-		float maxTau = 900.0f * strength;
+		// Drift fade: once the body is sliding, inner/outer wheel speed split is
+		// normal — braking the faster wheel there mostly kills the drift's drive.
+		// Keep a floor so it still trims one-wheel peel (capped below), just gently.
+		float slipT = Mathf.Clamp((Mathf.Abs(debug_body_slip_deg) - 12.0f) / 15.0f, 0.0f, 1.0f);
+		float driftFade = Mathf.Lerp(1.0f, 0.35f, slipT);
+		float strength = _c.BrakeElsd * driftFade;
+		// Never brake harder than a fraction of the torque we're actually
+		// sending to the axle — eLSD trims wheelspin, it doesn't stop the car.
+		float avgDrive = (Mathf.Abs(left.drive_torque) + Mathf.Abs(right.drive_torque)) * 0.5f;
+		float maxTau = Mathf.Min(900.0f * strength, avgDrive * 0.4f);
+		if (maxTau < 1.0f)
+			return;
 		float tau = Mathf.Clamp(dOmega * 60.0f * strength, -maxTau, maxTau);
 		if (tau > 0.0f)
 			left.brake_torque += tau;
@@ -948,24 +1101,35 @@ public partial class CarController
 				wheel.slip_angle = 0.0f;
 				wheel.filtered_slip_ratio = 0.0f;
 				wheel.filtered_slip_angle = 0.0f;
+				wheel.effective_radius = radius;
+				wheel.tire_deflection = 0.0f;
+				wheel.longitudinal_speed = 0.0f;
+				wheel.lateral_speed = 0.0f;
 				continue;
 			}
 
 			Vector3 pointVelocity = VelocityAtPoint(wheel.hit_point);
 			float longSpeed = pointVelocity.Dot(wheel.forward);
 			float latSpeed = pointVelocity.Dot(wheel.right);
+			wheel.longitudinal_speed = longSpeed;
+			wheel.lateral_speed = latSpeed;
 			float fz = Mathf.Max(wheel.normal_load, 0.0f);
+			wheel.tire_deflection = Mathf.Clamp(
+				fz / Mathf.Max(_c.TireVerticalStiffness, 10000.0f),
+				0.0f,
+				_c.TireMaxDeflection);
+			wheel.effective_radius = Mathf.Max(radius - wheel.tire_deflection, radius * 0.75f);
 
 			Vector2 slip = TireModel.ComputeSlip(
 				longSpeed,
 				latSpeed,
 				wheel.angular_velocity,
-				radius,
+				wheel.effective_radius,
 				_c.TireVLow);
 			wheel.slip_ratio = slip.X;
 			wheel.slip_angle = slip.Y;
 
-			float wheelSurfaceSpeed = Mathf.Abs(wheel.angular_velocity * radius);
+			float wheelSurfaceSpeed = Mathf.Abs(wheel.angular_velocity * wheel.effective_radius);
 			float responseSpeed = Mathf.Max(Mathf.Abs(longSpeed), wheelSurfaceSpeed);
 			wheel.filtered_slip_ratio = RelaxSlip(
 				wheel.filtered_slip_ratio,
@@ -997,27 +1161,50 @@ public partial class CarController
 				_c.PacejkaBLat,
 				_c.PacejkaCLat,
 				_c.PacejkaELat,
-				gamma);
+				gamma,
+				_c.TirePeakSlipRatio,
+				Mathf.DegToRad(_c.TirePeakSlipAngleDeg),
+				_c.TireSlideLongitudinal,
+				_c.TireSlideLateral,
+				_c.TireCombinedSlip);
 
 			float rr = -Mathf.Sign(longSpeed) * _c.RollingResistance * fz;
 			if (Mathf.Abs(longSpeed) < 0.05f)
 				rr = 0.0f;
 
-			wheel.long_force = forces.X + rr;
+			float longForce = forces.X + rr;
+			// Static-friction stop for (nearly) locked wheels at walking pace:
+			// the slide force flips sign at full magnitude each time the body
+			// crosses v=0 and saws the car ±0.3 m/s at standstill (the 0-1-0
+			// km/h shake). Cancel the residual motion instead.
+			if (wheel.brake_torque > 0.0f
+				&& Mathf.Abs(wheel.angular_velocity) < 0.6f
+				&& Mathf.Abs(longSpeed) < 0.5f)
+			{
+				float stop = -longSpeed * (_c.Mass * 0.25f) / Mathf.Max(forceScale * dt, 0.00001f);
+				// Stay within what the brake can react at the wheel — a stronger
+				// force would break the wheel loose and chatter again.
+				float grip = Mathf.Min(_c.GetTireMu(i) * fz, wheel.brake_torque / wheel.effective_radius);
+				longForce = Mathf.Clamp(stop, -grip, grip);
+			}
+
+			wheel.long_force = longForce;
 			wheel.lat_force = forces.Y;
 
 			Vector3 tireForce = wheel.forward * wheel.long_force + wheel.right * wheel.lat_force;
 			tireForce -= wheel.hit_normal * tireForce.Dot(wheel.hit_normal);
 			ApplyForce(tireForce * forceScale, wheel.hit_point - GlobalPosition);
 
-			IntegrateWheelOmega(wheel, wheel.long_force, radius, wheelI, dt);
+			IntegrateWheelOmega(wheel, wheel.long_force, wheel.effective_radius, wheelI, dt);
 		}
 
 		SyncWeldedRearAxle(dt);
 	}
 
-	private static float RelaxSlip(float current, float target, float speed, float length, float dt)
+	private float RelaxSlip(float current, float target, float speed, float length, float dt)
 	{
+		if (Mathf.Abs(target) < Mathf.Abs(current))
+			length *= Mathf.Max(_c.TireRegripRelaxationMult, 1.0f);
 		float rate = Mathf.Clamp(speed / Mathf.Max(length, 0.05f), 4.0f, 80.0f);
 		float weight = 1.0f - Mathf.Exp(-rate * dt);
 		return Mathf.Lerp(current, target, weight);

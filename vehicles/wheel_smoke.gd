@@ -315,6 +315,8 @@ func _make_emitter(node_name: String, is_plume: bool) -> GPUParticles3D:
 	draw_mat.particles_anim_loop = atlas_loop
 	draw_mat.no_depth_test = false
 	draw_mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	# After window glass (priority -1), so smoke covers the pane instead of sorting behind it.
+	draw_mat.render_priority = 1
 	mesh.material = draw_mat
 	p.draw_pass_1 = mesh
 

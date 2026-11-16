@@ -1,0 +1,25 @@
+[gd_resource type="StandardMaterial3D" format=3 uid="uid://bf7xddwxw4s73"]
+
+[ext_resource type="Texture2D" uid="uid://dyol6b6p7t8la" path="res://assets/models/cars/civic/civic_Front_BaseColor.png" id="1_h71a0"]
+[ext_resource type="Texture2D" uid="uid://c0f8671fiarfa" path="res://assets/models/cars/civic/civic_Front_ORM.png" id="2_h34vc"]
+[ext_resource type="Texture2D" uid="uid://be3pqea7csvqs" path="res://assets/models/cars/civic/civic_Front_Normal.png" id="3_vdogu"]
+
+[resource]
+resource_name = "Wheels_Front_PBR"
+cull_mode = 2
+albedo_texture = ExtResource("1_h71a0")
+metallic = 1.0
+metallic_texture = ExtResource("2_h34vc")
+metallic_texture_channel = 2
+roughness_texture = ExtResource("2_h34vc")
+roughness_texture_channel = 1
+normal_enabled = true
+normal_texture = ExtResource("3_vdogu")
+ao_enabled = true
+ao_texture = ExtResource("2_h34vc")
+metadata/extras = {
+"base_color_linear": [0.018, 0.021, 0.025, 1.0],
+"metallic_value": 0.0,
+"roughness_value": 0.78
+}
+metadata/_gltf_primary_texture_coord = 0

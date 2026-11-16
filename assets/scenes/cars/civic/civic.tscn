@@ -18,7 +18,7 @@
 [ext_resource type="Script" uid="uid://dgk6oqjosvnkl" path="res://vehicles/tire_audio.gd" id="16_tire"]
 [ext_resource type="Script" uid="uid://b76v1wghlf18s" path="res://vehicles/visual_steering_wheel.gd" id="17_steer"]
 [ext_resource type="Script" uid="uid://btivusdbmpuyu" path="res://assets/scenes/cars/civic/civic_model_fix.gd" id="18_fix"]
-[ext_resource type="Script" path="res://vehicles/car_paint_polish.gd" id="19_polish"]
+[ext_resource type="Script" uid="uid://bu565g1wf3ale" path="res://vehicles/car_paint_polish.gd" id="19_polish"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_body"]
 size = Vector3(1.72, 1.15, 4.05)
@@ -42,7 +42,7 @@ shape = SubResource("BoxShape3D_body")
 [node name="Model" parent="." unique_id=1609624393 instance=ExtResource("8_model")]
 transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, 0, 0, 0)
 
-[node name="PaintPolish" type="Node3D" parent="Model"]
+[node name="PaintPolish" type="Node3D" parent="Model" unique_id=1028662326]
 script = ExtResource("19_polish")
 
 [node name="ModelFix" type="Node" parent="." unique_id=163821451]
@@ -69,12 +69,6 @@ script = ExtResource("16_tire")
 
 [node name="CarLights" type="Node3D" parent="." unique_id=501774661]
 script = ExtResource("13_lights")
-tail_spot_angle = null
-brake_light_energy = null
-popup_anim_path = null
-popup_on_anim = null
-popup_off_anim = null
-popup_speed = null
 
 [node name="Headlights" type="Node3D" parent="CarLights" unique_id=1121947739]
 
@@ -111,9 +105,9 @@ gizmo_extents = 0.15
 [node name="VisualWheels" type="Node3D" parent="." unique_id=1968320453]
 script = ExtResource("10_vwheels")
 mesh_euler_degrees = Vector3(0, 180, 0)
-mesh_scale = 4.35
-front_mesh_scale = 4.35
-rear_mesh_scale = 4.35
+mesh_scale = 1.02
+front_mesh_scale = 1.02
+rear_mesh_scale = 1.02
 
 [node name="WheelLayout" type="Node3D" parent="." unique_id=1996285448]
 script = ExtResource("11_wlayout")
@@ -132,8 +126,8 @@ rear_tire_width_mm = 195.0
 rear_tire_aspect = 65.0
 rear_wheel_radius = 0.32994999999999997
 rear_wheel_width = 0.195
-front_mesh_scale = 4.35
-rear_mesh_scale = 4.35
+front_mesh_scale = 1.02
+rear_mesh_scale = 1.02
 
 [node name="Front" type="Marker3D" parent="WheelLayout" unique_id=1280771923]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.32, -1.3404882)

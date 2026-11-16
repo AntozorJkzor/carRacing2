@@ -18,7 +18,7 @@ const STRINGS := {
 	"common.off": {"ru": "Выкл", "en": "Off"},
 
 	# --- Main / pause menu ---
-	"menu.subtitle": {"ru": "Тест физики", "en": "Physics test"},
+	"menu.subtitle": {"ru": "Ночной тоуг", "en": "Night touge"},
 	"menu.new_game": {"ru": "Новая игра", "en": "New game"},
 	"menu.settings": {"ru": "Настройки", "en": "Settings"},
 	"menu.quit": {"ru": "Выход", "en": "Quit"},
@@ -38,6 +38,10 @@ const STRINGS := {
 	"garage.title": {"ru": "Гараж", "en": "Garage"},
 	"garage.drive": {"ru": "На трассу", "en": "To track"},
 	"garage.hint": {"ru": "ЛКМ — вращать подиум", "en": "LMB — spin the podium"},
+	"garage.track": {"ru": "Трасса", "en": "Track"},
+	"track.mountain": {"ru": "Горный серпантин", "en": "Mountain touge"},
+	"track.empty": {"ru": "Пустая площадка", "en": "Empty test area"},
+	"track.city": {"ru": "Город", "en": "City"},
 
 	# --- Sound settings ---
 	"sound.title": {"ru": "Звук", "en": "Sound"},
@@ -76,6 +80,18 @@ const STRINGS := {
 	"gfx.night": {"ru": "Ночь", "en": "Night"},
 	"gfx.tire_smoke": {"ru": "Дым от шин", "en": "Tire smoke"},
 	"gfx.sec.display": {"ru": "Экран", "en": "Display"},
+	"gfx.tab.scaling": {"ru": "Масштаб", "en": "Scale"},
+	"gfx.tab.lighting": {"ru": "Свет", "en": "Light"},
+	"gfx.tab.world": {"ru": "Мир", "en": "World"},
+	"gfx.tab.display": {"ru": "Экран", "en": "Screen"},
+	"gfx.vhs": {"ru": "Лёгкий VHS", "en": "Light VHS"},
+	"car.tab.body": {"ru": "Кузов", "en": "Body"},
+	"car.tab.engine": {"ru": "Мотор", "en": "Engine"},
+	"car.tab.drive": {"ru": "Привод", "en": "Drive"},
+	"car.tab.suspension": {"ru": "Подвеска", "en": "Suspension"},
+	"car.tab.tires": {"ru": "Шины", "en": "Tires"},
+	"car.tab.steer": {"ru": "Руль", "en": "Steer"},
+	"car.tab.aero": {"ru": "Аэро", "en": "Aero"},
 	"gfx.fullscreen": {"ru": "Полный экран", "en": "Fullscreen"},
 	"gfx.vsync": {"ru": "Вертикальная синхронизация", "en": "VSync"},
 	"gfx.status_unstable": {"ru": "MSAA выше 2x и SDFGI отключены как нестабильные", "en": "MSAA above 2x and SDFGI are disabled as unstable"},
@@ -152,7 +168,6 @@ const STRINGS := {
 	"car.rolling_resistance": {"ru": "Сопротивление качению", "en": "Rolling resistance"},
 	"car.brake_force": {"ru": "Тормозное усилие", "en": "Brake force"},
 	"car.handbrake_force": {"ru": "Усилие ручника", "en": "Handbrake force"},
-	"car.handbrake_lat_grip": {"ru": "Ручник: заднее боковое сцепление", "en": "Handbrake: rear lateral grip"},
 	"car.brake_bias_front": {"ru": "Распределение тормозов на перед", "en": "Front brake bias"},
 	"car.clutch_max_torque": {"ru": "Момент сцепления", "en": "Clutch torque"},
 	"car.clutch_engage_time": {"ru": "Время смыкания, с", "en": "Clutch engage time, s"},
@@ -177,6 +192,9 @@ const STRINGS := {
 	"car.fwd_recover_bleed": {"ru": "FWD: скорость отпускания руля после сноса", "en": "FWD: steering release speed after slide"},
 	"car.front_caster_deg": {"ru": "Кастер передней оси, °", "en": "Front caster, °"},
 	"car.rear_camber_deg": {"ru": "Развал задней оси, ° (минус = «домиком»)", "en": "Rear camber, ° (negative = top-in)"},
+	"car.ackermann": {"ru": "Аккерман (0 = колёса параллельны)", "en": "Ackermann (0 = parallel steer)"},
+	"car.self_steer_alignment_ratio": {"ru": "Подруливание в заносе (1 = точно по вектору)", "en": "Self-steer in a slide (1 = follows velocity)"},
+	"car.tire_combined_slip": {"ru": "Шины: буксование срывает боковой зацеп (0 = выкл)", "en": "Tires: wheelspin cuts lateral grip (0 = off)"},
 
 	# --- Car settings UI chrome ---
 	"car.title": {"ru": "Настройки автомобиля", "en": "Car settings"},

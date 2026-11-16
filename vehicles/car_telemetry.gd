@@ -152,6 +152,8 @@ func _header() -> String:
 		"steer_deg",
 		"steer_target_deg",
 		"steer_lock",
+		"self_steer_deg",
+		"self_steer_active",
 		"thr",
 		"brk",
 		"hb",
@@ -194,6 +196,8 @@ func _header() -> String:
 					"w%d_fy" % i,
 					"w%d_fz" % i,
 					"w%d_w" % i,
+					"w%d_r_eff" % i,
+					"w%d_defl" % i,
 					"w%d_drive" % i,
 					"w%d_brake" % i,
 				]
@@ -251,6 +255,8 @@ func _write_row(delta: float) -> void:
 		"%.2f" % rad_to_deg(_car.debug_steer_rad),
 		"%.2f" % rad_to_deg(_car.debug_steer_target),
 		"%.3f" % _car.debug_steer_lock,
+		"%.2f" % _car.debug_self_steer_deg,
+		"%d" % (1 if _car.debug_self_steer_active else 0),
 		"%.3f" % _car.throttle,
 		"%.3f" % _car.brake,
 		"%.3f" % _car.handbrake,
@@ -290,6 +296,8 @@ func _write_row(delta: float) -> void:
 		var fy = 0.0
 		var fz = 0.0
 		var w = 0.0
+		var r_eff = 0.0
+		var defl = 0.0
 		var drive = 0.0
 		var brk = 0.0
 		if i < wheels.size():
@@ -304,6 +312,8 @@ func _write_row(delta: float) -> void:
 			fy = wheel.lat_force
 			fz = wheel.normal_load
 			w = wheel.angular_velocity
+			r_eff = wheel.effective_radius
+			defl = wheel.tire_deflection
 			drive = wheel.drive_torque
 			brk = wheel.brake_torque
 			if i < 2:
@@ -328,6 +338,8 @@ func _write_row(delta: float) -> void:
 					"%.1f" % fy,
 					"%.1f" % fz,
 					"%.2f" % w,
+					"%.4f" % r_eff,
+					"%.4f" % defl,
 					"%.1f" % drive,
 					"%.1f" % brk,
 				]

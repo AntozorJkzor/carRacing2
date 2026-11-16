@@ -17,14 +17,25 @@ var _value_labels: Dictionary = {}
 var _drive_option: OptionButton
 var _rear_diff_option: OptionButton
 var _layout_option: OptionButton
+var _tab_bar: HBoxContainer
+var _active_tab: String = "body"
+
+const TABS: Array[Dictionary] = [
+	{"id": "body", "tkey": "car.tab.body", "sections": ["car.sec.visual", "car.sec.body"]},
+	{"id": "engine", "tkey": "car.tab.engine", "sections": ["car.sec.engine", "car.sec.engine_sound"]},
+	{"id": "drive", "tkey": "car.tab.drive", "sections": ["car.sec.drivetrain", "car.sec.differential", "car.sec.clutch"]},
+	{"id": "suspension", "tkey": "car.tab.suspension", "sections": ["car.sec.wheels", "car.sec.susp_front", "car.sec.susp_rear"]},
+	{"id": "tires", "tkey": "car.tab.tires", "sections": ["car.sec.tires"]},
+	{"id": "steer", "tkey": "car.tab.steer", "sections": ["car.sec.steering", "car.sec.alignment"]},
+	{"id": "aero", "tkey": "car.tab.aero", "sections": ["car.sec.aero"]},
+]
 
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	var bg := ColorRect.new()
-	add_child(bg)
-	UiStyle.night_sky(bg)
-	move_child(bg, 0)
+	UiStyle.dress(self)
+	UiStyle.prepare_page(self, 0.52)
+	_ensure_tabs()
 	UiStyle.button(_back_button, UiStyle.RED, 18)
 	UiStyle.button(_save_button, UiStyle.AMBER, 18)
 	UiStyle.button(_reset_button, UiStyle.RED, 18)
@@ -33,7 +44,6 @@ func _ready() -> void:
 	_back_button.pressed.connect(_on_back)
 	_save_button.pressed.connect(_on_save)
 	_reset_button.pressed.connect(_on_reset)
-	_rebuild_ui()
 
 
 func _refresh_language() -> void:
@@ -47,6 +57,7 @@ func _refresh_language() -> void:
 		String(TuningStore.active_car_id),
 		ProjectSettings.globalize_path(TuningStore.SAVE_PATH),
 	]
+	_refresh_tabs()
 	_rebuild_ui()
 
 
@@ -112,10 +123,10 @@ const PARAMS: Array[Dictionary] = [
 	{"section": "car.sec.tires"},
 	{"key": "tire_mu_front", "tkey": "car.tire_mu_front", "min": 0.6, "max": 2.5, "step": 0.05},
 	{"key": "tire_mu_rear", "tkey": "car.tire_mu_rear", "min": 0.6, "max": 2.5, "step": 0.05},
+	{"key": "tire_combined_slip", "tkey": "car.tire_combined_slip", "min": 0.0, "max": 1.0, "step": 0.05},
 	{"key": "rolling_resistance", "tkey": "car.rolling_resistance", "min": 0.0, "max": 0.05, "step": 0.001},
 	{"key": "brake_force", "tkey": "car.brake_force", "min": 2000.0, "max": 30000.0, "step": 100.0},
 	{"key": "handbrake_force", "tkey": "car.handbrake_force", "min": 5000.0, "max": 40000.0, "step": 100.0},
-	{"key": "handbrake_lat_grip", "tkey": "car.handbrake_lat_grip", "min": 0.0, "max": 1.0, "step": 0.01},
 	{"key": "brake_bias_front", "tkey": "car.brake_bias_front", "min": 0.3, "max": 0.85, "step": 0.01},
 	{"section": "car.sec.clutch"},
 	{"key": "clutch_max_torque", "tkey": "car.clutch_max_torque", "min": 200.0, "max": 1500.0, "step": 10.0},
@@ -135,6 +146,7 @@ const PARAMS: Array[Dictionary] = [
 	{"key": "steer_curve_max_kmh", "tkey": "car.steer_curve_max_kmh", "min": 60.0, "max": 260.0, "step": 5.0},
 	{"key": "steer_high_speed_factor", "tkey": "car.steer_high_speed_factor", "min": 0.15, "max": 1.0, "step": 0.05},
 	{"key": "steer_input_gamma", "tkey": "car.steer_input_gamma", "min": 1.0, "max": 2.5, "step": 0.05},
+	{"key": "self_steer_alignment_ratio", "tkey": "car.self_steer_alignment_ratio", "min": 0.4, "max": 1.0, "step": 0.02},
 	{"key": "drift_assist", "tkey": "car.drift_assist", "min": 0.0, "max": 2.0, "step": 0.05},
 	{"key": "arcade_assist", "tkey": "car.arcade_assist", "min": 0.0, "max": 1.0, "step": 0.05},
 	{"key": "fwd_lat_priority", "tkey": "car.fwd_lat_priority", "min": 0.0, "max": 1.0, "step": 0.05},
@@ -144,6 +156,7 @@ const PARAMS: Array[Dictionary] = [
 	{"section": "car.sec.alignment"},
 	{"key": "front_caster_deg", "tkey": "car.front_caster_deg", "min": 0.0, "max": 10.0, "step": 0.25},
 	{"key": "rear_camber_deg", "tkey": "car.rear_camber_deg", "min": -6.0, "max": 2.0, "step": 0.25},
+	{"key": "ackermann", "tkey": "car.ackermann", "min": 0.0, "max": 1.0, "step": 0.05},
 ]
 
 
@@ -156,10 +169,17 @@ func _rebuild_ui() -> void:
 	_rear_diff_option = null
 	_layout_option = null
 
+	var allowed: PackedStringArray = _sections_for_tab(_active_tab)
+	var show := false
 	for entry: Dictionary in PARAMS:
 		if entry.has("section"):
-			_add_section(Lang.t(entry.section))
-		elif entry.has("options"):
+			show = allowed.has(String(entry.section))
+			if show:
+				_add_section(Lang.t(entry.section))
+			continue
+		if not show:
+			continue
+		if entry.has("options"):
 			match String(entry.options):
 				"engine_layout":
 					_add_engine_layout()
@@ -179,6 +199,45 @@ func _rebuild_ui() -> void:
 				)
 		else:
 			_add_slider(entry.key, Lang.t(entry.tkey), entry.min, entry.max, entry.step, _param_value(entry.key))
+	var scroll := _list.get_parent() as ScrollContainer
+	if scroll != null:
+		scroll.scroll_vertical = 0
+
+
+func _ensure_tabs() -> void:
+	if _tab_bar != null:
+		return
+	var panel := _list.get_parent().get_parent()
+	_tab_bar = HBoxContainer.new()
+	_tab_bar.name = "TabBar"
+	panel.get_parent().add_child(_tab_bar)
+	panel.get_parent().move_child(_tab_bar, panel.get_index())
+
+
+func _refresh_tabs() -> void:
+	_ensure_tabs()
+	var entries: Array = []
+	for tab in TABS:
+		entries.append({"id": tab["id"], "text": Lang.t(String(tab["tkey"]))})
+	UiStyle.fill_tabs(_tab_bar, entries, _active_tab, _on_tab)
+
+
+func _on_tab(id: String) -> void:
+	if id == _active_tab:
+		return
+	_active_tab = id
+	_refresh_tabs()
+	_rebuild_ui()
+
+
+func _sections_for_tab(id: String) -> PackedStringArray:
+	for tab in TABS:
+		if String(tab["id"]) == id:
+			var out := PackedStringArray()
+			for section in tab["sections"]:
+				out.append(String(section))
+			return out
+	return PackedStringArray()
 
 
 func _param_value(key: String) -> float:
@@ -289,6 +348,7 @@ func _add_slider(
 	var val_l := Label.new()
 	val_l.custom_minimum_size = Vector2(80, 0)
 	val_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	UiStyle.lcd_label_style(val_l, 15)
 	val_l.text = _format_value(value, step)
 	row.add_child(val_l)
 
@@ -428,14 +488,14 @@ func _apply_key(key: String, value: float) -> void:
 			s.tire_mu_front = value
 		"tire_mu_rear":
 			s.tire_mu_rear = value
+		"tire_combined_slip":
+			s.tire_combined_slip = value
 		"rolling_resistance":
 			s.rolling_resistance = value
 		"brake_force":
 			s.brake_force = value
 		"handbrake_force":
 			s.handbrake_force = value
-		"handbrake_lat_grip":
-			s.handbrake_lat_grip = value
 		"brake_bias_front":
 			s.brake_bias_front = value
 		"clutch_max_torque":
@@ -470,6 +530,8 @@ func _apply_key(key: String, value: float) -> void:
 			s.steer_high_speed_factor = value
 		"steer_input_gamma":
 			s.steer_input_gamma = value
+		"self_steer_alignment_ratio":
+			s.self_steer_alignment_ratio = value
 		"drift_assist":
 			s.drift_assist = value
 		"arcade_assist":
@@ -478,6 +540,8 @@ func _apply_key(key: String, value: float) -> void:
 			s.front_caster_deg = value
 		"rear_camber_deg":
 			s.rear_camber_deg = value
+		"ackermann":
+			s.ackermann = value
 		"fwd_lat_priority":
 			s.fwd_lat_priority = value
 		"fwd_slip_angle_start_deg":

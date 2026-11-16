@@ -50,21 +50,33 @@ public partial class CarController : RigidBody3D
 	public int debug_rear_spin;
 	public float debug_body_slip_deg;
 	public float debug_yaw_assist_nm;
+	/// <summary>Self-steer contribution to the rack target, degrees.</summary>
+	public float debug_self_steer_deg;
+	public bool debug_self_steer_active;
 
 	private readonly System.Collections.Generic.List<Wheel> _wheels = new();
 	private float _currentSteer;
 	private float _steerLockSmooth = 1.0f;
 	private float _throttleCmd;
 	private float _shiftTimer;
+	private int _shiftDirection;
+	private bool _autoHold;
+	private bool _brakeStop;
+	private float _restTime;
 	private readonly System.Collections.Generic.List<float> _prevLengths = new();
 	private bool _bodyApplied;
 	private float _baseAngularDamp = 1.2f;
 	private float _autoShiftCooldown;
 	private Transform3D _spawnTransform = Transform3D.Identity;
 	private float _clutchEngageTimer;
+	private float _launchEngage;
+	private bool _creepBrake;
+	private float _steerDriftBlend;
 	private bool _revLimiterCut;
 	public bool occupied;
 	public Node occupant;
+	/// <summary>Pose is written from outside. The tire solver does not run.</summary>
+	public bool scripted_motion;
 	private float _modelBaseY;
 	private float _collisionBaseY;
 	private bool _visualBasesCached;
@@ -81,7 +93,9 @@ public partial class CarController : RigidBody3D
 
 	public override void _Ready()
 	{
-		AddToGroup("player_cars");
+		bool tandem = HasMeta("tandem_rival") && GetMeta("tandem_rival").AsBool();
+		if (!tandem)
+			AddToGroup("player_cars");
 		_spawnTransform = GlobalTransform;
 		if (setup != null)
 			setup = (Resource)setup.Duplicate(true);
@@ -90,9 +104,11 @@ public partial class CarController : RigidBody3D
 		setup.Call("ensure_torque_curve");
 		setup.Call("ensure_steer_angle_curve");
 		setup.Call("migrate_legacy_fields");
-		TuningStore?.Call("apply_overrides_to_car", this);
+		if (!tandem)
+			TuningStore?.Call("apply_overrides_to_car", this);
 		RefreshSetupCache();
-		ApplyPackAssets();
+		bool showroom = HasMeta("showroom") && GetMeta("showroom").AsBool();
+		ApplyPackAssets(showroom);
 		ApplyBodySetup();
 		RebuildWheels();
 		ApplyVisualTuning();
@@ -105,10 +121,109 @@ public partial class CarController : RigidBody3D
 			Friction = 0.0f,
 			Bounce = 0.0f,
 		};
-		TuningStore?.Call("bind_car_id", car_id);
+		if (!tandem)
+			TuningStore?.Call("bind_car_id", car_id);
+		if (tandem)
+			BeginScriptedMotion();
 	}
 
-	private void ApplyPackAssets()
+	private void BeginScriptedMotion()
+	{
+		scripted_motion = true;
+		// Layer 3 only. The player already scans it, and the road does not,
+		// so the body can shove the player without planting itself in the asphalt.
+		CollisionLayer = 4;
+		CollisionMask = 4;
+		CanSleep = false;
+		FreezeMode = FreezeModeEnum.Kinematic;
+		Freeze = true;
+		Sleeping = false;
+		GravityScale = 0.0f;
+		var driver = GetNodeOrNull("PlayerDriver");
+		if (driver != null)
+			driver.ProcessMode = ProcessModeEnum.Disabled;
+		var lights = GetNodeOrNull("CarLights");
+		if (lights != null)
+			lights.Set("lights_on", true);
+		foreach (Node node in FindChildren("*", "Camera3D", true, false))
+		{
+			if (node is Camera3D cam)
+				cam.Current = false;
+		}
+	}
+
+	public void refresh_camera()
+	{
+		if (!occupied)
+			return;
+		ApplyCameraMode();
+	}
+
+	/// <summary>
+	/// Plant the body on a recorded pose. Wheels, slip and rpm are faked so the
+	/// rival still steers, smokes and revs while ignoring the tire solver.
+	/// </summary>
+	public void apply_scripted_motion(Transform3D xf, Vector3 velocity, Vector3 angularVelocity, float steerInput, float slipDeg, bool snap)
+	{
+		scripted_motion = true;
+		if (!Freeze)
+			BeginScriptedMotion();
+		steerInput = Mathf.Clamp(steerInput, -1.0f, 1.0f);
+		Sleeping = false;
+		// A frozen kinematic body does not integrate linear_velocity. The pose
+		// has to be written, and the velocity is what shoves a dynamic car.
+		if (snap)
+		{
+			GlobalTransform = xf;
+			PhysicsServer3D.BodySetState(GetRid(), PhysicsServer3D.BodyState.Transform, xf);
+		}
+		LinearVelocity = velocity;
+		AngularVelocity = angularVelocity;
+		PhysicsServer3D.BodySetState(GetRid(), PhysicsServer3D.BodyState.LinearVelocity, velocity);
+		PhysicsServer3D.BodySetState(GetRid(), PhysicsServer3D.BodyState.AngularVelocity, angularVelocity);
+		xf = GlobalTransform;
+
+		steering = steerInput;
+		throttle = 0.85f;
+		brake = 0.0f;
+		handbrake = Mathf.Abs(slipDeg) > 10.0f ? 0.4f : 0.0f;
+		float speed = velocity.Length();
+		engine_rpm = Mathf.Clamp(1500.0f + speed * 150.0f + Mathf.Abs(slipDeg) * 28.0f, 900.0f, 7600.0f);
+		float maxSteer = setup != null ? Mathf.Max(setup.Get("max_steer_angle").AsSingle(), 1.0f) : 32.0f;
+		debug_steer_rad = steerInput * Mathf.DegToRad(maxSteer);
+		debug_body_slip_deg = slipDeg;
+
+		float radius = 0.3f;
+		if (setup != null)
+			radius = Mathf.Max(setup.Get("wheel_radius").AsSingle(), 0.15f);
+		Vector3 up = xf.Basis.Y.Normalized();
+		float slipRad = Mathf.DegToRad(slipDeg);
+		bool sliding = Mathf.Abs(slipDeg) > 8.0f && speed > 3.0f;
+		foreach (Wheel wheel in _wheels)
+		{
+			wheel.on_ground = true;
+			wheel.contact_time = 1.0f;
+			wheel.up = up;
+			wheel.hit_normal = up;
+			wheel.steer_angle = wheel.is_steering ? debug_steer_rad : 0.0f;
+			Basis steered = xf.Basis.Rotated(up, wheel.steer_angle);
+			wheel.forward = (-steered.Z).Normalized();
+			wheel.right = up.Cross(wheel.forward).Normalized();
+			wheel.effective_radius = radius;
+			wheel.longitudinal_speed = speed;
+			wheel.lateral_speed = speed * Mathf.Sin(slipRad);
+			wheel.angular_velocity = speed / radius;
+			wheel.slip_angle = slipRad;
+			wheel.filtered_slip_angle = slipRad;
+			wheel.slip_ratio = sliding && !wheel.is_steering ? 0.42f : 0.02f;
+			wheel.filtered_slip_ratio = wheel.slip_ratio;
+			wheel.normal_load = 2800.0f;
+			Vector3 hub = xf * wheel.local_origin;
+			wheel.hit_point = hub - up * radius;
+		}
+	}
+
+	private void ApplyPackAssets(bool showroom)
 	{
 		if (wheel_scene != null)
 		{
@@ -120,7 +235,7 @@ public partial class CarController : RigidBody3D
 				layout.Set("wheel_scene", wheel_scene);
 		}
 
-		if (audio_profile != null)
+		if (!showroom && audio_profile != null)
 		{
 			var engineAudio = GetNodeOrNull("EngineAudio");
 			if (engineAudio != null && engineAudio.HasMethod("apply_profile"))
@@ -149,12 +264,15 @@ public partial class CarController : RigidBody3D
 			}
 		}
 
-		EnsureChild("WheelSmoke", "res://vehicles/wheel_smoke.gd", typeof(Node3D));
-		EnsureChild("SkidMarks", "res://vehicles/skid_marks.gd", typeof(Node3D));
-		EnsureChild("TireAudio", "res://vehicles/tire_audio.gd", typeof(Node3D));
+		if (!showroom)
+		{
+			EnsureChild("WheelSmoke", "res://vehicles/wheel_smoke.gd", typeof(Node3D));
+			EnsureChild("SkidMarks", "res://vehicles/skid_marks.gd", typeof(Node3D));
+			EnsureChild("TireAudio", "res://vehicles/tire_audio.gd", typeof(Node3D));
+			EnsureChild("ExhaustFlame", "res://vehicles/exhaust_flame.gd", typeof(Node3D));
+		}
 		EnsureChild("PlayerDriver", "res://vehicles/player_driver.gd", typeof(Node));
 		EnsureChild("CarLights", "res://vehicles/car_lights.gd", typeof(Node3D));
-		EnsureChild("ExhaustFlame", "res://vehicles/exhaust_flame.gd", typeof(Node3D));
 	}
 
 	private static Variant CallBaker(string method, params Variant[] args)
@@ -245,12 +363,14 @@ public partial class CarController : RigidBody3D
 		steering = 0.0f;
 		_currentSteer = 0.0f;
 		_steerLockSmooth = 1.0f;
+		_steerDriftBlend = 0.0f;
 		_throttleCmd = 0.0f;
 		current_gear = 1;
 		RefreshSetupCache();
 		engine_rpm = setup != null ? _c.IdleRpm : 800.0f;
 		clutch = 1.0f;
 		_clutchEngageTimer = 0.0f;
+		_launchEngage = 0.0f;
 		_shiftTimer = 0.0f;
 		_autoShiftCooldown = 0.0f;
 		want_reverse = false;
@@ -347,9 +467,10 @@ public partial class CarController : RigidBody3D
 
 	private void BeginShift(int fromGear, int toGear)
 	{
-		_shiftTimer = _c.ShiftTime;
+		_shiftTimer = Mathf.Clamp(_c.ShiftTime * 0.6f, 0.07f, 0.14f);
+		_shiftDirection = Mathf.Sign(toGear - fromGear);
 		clutch = 0.0f;
-		_clutchEngageTimer = _c.ClutchEngageTime;
+		_clutchEngageTimer = Mathf.Clamp(_c.ClutchEngageTime * 0.55f, 0.05f, 0.1f);
 		EmitSignal(SignalName.gear_shifted, fromGear, toGear);
 	}
 

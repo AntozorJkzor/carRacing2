@@ -28,11 +28,11 @@ func _polish() -> void:
 			var mat := mi.get_active_material(s) as StandardMaterial3D
 			if mat == null:
 				continue
-			_upgrade(mat)
+			_upgrade(mat, String(mi.name))
 
 
-func _upgrade(mat: StandardMaterial3D) -> void:
-	var n := mat.resource_name.to_lower()
+func _upgrade(mat: StandardMaterial3D, mesh_name: String) -> void:
+	var n := (mat.resource_name + " " + mesh_name).to_lower()
 	if ("body" in n) or ("paint" in n):
 		mat.metallic = 0.35
 		mat.roughness = 0.32
@@ -53,8 +53,13 @@ func _upgrade(mat: StandardMaterial3D) -> void:
 	):
 		mat.metallic = 1.0
 		mat.roughness = 0.22
-	elif ("glass" in n) or ("window" in n) or ("windshield" in n) or ("backglass" in n):
-		## Opaque glossy dark tint — a transparent swap would expose missing interior.
+	elif ("glass" in n) or ("window" in n) or ("windshield" in n) or ("backglass" in n) or ("стекл" in n):
+		## Keep the imported alpha so the cabin camera can see out.
+		## Drawn before tire smoke (render_priority 1) so a plume in front still covers the pane.
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+		mat.no_depth_test = false
+		mat.render_priority = -1
 		mat.roughness = 0.06
 		mat.metallic = 0.0
 		var c := mat.albedo_color

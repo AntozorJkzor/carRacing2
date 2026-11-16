@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using Godot;
-using Godot.Collections;
 
 /// <summary>
 /// Primitive lap AI: chase track waypoints, throttle/steer into CarController.
@@ -9,7 +8,6 @@ using Godot.Collections;
 [GlobalClass]
 public partial class RaceAiDriver : Node
 {
-	[Export] public string WaypointsPath { get; set; } = "res://assets/scenes/tracks/track2_waypoints.json";
 	[Export] public float LookAhead { get; set; } = 18.0f;
 	[Export] public float MaxThrottle { get; set; } = 0.92f;
 	[Export] public float CornerBrakeAngleDeg { get; set; } = 28.0f;
@@ -39,7 +37,6 @@ public partial class RaceAiDriver : Node
 
 		_car.RemoveFromGroup("player_cars");
 		_car.AddToGroup("ai_cars");
-		LoadWaypoints();
 		SnapToNearestWaypoint();
 		ProcessPriority = 40;
 	}
@@ -92,32 +89,6 @@ public partial class RaceAiDriver : Node
 		_car.brake = brake;
 		_car.handbrake = 0.0f;
 		_car.want_reverse = false;
-	}
-
-	private void LoadWaypoints()
-	{
-		_waypoints.Clear();
-		if (!FileAccess.FileExists(WaypointsPath))
-		{
-			GD.PushWarning($"RaceAiDriver: missing waypoints {WaypointsPath}");
-			return;
-		}
-
-		using var file = FileAccess.Open(WaypointsPath, FileAccess.ModeFlags.Read);
-		string json = file.GetAsText();
-		var root = Json.ParseString(json).AsGodotDictionary();
-		if (root == null || !root.ContainsKey("waypoints"))
-			return;
-
-		var arr = root["waypoints"].AsGodotArray();
-		foreach (Variant item in arr)
-		{
-			var p = item.AsGodotDictionary();
-			float x = p["x"].AsSingle();
-			float y = p["y"].AsSingle();
-			float z = p["z"].AsSingle();
-			_waypoints.Add(new Vector3(x, y, z));
-		}
 	}
 
 	private void SnapToNearestWaypoint()

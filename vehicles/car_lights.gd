@@ -4,8 +4,9 @@ extends Node3D
 const MinimapLayers := preload("res://rendering/minimap_layers.gd")
 
 ## Exterior lights.
-## Headlights ON → one front SpotLight + one rear OmniLight, plus emission on lamp meshes.
-## Brake (day or night) → emission only on taillights and the high-mount repeater. No brake Omni/Spot.
+## One SpotLight per headlamp and per taillight, plus emission on the lamp meshes.
+## A lone Center marker is split into a left and a right beam.
+## Brake brightens the rear beams. The high-mount repeater stays emission-only.
 
 @export var lights_on: bool = false:
 	set(value):
@@ -16,9 +17,9 @@ const MinimapLayers := preload("res://rendering/minimap_layers.gd")
 
 @export_group("Headlights")
 @export var head_color: Color = Color(1.0, 0.96, 0.85)
-@export_range(0.0, 16.0, 0.1) var head_energy: float = 6.0
-@export_range(4.0, 40.0, 0.5) var head_range: float = 18.0
-@export_range(5.0, 50.0, 0.5) var head_spot_angle: float = 28.0
+@export_range(0.0, 16.0, 0.1) var head_energy: float = 8.0
+@export_range(4.0, 40.0, 0.5) var head_range: float = 24.0
+@export_range(5.0, 50.0, 0.5) var head_spot_angle: float = 20.0
 @export_range(0.0, 8.0, 0.1) var head_emission_energy: float = 2.4
 
 @export_group("Tail / running lights")
@@ -26,9 +27,8 @@ const MinimapLayers := preload("res://rendering/minimap_layers.gd")
 @export_range(0.0, 8.0, 0.1) var tail_energy: float = 2.2
 @export_range(1.0, 20.0, 0.5) var tail_range: float = 6.0
 @export_range(0.0, 8.0, 0.1) var tail_emission_energy: float = 1.1
-## Wide rear beam for running lights + brake lights. Points straight back,
-## so it does not spill under the car or into the cabin.
-@export_range(30.0, 120.0, 1.0) var tail_spot_angle: float = 90.0
+## Each taillight's beam. Aimed down at the road behind the car.
+@export_range(15.0, 80.0, 1.0) var tail_spot_angle: float = 38.0
 
 @export_group("Brake lights")
 @export var brake_color: Color = Color(1.0, 0.08, 0.05)
@@ -57,8 +57,10 @@ const GROUP_BRAKE := "BrakeLights"
 const GROUP_REVERSE := "ReverseLights"
 
 var _car: CarController
-var _head_spot: SpotLight3D
-var _tail_light: SpotLight3D
+var _head_spots: Array[SpotLight3D] = []
+var _tail_spots: Array[SpotLight3D] = []
+const _HEAD_SPLIT := 0.58
+const _TAIL_SPLIT := 0.62
 ## Effective headlight output. For popup headlights it lags lights_on:
 ## the beam ignites when the open animation finishes and dies the moment
 ## the close animation starts.
@@ -81,7 +83,13 @@ func _ready() -> void:
 	_ensure_groups_and_markers()
 	_bind_body_lamps()
 	_resolve_popup_player()
-	_reset_popup_to_closed()
+	var showroom := _car != null and _car.has_meta("showroom") and bool(_car.get_meta("showroom"))
+	if showroom:
+		lights_on = true
+		_snap_popup_open()
+		_snap_popup_open.call_deferred()
+	else:
+		_reset_popup_to_closed()
 	_rebuild_all()
 	_apply_headlights()
 	_apply_brake_lights(false)
@@ -199,15 +207,6 @@ func _markers_in(group: Node) -> Array[Marker3D]:
 	return out
 
 
-func _marker_centroid(markers: Array[Marker3D]) -> Vector3:
-	if markers.is_empty():
-		return Vector3.ZERO
-	var mid := Vector3.ZERO
-	for marker in markers:
-		mid += marker.position
-	return mid / float(markers.size())
-
-
 func _clear_light_children(node: Node) -> void:
 	if node == null:
 		return
@@ -237,6 +236,7 @@ func _bind_body_lamps() -> void:
 		for surface in mesh.mesh.get_surface_count():
 			var kind := _lamp_kind(mesh, surface)
 			if kind.is_empty():
+				_harden_window(mesh, surface)
 				continue
 			var mat := _override_standard(mesh, surface)
 			if mat == null:
@@ -320,9 +320,34 @@ func _override_standard(mesh: MeshInstance3D, surface: int) -> StandardMaterial3
 	return copy
 
 
+## Windows stay transparent for the cabin camera. They draw before tire smoke
+## so a plume in front of the glass still covers it.
+func _harden_window(mesh: MeshInstance3D, surface: int) -> void:
+	var active := mesh.get_active_material(surface)
+	if active == null or not (active is StandardMaterial3D):
+		return
+	var src := active as StandardMaterial3D
+	var blob := (String(mesh.name) + " " + src.resource_name).to_lower()
+	var is_window := (
+		"window" in blob
+		or "windshield" in blob
+		or "backglass" in blob
+		or "стекл" in blob
+		or ("glass" in blob and "lamp" not in blob and "headlight" not in blob and "taillight" not in blob)
+	)
+	if not is_window:
+		return
+	var copy := src.duplicate() as StandardMaterial3D
+	copy.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	copy.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	copy.no_depth_test = false
+	copy.render_priority = -1
+	mesh.set_surface_override_material(surface, copy)
+
+
 func _rebuild_all() -> void:
-	_head_spot = null
-	_tail_light = null
+	_head_spots.clear()
+	_tail_spots.clear()
 	_head_glows.clear()
 	_brake_glows.clear()
 	_reverse_glows.clear()
@@ -338,13 +363,8 @@ func _rebuild_all() -> void:
 			_head_glows.append(_make_glow(marker, head_color, Vector2(0.28, 0.12), true))
 	if head_group != null:
 		_clear_light_children(head_group)
-		var spot := SpotLight3D.new()
-		spot.name = "Spot"
-		spot.layers = MinimapLayers.LIGHTS
-		spot.shadow_enabled = false
-		spot.position = _marker_centroid(head_markers)
-		head_group.add_child(spot)
-		_head_spot = spot
+	for slot in _beam_slots(head_markers, _HEAD_SPLIT):
+		_head_spots.append(_make_beam(slot["marker"] as Marker3D, slot["offset"] as Vector3, false))
 
 	var brake_group := get_node_or_null(GROUP_BRAKE) as Node3D
 	var brake_markers := _markers_in(brake_group)
@@ -354,20 +374,44 @@ func _rebuild_all() -> void:
 			_brake_glows.append(_make_glow(marker, brake_color, Vector2(0.22, 0.1), false))
 	if brake_group != null:
 		_clear_light_children(brake_group)
-		var rear_spot := SpotLight3D.new()
-		rear_spot.name = "RearSpot"
-		rear_spot.layers = MinimapLayers.LIGHTS
-		rear_spot.shadow_enabled = false
-		rear_spot.rotation.y = PI
-		rear_spot.spot_angle = tail_spot_angle
-		rear_spot.position = _marker_centroid(brake_markers)
-		brake_group.add_child(rear_spot)
-		_tail_light = rear_spot
+	for slot in _beam_slots(brake_markers, _TAIL_SPLIT):
+		_tail_spots.append(_make_beam(slot["marker"] as Marker3D, slot["offset"] as Vector3, true))
 
 	for marker in _markers_in(get_node_or_null(GROUP_REVERSE)):
 		_clear_light_children(marker)
 		if use_tail_quads:
 			_reverse_glows.append(_make_glow(marker, reverse_color, Vector2(0.16, 0.08), false))
+
+
+func _beam_slots(markers: Array[Marker3D], half_width: float) -> Array[Dictionary]:
+	var usable: Array[Marker3D] = []
+	for marker in markers:
+		if String(marker.name) == "High":
+			continue
+		usable.append(marker)
+	var slots: Array[Dictionary] = []
+	if usable.size() == 1 and String(usable[0].name) == "Center":
+		slots.append({"marker": usable[0], "offset": Vector3(-half_width, 0.0, 0.0)})
+		slots.append({"marker": usable[0], "offset": Vector3(half_width, 0.0, 0.0)})
+		return slots
+	for marker in usable:
+		slots.append({"marker": marker, "offset": Vector3.ZERO})
+	return slots
+
+
+func _make_beam(marker: Marker3D, offset: Vector3, backward: bool) -> SpotLight3D:
+	var spot := SpotLight3D.new()
+	spot.name = "Beam"
+	spot.layers = MinimapLayers.LIGHTS
+	spot.shadow_enabled = false
+	spot.distance_fade_enabled = false
+	spot.position = offset
+	marker.add_child(spot)
+	var lateral := marker.position.x + offset.x
+	var toe := clampf(lateral * 1.8, -1.5, 1.5)
+	var ahead := 6.5 if backward else -6.5
+	spot.look_at(marker.to_global(offset + Vector3(toe, -0.7, ahead)), Vector3.UP)
+	return spot
 
 
 func _make_glow(marker: Marker3D, color: Color, size: Vector2, face_forward: bool) -> MeshInstance3D:
@@ -402,20 +446,21 @@ func _set_emission(mat: StandardMaterial3D, color: Color, energy: float, on: boo
 
 
 func _apply_headlights() -> void:
-	if _head_spot == null and not _markers_in(get_node_or_null(GROUP_HEAD)).is_empty():
+	if _head_spots.is_empty() and not _markers_in(get_node_or_null(GROUP_HEAD)).is_empty():
 		_rebuild_all()
-	if is_instance_valid(_head_spot):
-		_head_spot.light_color = head_color
-		_head_spot.light_energy = head_energy if _head_beam_on else 0.0
-		_head_spot.spot_range = head_range
-		_head_spot.spot_angle = head_spot_angle
-		_head_spot.light_specular = 0.25
-		_head_spot.light_volumetric_fog_energy = 0.0
-		_head_spot.shadow_enabled = false
-		_head_spot.distance_fade_enabled = true
-		_head_spot.distance_fade_begin = 12.0
-		_head_spot.distance_fade_length = 8.0
-		_head_spot.visible = _head_beam_on
+	for spot in _head_spots:
+		if not is_instance_valid(spot):
+			continue
+		spot.light_color = head_color
+		spot.light_energy = head_energy if _head_beam_on else 0.0
+		spot.spot_range = head_range
+		spot.spot_angle = head_spot_angle
+		spot.spot_attenuation = 0.55
+		spot.light_specular = 0.35
+		spot.light_volumetric_fog_energy = 0.0
+		spot.shadow_enabled = false
+		spot.distance_fade_enabled = false
+		spot.visible = _head_beam_on
 	for mat in _head_mats:
 		_set_emission(mat, head_color, head_emission_energy, _head_beam_on)
 	for glow in _head_glows:
@@ -424,12 +469,8 @@ func _apply_headlights() -> void:
 	_apply_rear_light()
 
 
-## Brake-aware rear beam: bright wide beam while braking, dim when running
-## lights are on, off otherwise. Shares one SpotLight3D pointing backwards.
+## One beam per taillight. Bright while braking, dim with the running lights.
 func _apply_rear_light() -> void:
-	if not is_instance_valid(_tail_light):
-		return
-	var braking := _brake_on or _reverse_on
 	var energy := 0.0
 	var color := tail_color
 	if _brake_on:
@@ -440,16 +481,18 @@ func _apply_rear_light() -> void:
 		color = reverse_color
 	elif lights_on:
 		energy = tail_energy
-	_tail_light.light_color = color
-	_tail_light.light_energy = energy
-	_tail_light.spot_range = tail_range
-	_tail_light.spot_angle = tail_spot_angle
-	_tail_light.light_specular = 0.15
-	_tail_light.shadow_enabled = false
-	_tail_light.distance_fade_enabled = true
-	_tail_light.distance_fade_begin = 8.0
-	_tail_light.distance_fade_length = 5.0
-	_tail_light.visible = energy > 0.0
+	for spot in _tail_spots:
+		if not is_instance_valid(spot):
+			continue
+		spot.light_color = color
+		spot.light_energy = energy
+		spot.spot_range = tail_range
+		spot.spot_angle = tail_spot_angle
+		spot.spot_attenuation = 0.7
+		spot.light_specular = 0.15
+		spot.shadow_enabled = false
+		spot.distance_fade_enabled = false
+		spot.visible = energy > 0.0
 
 
 func _resolve_popup_player() -> void:
@@ -502,6 +545,26 @@ func _play_popup(on: bool) -> void:
 	var anim: StringName = popup_on_anim if on else popup_off_anim
 	if _popup_ap.has_animation(anim):
 		_popup_ap.play(anim, -1.0, popup_speed)
+
+
+## Garage: lamps lit, and popup covers snapped fully open.
+func present_in_showroom() -> void:
+	lights_on = true
+	_snap_popup_open()
+	_snap_popup_open.call_deferred()
+
+
+func _snap_popup_open() -> void:
+	if _popup_ap == null or not _popup_ap.has_animation(popup_on_anim):
+		_head_beam_on = lights_on
+		_apply_headlights()
+		return
+	var anim := _popup_ap.get_animation(popup_on_anim)
+	_popup_ap.play(popup_on_anim, 0.0, 1.0, false)
+	_popup_ap.seek(anim.length, true)
+	_popup_ap.pause()
+	_head_beam_on = true
+	_apply_headlights()
 
 
 func _on_popup_animation_finished(anim_name: StringName) -> void:
